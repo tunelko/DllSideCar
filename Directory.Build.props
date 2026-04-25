@@ -2,14 +2,16 @@
 
   <PropertyGroup>
     <!--
-      Run all analyzers on every build (CI + local). Local IDE shows them as
-      warnings; .editorconfig promotes specific security rules to errors so a
-      finding will fail the build only for those.
+      Run analyzers on every build (CI + local). AnalysisMode is left at the
+      SDK default ("Default") so only Microsoft's curated set of rules is on;
+      .editorconfig then promotes the entire Security category to error.
+      Setting AllEnabledByDefault here would resurrect ~1200 design/style
+      warnings that aren't actionable for this project and would drown out
+      the actual security signal.
     -->
     <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisLevel>latest</AnalysisLevel>
-    <AnalysisMode>AllEnabledByDefault</AnalysisMode>
   </PropertyGroup>
 
   <ItemGroup>
