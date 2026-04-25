@@ -1,0 +1,27 @@
+<Project>
+
+  <PropertyGroup>
+    <!--
+      Run all analyzers on every build (CI + local). Local IDE shows them as
+      warnings; .editorconfig promotes specific security rules to errors so a
+      finding will fail the build only for those.
+    -->
+    <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>AllEnabledByDefault</AnalysisMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      SecurityCodeScan: free OWASP-style Roslyn analyzer covering injection,
+      crypto misuse, weak randomness, XML/XPath/LDAP injection, etc.
+      PrivateAssets=all keeps it as a build-time analyzer only — nothing ships.
+    -->
+    <PackageReference Include="SecurityCodeScan.VS2019" Version="5.6.7">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

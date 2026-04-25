@@ -550,9 +550,17 @@ public partial class AdvisoryLibraryPage : Page
         var imported = new List<string>();
         try
         {
+            var tempDirPrefix = Path.GetFullPath(tempDir) + Path.DirectorySeparatorChar;
             foreach (var entry in zip.Entries.Where(e => e.Name.EndsWith(".dsa", StringComparison.OrdinalIgnoreCase)))
             {
-                var inner = Path.Combine(tempDir, entry.Name);
+                // Zip Slip defense (SCS0018): strip any directory components and verify
+                // the resolved path stays under tempDir. A crafted bundle entry like
+                // "../../foo.dsa" would otherwise let the extractor escape tempDir.
+                var safeName = Path.GetFileName(entry.Name);
+                if (string.IsNullOrEmpty(safeName)) continue;
+                var inner = Path.GetFullPath(Path.Combine(tempDir, safeName));
+                if (!inner.StartsWith(tempDirPrefix, StringComparison.OrdinalIgnoreCase)) continue;
+
                 entry.ExtractToFile(inner, overwrite: true);
                 try { imported.Add(await svc.ImportAsync(inner)); }
                 catch { /* keep going — partial imports beat aborting on one bad entry */ }

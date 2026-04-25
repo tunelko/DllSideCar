@@ -1,0 +1,171 @@
+# EditorConfig for DllSidecar
+# Root: stop walking up
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = crlf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.{xaml,csproj,props,targets}]
+indent_size = 2
+
+[*.{yml,yaml,json}]
+indent_size = 2
+end_of_line = lf
+
+# ---------------------------------------------------------------------------
+# Roslyn analyzer severities — only security rules are promoted to ERROR.
+# Style/quality stays at suggestion so dev iteration isn't blocked.
+# ---------------------------------------------------------------------------
+
+[*.cs]
+# --- .NET CA security rules → ERROR ---------------------------------------
+# CA2100: SQL queries built from string concatenation (we use SQLite!)
+dotnet_diagnostic.CA2100.severity = error
+# CA2109: Review visible event handlers
+dotnet_diagnostic.CA2109.severity = error
+# CA2153: Do NOT catch corrupted state exceptions
+dotnet_diagnostic.CA2153.severity = error
+# CA3001-CA3076: web injections (XSS, XPath, XML, LDAP, command, regex)
+dotnet_diagnostic.CA3001.severity = error
+dotnet_diagnostic.CA3002.severity = error
+dotnet_diagnostic.CA3003.severity = error
+dotnet_diagnostic.CA3004.severity = error
+dotnet_diagnostic.CA3005.severity = error
+dotnet_diagnostic.CA3006.severity = error
+dotnet_diagnostic.CA3007.severity = error
+dotnet_diagnostic.CA3008.severity = error
+dotnet_diagnostic.CA3009.severity = error
+dotnet_diagnostic.CA3010.severity = error
+dotnet_diagnostic.CA3011.severity = error
+dotnet_diagnostic.CA3012.severity = error
+dotnet_diagnostic.CA3061.severity = error
+dotnet_diagnostic.CA3075.severity = error
+dotnet_diagnostic.CA3076.severity = error
+dotnet_diagnostic.CA3077.severity = error
+dotnet_diagnostic.CA3147.severity = error
+# CA5350-CA5404: weak/broken crypto, weak hashing, weak randomness, certificate validation
+dotnet_diagnostic.CA5350.severity = error
+dotnet_diagnostic.CA5351.severity = error
+dotnet_diagnostic.CA5358.severity = error
+dotnet_diagnostic.CA5359.severity = error
+dotnet_diagnostic.CA5360.severity = error
+dotnet_diagnostic.CA5361.severity = error
+dotnet_diagnostic.CA5362.severity = error
+dotnet_diagnostic.CA5363.severity = error
+dotnet_diagnostic.CA5364.severity = error
+dotnet_diagnostic.CA5365.severity = error
+dotnet_diagnostic.CA5366.severity = error
+dotnet_diagnostic.CA5367.severity = error
+dotnet_diagnostic.CA5368.severity = error
+dotnet_diagnostic.CA5369.severity = error
+dotnet_diagnostic.CA5370.severity = error
+dotnet_diagnostic.CA5371.severity = error
+dotnet_diagnostic.CA5372.severity = error
+dotnet_diagnostic.CA5373.severity = error
+dotnet_diagnostic.CA5374.severity = error
+dotnet_diagnostic.CA5375.severity = error
+dotnet_diagnostic.CA5376.severity = error
+dotnet_diagnostic.CA5377.severity = error
+dotnet_diagnostic.CA5378.severity = error
+dotnet_diagnostic.CA5379.severity = error
+dotnet_diagnostic.CA5380.severity = error
+dotnet_diagnostic.CA5381.severity = error
+dotnet_diagnostic.CA5382.severity = error
+dotnet_diagnostic.CA5383.severity = error
+dotnet_diagnostic.CA5384.severity = error
+dotnet_diagnostic.CA5385.severity = error
+dotnet_diagnostic.CA5386.severity = error
+dotnet_diagnostic.CA5387.severity = error
+dotnet_diagnostic.CA5388.severity = error
+dotnet_diagnostic.CA5389.severity = error
+dotnet_diagnostic.CA5390.severity = error
+dotnet_diagnostic.CA5391.severity = error
+dotnet_diagnostic.CA5392.severity = error
+dotnet_diagnostic.CA5393.severity = error
+dotnet_diagnostic.CA5394.severity = error
+dotnet_diagnostic.CA5395.severity = error
+dotnet_diagnostic.CA5396.severity = error
+dotnet_diagnostic.CA5397.severity = error
+dotnet_diagnostic.CA5398.severity = error
+dotnet_diagnostic.CA5399.severity = error
+dotnet_diagnostic.CA5400.severity = error
+dotnet_diagnostic.CA5401.severity = error
+dotnet_diagnostic.CA5402.severity = error
+dotnet_diagnostic.CA5403.severity = error
+dotnet_diagnostic.CA5404.severity = error
+dotnet_diagnostic.CA5405.severity = error
+
+# --- SecurityCodeScan rules → ERROR ---------------------------------------
+# Full set: https://security-code-scan.github.io/#Rules
+dotnet_diagnostic.SCS0001.severity = error
+dotnet_diagnostic.SCS0002.severity = error
+dotnet_diagnostic.SCS0003.severity = error
+dotnet_diagnostic.SCS0004.severity = error
+dotnet_diagnostic.SCS0005.severity = error
+dotnet_diagnostic.SCS0006.severity = error
+dotnet_diagnostic.SCS0007.severity = error
+dotnet_diagnostic.SCS0008.severity = error
+dotnet_diagnostic.SCS0009.severity = error
+dotnet_diagnostic.SCS0010.severity = error
+dotnet_diagnostic.SCS0011.severity = error
+dotnet_diagnostic.SCS0012.severity = error
+dotnet_diagnostic.SCS0013.severity = error
+dotnet_diagnostic.SCS0014.severity = error
+dotnet_diagnostic.SCS0015.severity = error
+dotnet_diagnostic.SCS0016.severity = error
+dotnet_diagnostic.SCS0017.severity = error
+dotnet_diagnostic.SCS0018.severity = error
+dotnet_diagnostic.SCS0019.severity = error
+dotnet_diagnostic.SCS0020.severity = error
+dotnet_diagnostic.SCS0021.severity = error
+dotnet_diagnostic.SCS0022.severity = error
+dotnet_diagnostic.SCS0023.severity = error
+dotnet_diagnostic.SCS0024.severity = error
+dotnet_diagnostic.SCS0025.severity = error
+dotnet_diagnostic.SCS0026.severity = error
+dotnet_diagnostic.SCS0027.severity = error
+dotnet_diagnostic.SCS0028.severity = error
+dotnet_diagnostic.SCS0029.severity = error
+dotnet_diagnostic.SCS0030.severity = error
+dotnet_diagnostic.SCS0031.severity = error
+dotnet_diagnostic.SCS0032.severity = error
+dotnet_diagnostic.SCS0033.severity = error
+dotnet_diagnostic.SCS0034.severity = error
+dotnet_diagnostic.SCS0035.severity = error
+dotnet_diagnostic.SCS0036.severity = error
+
+# --- Default for the rest (style/quality) → suggestion --------------------
+# Don't flood the build log with noise; security is the gate, not formatting.
+dotnet_analyzer_diagnostic.severity = suggestion
+
+# ---------------------------------------------------------------------------
+# Targeted suppressions (with justification) for the security rules above.
+# Each entry says WHY the elevated rule is downgraded for a specific file.
+# ---------------------------------------------------------------------------
+
+# AdvisoryRepository.cs — CA2100 fires on CommandText assignments that are
+# string literals (often a ternary between two hardcoded queries). No user
+# input is ever concatenated into SQL; every variable goes through SqliteCommand
+# parameters ($id, $vendor, etc.). Reviewed manually.
+[**/AdvisoryRepository.cs]
+dotnet_diagnostic.CA2100.severity = none
+
+# TemplateConfig.cs — Random.Shared.Next is used to seed the XOR byte for the
+# generated PoC C payload (didactic obfuscation, not security material).
+# A non-crypto RNG is appropriate — the value is embedded in the source we
+# emit and is meant to be inspectable.
+[**/TemplateConfig.cs]
+dotnet_diagnostic.CA5394.severity = none
+dotnet_diagnostic.SCS0005.severity = none
+
+# AdvisoryLibraryPage.xaml.cs — SCS0018 (Zip Slip) is mitigated explicitly:
+# entry.Name is reduced to Path.GetFileName(...) and the resolved destination
+# is verified to start with the tempDir prefix before ExtractToFile. The taint
+# tracker can't see through the sanitization, so it still flags. Reviewed.
+[**/AdvisoryLibraryPage.xaml.cs]
+dotnet_diagnostic.SCS0018.severity = none

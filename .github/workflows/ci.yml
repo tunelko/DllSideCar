@@ -76,13 +76,9 @@ jobs:
           $output = dotnet list ${{ env.SOLUTION }} package --deprecated 2>&1 | Out-String
           Write-Host $output
 
-  codeql:
-    name: CodeQL (C#)
+  static-analysis:
+    name: Static Analysis (Roslyn + SecurityCodeScan)
     runs-on: windows-latest
-    permissions:
-      security-events: write
-      actions: read
-      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -91,19 +87,15 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: csharp
-          queries: security-extended,security-and-quality
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION }}
 
-      - name: Build (Release, no incremental)
-        run: dotnet build ${{ env.SOLUTION }} --configuration Release /p:UseSharedCompilation=false /p:EmitCompilerGeneratedFiles=true
-
-      - name: Analyze
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:csharp"
+      # Directory.Build.props injects SecurityCodeScan + .editorconfig promotes
+      # security rules (CA21xx/CA53xx/SCS00xx) to error severity, so a clean
+      # build is the gate. /p:TreatWarningsAsErrors=false keeps unrelated
+      # warnings non-fatal — only the explicitly-elevated rules fail CI.
+      - name: Build with analyzers
+        run: dotnet build ${{ env.SOLUTION }} --configuration Release --no-restore /p:RunAnalyzersDuringBuild=true /p:EnforceCodeStyleInBuild=true
 
   secret-scan:
     name: Secret Scan (gitleaks)
