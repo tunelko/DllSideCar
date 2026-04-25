@@ -16,6 +16,15 @@ public partial class AppDialog : Window
 
     private AppDialog() { InitializeComponent(); }
 
+    // Title-strip close button. Sets result to Cancel (or None for OK-only dialogs)
+    // so callers reading the result don't get a false-OK from clicking the X.
+    private void Close_Click(object sender, RoutedEventArgs e)
+    {
+        if (_result == MessageBoxResult.None)
+            _result = MessageBoxResult.Cancel;
+        Close();
+    }
+
     // ── Static API mirroring System.Windows.MessageBox.Show ────────────────
 
     public static MessageBoxResult Show(string text)
@@ -53,6 +62,7 @@ public partial class AppDialog : Window
             Owner = owner,
             WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen,
         };
+        dlg.ChromeTitle.Text = string.IsNullOrWhiteSpace(caption) ? "DllSidecar" : caption;
         dlg.TitleText.Text = caption;
         dlg.BodyText.Text = text;
         ApplyIcon(dlg, icon);
