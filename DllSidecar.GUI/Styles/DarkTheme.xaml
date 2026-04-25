@@ -661,11 +661,19 @@
         </Setter>
     </Style>
 
+    <!--
+        AccentButton: same chrome as IconButton (transparent + ring border, hover lights
+        up via Surface0 + RingStrong) but accepts a label alongside an optional glyph.
+        The whole "primary action" idiom across pages now reads as a single capsule
+        family: 32px tall, 110px min-wide, neutral dark, subtle hover. The Vercel-like
+        blue glow was removed for visual coherence with the rest of the chrome.
+    -->
     <Style x:Key="AccentButton" TargetType="Button">
-        <Setter Property="Background" Value="{StaticResource Blue}"/>
-        <Setter Property="Foreground" Value="#FFFFFF"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="18,6"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Ring}"/>
+        <Setter Property="Padding" Value="14,6"/>
         <Setter Property="MinHeight" Value="32"/>
         <Setter Property="MinWidth" Value="110"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
@@ -676,30 +684,25 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Grid>
-                        <!-- Subtle blue glow on hover — signature Vercel-like polish -->
-                        <Border x:Name="glow" Background="Transparent" CornerRadius="6" Opacity="0">
-                            <Border.Effect>
-                                <DropShadowEffect Color="#0A72EF" BlurRadius="20" ShadowDepth="0" Opacity="0.7"/>
-                            </Border.Effect>
-                        </Border>
-                        <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                Padding="{TemplateBinding Padding}" CornerRadius="6"
-                                SnapsToDevicePixels="True"
-                                TextElement.Foreground="{TemplateBinding Foreground}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </Grid>
+                    <Border x:Name="bd" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}" CornerRadius="6"
+                            SnapsToDevicePixels="True"
+                            TextElement.Foreground="{TemplateBinding Foreground}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="#2D87F2"/>
-                            <Setter TargetName="glow" Property="Opacity" Value="1"/>
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface0}"/>
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource RingStrong}"/>
+                            <Setter Property="Foreground" Value="{StaticResource Text}"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="#0560C7"/>
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface1}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface1}"/>
+                            <Setter TargetName="bd" Property="Background" Value="Transparent"/>
                             <Setter Property="Foreground" Value="{StaticResource Muted}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
