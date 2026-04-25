@@ -108,10 +108,10 @@ be promoted to an advisory record in the persisted library.
 - Windows 10 or 11
 - .NET SDK 9.0.300 or newer
 - Optional, for full runtime functionality:
-  - MinGW-w64 (via MSYS2) — required to compile generated PoC DLLs
-  - Sysinternals suite — required for ProcMon CSV ingest and
+  - MinGW-w64 (via MSYS2): required to compile generated PoC DLLs
+  - Sysinternals suite: required for ProcMon CSV ingest and
     sigcheck-based signature verification
-  - Python 3.10+ — required for installer extraction helpers
+  - Python 3.10+: required for installer extraction helpers
 
 ### Commands
 
