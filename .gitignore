@@ -41,8 +41,11 @@ TestResults/
 *.jpg
 *.jpeg
 *.gif
-# Exception: the embedded app logo is a build-time WPF resource, not a doc asset.
-!DllSidecar.GUI/Assets/dllsidecar.png
+# Exception: the embedded app logo + splash are build-time WPF resources,
+# not doc assets. Whitelist the entire Assets/ folder so future bundled
+# images don't need a new line each time.
+!DllSidecar.GUI/Assets/
+!DllSidecar.GUI/Assets/**
 # Python research helpers (one-off scripts, not part of the product)
 *.py
 # Installer (releases produced manually on GitHub)
