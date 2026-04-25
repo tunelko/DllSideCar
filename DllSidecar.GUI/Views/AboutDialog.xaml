@@ -1,91 +1,137 @@
 <Window x:Class="DllSidecar.GUI.Views.AboutDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="About DllSidecar" Width="540" Height="540"
+        Title="About DllSidecar"
+        Width="700" Height="760"
         WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
         ResizeMode="NoResize"
-        ShowInTaskbar="False"
-        Background="{StaticResource Base}">
-    <Grid Margin="0">
+        ShowInTaskbar="False">
+    <!--
+        Background=Transparent on the Window paints the chrome area transparent;
+        the root Grid below also uses a transparent (but hit-testable) background
+        so the user can press Escape or click the X without the window vanishing
+        through pixel-perfect hit miss. The visible content is split into two
+        halves: a borderless logo Image at the top (which floats on the desktop
+        thanks to the source PNG having A=0 outside the badge) and a semi-opaque
+        rounded card at the bottom holding the textual info, kept readable on
+        any wallpaper.
+    -->
+    <Grid Background="Transparent">
         <Grid.RowDefinitions>
-            <RowDefinition Height="220"/>     <!-- 0: logo band -->
-            <RowDefinition Height="*"/>       <!-- 1: info -->
-            <RowDefinition Height="Auto"/>    <!-- 2: actions -->
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Logo band on a darker backdrop -->
-        <Border Grid.Row="0" Background="{StaticResource Crust}"
-                BorderBrush="{StaticResource Ring}" BorderThickness="0,0,0,1">
-            <Image Source="pack://application:,,,/Assets/dllsidecar.png"
-                   Stretch="Uniform" Margin="20,12"/>
+        <!-- Logo (no backdrop — floats on transparent) -->
+        <Image Grid.Row="0" Source="pack://application:,,,/Assets/dllsidecar.png"
+               Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"
+               Margin="20,28,20,12" MaxHeight="420"/>
+
+        <!-- Close (X) button top-right corner of the window -->
+        <Button Grid.Row="0" x:Name="CloseX" Click="Close_Click" IsCancel="True"
+                HorizontalAlignment="Right" VerticalAlignment="Top"
+                Width="30" Height="30" Margin="0,12,12,0" Cursor="Hand"
+                ToolTip="Close (Esc)">
+            <Button.Style>
+                <Style TargetType="Button">
+                    <Setter Property="Background" Value="#80000000"/>
+                    <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+                    <Setter Property="BorderThickness" Value="1"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource Ring}"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="15">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="#CCDC2626"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Button.Style>
+            <TextBlock Text="&#x2715;" FontSize="13" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+        </Button>
+
+        <!-- Info card with semi-opaque dark backdrop (readable over any wallpaper) -->
+        <Border Grid.Row="1" Background="#E60A0A0A"
+                BorderBrush="{StaticResource Ring}" BorderThickness="1"
+                CornerRadius="12" Margin="24,0,24,24" Padding="28,20"
+                MouseLeftButtonDown="Card_MouseLeftButtonDown">
+            <Border.Effect>
+                <DropShadowEffect ShadowDepth="6" Opacity="0.6" BlurRadius="20"/>
+            </Border.Effect>
+            <StackPanel>
+                <TextBlock Text="DllSidecar" FontSize="24" FontWeight="SemiBold"
+                           Foreground="{StaticResource Text}" HorizontalAlignment="Center"/>
+                <TextBlock Text="DLL Sideloading research toolkit"
+                           FontSize="12" Foreground="{StaticResource Subtext}"
+                           HorizontalAlignment="Center" Margin="0,2,0,16"/>
+
+                <Grid HorizontalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Version" FontFamily="{StaticResource FontMono}"
+                               FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,18,5"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="VersionText" FontFamily="{StaticResource FontMono}"
+                               FontSize="11" Foreground="{StaticResource Text}" Margin="0,0,0,5"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Author" FontFamily="{StaticResource FontMono}"
+                               FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,18,5"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="Pedro J. Nunez-Cacho Fuentes (@tunelko)"
+                               FontFamily="{StaticResource FontMono}" FontSize="11"
+                               Foreground="{StaticResource Text}" Margin="0,0,0,5"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Blog" FontFamily="{StaticResource FontMono}"
+                               FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,18,5"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,5">
+                        <Hyperlink NavigateUri="https://blogs.tunelko.com" RequestNavigate="Hyperlink_RequestNavigate"
+                                   Foreground="{StaticResource Mauve}">
+                            <Run Text="blogs.tunelko.com" FontFamily="{StaticResource FontMono}" FontSize="11"/>
+                        </Hyperlink>
+                    </TextBlock>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Repo" FontFamily="{StaticResource FontMono}"
+                               FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,18,5"/>
+                    <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,0,5">
+                        <Hyperlink NavigateUri="https://github.com/tunelko/DllSideCar" RequestNavigate="Hyperlink_RequestNavigate"
+                                   Foreground="{StaticResource Mauve}">
+                            <Run Text="github.com/tunelko/DllSideCar" FontFamily="{StaticResource FontMono}" FontSize="11"/>
+                        </Hyperlink>
+                    </TextBlock>
+
+                    <TextBlock Grid.Row="4" Grid.Column="0" Text="License" FontFamily="{StaticResource FontMono}"
+                               FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,18,5"/>
+                    <TextBlock Grid.Row="4" Grid.Column="1" Text="Research / personal use"
+                               FontFamily="{StaticResource FontMono}" FontSize="11"
+                               Foreground="{StaticResource Text}" Margin="0,0,0,5"/>
+                </Grid>
+
+                <TextBlock Text="Copyright 2026 Pedro J. Nunez-Cacho Fuentes. Independent security research."
+                           HorizontalAlignment="Center" FontSize="10"
+                           Foreground="{StaticResource Overlay}" Margin="0,18,0,0"/>
+            </StackPanel>
         </Border>
-
-        <!-- Info -->
-        <StackPanel Grid.Row="1" Margin="24,18,24,8">
-            <TextBlock Text="DllSidecar" FontSize="22" FontWeight="SemiBold"
-                       Foreground="{StaticResource Text}" HorizontalAlignment="Center"/>
-            <TextBlock Text="DLL Sideloading research toolkit"
-                       FontSize="12" Foreground="{StaticResource Subtext}"
-                       HorizontalAlignment="Center" Margin="0,2,0,12"/>
-
-            <Grid HorizontalAlignment="Center">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="Version" FontFamily="{StaticResource FontMono}"
-                           FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,18,4"/>
-                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="VersionText" FontFamily="{StaticResource FontMono}"
-                           FontSize="11" Foreground="{StaticResource Text}" Margin="0,0,0,4"/>
-
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="Author" FontFamily="{StaticResource FontMono}"
-                           FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,18,4"/>
-                <TextBlock Grid.Row="1" Grid.Column="1" Text="Pedro J. Nunez-Cacho Fuentes (@tunelko)"
-                           FontFamily="{StaticResource FontMono}" FontSize="11"
-                           Foreground="{StaticResource Text}" Margin="0,0,0,4"/>
-
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="Blog" FontFamily="{StaticResource FontMono}"
-                           FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,18,4"/>
-                <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,4">
-                    <Hyperlink NavigateUri="https://blogs.tunelko.com" RequestNavigate="Hyperlink_RequestNavigate"
-                               Foreground="{StaticResource Mauve}">
-                        <Run Text="blogs.tunelko.com" FontFamily="{StaticResource FontMono}" FontSize="11"/>
-                    </Hyperlink>
-                </TextBlock>
-
-                <TextBlock Grid.Row="3" Grid.Column="0" Text="Repo" FontFamily="{StaticResource FontMono}"
-                           FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,18,4"/>
-                <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,0,4">
-                    <Hyperlink NavigateUri="https://github.com/tunelko/DllSideCar" RequestNavigate="Hyperlink_RequestNavigate"
-                               Foreground="{StaticResource Mauve}">
-                        <Run Text="github.com/tunelko/DllSideCar" FontFamily="{StaticResource FontMono}" FontSize="11"/>
-                    </Hyperlink>
-                </TextBlock>
-
-                <TextBlock Grid.Row="4" Grid.Column="0" Text="License" FontFamily="{StaticResource FontMono}"
-                           FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,18,4"/>
-                <TextBlock Grid.Row="4" Grid.Column="1" Text="Research / personal use — see LICENSE.txt"
-                           FontFamily="{StaticResource FontMono}" FontSize="11"
-                           Foreground="{StaticResource Text}" Margin="0,0,0,4"/>
-            </Grid>
-
-            <TextBlock Text="© 2026 Pedro J. Nunez-Cacho Fuentes. Independent security research."
-                       HorizontalAlignment="Center" FontSize="10"
-                       Foreground="{StaticResource Overlay}" Margin="0,16,0,0"/>
-        </StackPanel>
-
-        <!-- Actions -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="18,0,18,18">
-            <Button Content="Close" Style="{StaticResource SecondaryButton}" IsCancel="True" IsDefault="True"
-                    Click="Close_Click"/>
-        </StackPanel>
     </Grid>
 </Window>
