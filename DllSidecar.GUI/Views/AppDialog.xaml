@@ -1,0 +1,49 @@
+<Window x:Class="DllSidecar.GUI.Views.AppDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DllSidecar"
+        SizeToContent="Height" Width="460"
+        MinHeight="170" MaxHeight="500"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="{StaticResource Base}">
+    <!--
+        Styled drop-in for System.Windows.MessageBox. Mirrors the same API
+        through static Show(...) overloads in the code-behind so callers can
+        do `AppDialog.Show(...)` with no other change. The visual matches the
+        rest of the app (Base background, FontSans, AccentButton/SecondaryButton)
+        instead of the native Win32 task dialog which clashes with the dark theme.
+    -->
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>     <!-- 0: header (icon + title) -->
+            <RowDefinition Height="*"/>        <!-- 1: body text -->
+            <RowDefinition Height="Auto"/>     <!-- 2: actions -->
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" x:Name="IconGlyph" FontSize="22"
+                       VerticalAlignment="Center" Margin="0,0,12,0"
+                       Foreground="{StaticResource Text}"/>
+            <TextBlock Grid.Column="1" x:Name="TitleText" FontSize="14" FontWeight="SemiBold"
+                       VerticalAlignment="Center" Foreground="{StaticResource Text}"
+                       TextTrimming="CharacterEllipsis"/>
+        </Grid>
+
+        <!-- Body -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,4">
+            <TextBlock x:Name="BodyText" TextWrapping="Wrap" FontSize="13"
+                       Foreground="{StaticResource Subtext}" LineHeight="20"/>
+        </ScrollViewer>
+
+        <!-- Actions -->
+        <StackPanel Grid.Row="2" x:Name="ButtonStrip" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,16,0,0"/>
+    </Grid>
+</Window>
