@@ -442,21 +442,21 @@
                                     <DropShadowEffect ShadowDepth="4" Opacity="0.5" BlurRadius="12"/>
                                 </Border.Effect>
                                 <StackPanel>
-                                    <Button Style="{StaticResource NavButton}" Click="NavOpenRepo_Click"
+                                    <Button Style="{StaticResource NavButton}" Click="NavReadDocs_Click"
                                             Padding="12,8" FontSize="13">
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#x1F310;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Open repository" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                            <TextBlock Text="  github.com" Foreground="{StaticResource Overlay}"
+                                            <TextBlock Text="&#x1F4D6;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Read the docs" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  open repository" Foreground="{StaticResource Overlay}"
                                                        FontSize="11" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
-                                    <Button Style="{StaticResource NavButton}" Click="NavOpenBlog_Click"
+                                    <Button Style="{StaticResource NavButton}" Click="NavCheckUpdates_Click"
                                             Padding="12,8" FontSize="13">
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#x1F4DD;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Author's blog" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                            <TextBlock Text="  blogs.tunelko.com" Foreground="{StaticResource Overlay}"
+                                            <TextBlock Text="&#x1F504;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Check for updates" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  coming soon" Foreground="{StaticResource Overlay}"
                                                        FontSize="11" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>

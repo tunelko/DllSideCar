@@ -188,16 +188,21 @@ public partial class MainWindow : Window
         HelpPopup.IsOpen = !HelpPopup.IsOpen;
     }
 
-    private void NavOpenRepo_Click(object sender, RoutedEventArgs e)
+    private void NavReadDocs_Click(object sender, RoutedEventArgs e)
     {
         HelpPopup.IsOpen = false;
         Helpers.SafeUrl.Open("https://github.com/tunelko/DllSideCar");
     }
 
-    private void NavOpenBlog_Click(object sender, RoutedEventArgs e)
+    private void NavCheckUpdates_Click(object sender, RoutedEventArgs e)
     {
         HelpPopup.IsOpen = false;
-        Helpers.SafeUrl.Open("https://blogs.tunelko.com");
+        // Placeholder until the auto-update channel ships. Keeping the entry visible
+        // so the menu shape stabilises now and we just wire the network call later.
+        MessageBox.Show(this,
+            "Update check is not implemented yet.\n\nLatest releases will be published at:\nhttps://github.com/tunelko/DllSideCar/releases",
+            "Check for updates",
+            MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void NavAbout_Click(object sender, RoutedEventArgs e)
