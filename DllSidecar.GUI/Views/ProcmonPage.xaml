@@ -38,9 +38,9 @@
                     />
             <Button Grid.Column="1" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
                     Margin="10,0,0,0" Click="Browse_Click" ToolTip="Browse for ProcMon CSV"/>
-            <Button Grid.Column="2" Content="Parse" Style="{StaticResource AccentButton}"
+            <Button Grid.Column="2" Content="&#x1F4CA;  Parse" Style="{StaticResource AccentButton}"
                     Margin="10,0,0,0" Click="Parse_Click"/>
-            <Button Grid.Column="3" x:Name="LaunchProcmonBtn" Content="Launch ProcMon"
+            <Button Grid.Column="3" x:Name="LaunchProcmonBtn" Content="&#x25B6;  Launch ProcMon"
                     Style="{StaticResource AccentButton}" Margin="10,0,0,0" Click="LaunchProcmon_Click"/>
         </Grid>
 

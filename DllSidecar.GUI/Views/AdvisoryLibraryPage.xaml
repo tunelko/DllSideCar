@@ -56,11 +56,11 @@
                     <ComboBoxItem Content="Closed"/>
                     <ComboBoxItem Content="Rejected"/>
                 </ComboBox>
-                <Button Grid.Column="4" x:Name="ImportBtn" Content="Import…"
+                <Button Grid.Column="4" x:Name="ImportBtn" Content="&#x1F4E5;  Import…"
                         Style="{StaticResource AccentButton}" Margin="10,0,0,0"
                         Click="ImportBundle_Click"
                         ToolTip="Import a .dsa bundle (full advisory round-trip) or a standalone .md file as a new Draft."/>
-                <Button Grid.Column="5" x:Name="RefreshBtn" Content="Refresh"
+                <Button Grid.Column="5" x:Name="RefreshBtn" Content="&#x1F504;  Refresh"
                         Style="{StaticResource AccentButton}" Margin="6,0,0,0"
                         Click="Refresh_Click"/>
             </Grid>

@@ -42,7 +42,7 @@
                                         ToolTip="Probe well-known MSYS2 / mingw-w64 install roots"/>
                             </StackPanel>
                             <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                                <Button Content="Validate toolchain" Style="{StaticResource AccentButton}" Click="Validate_Click"
+                                <Button Content="&#x2713;  Validate toolchain" Style="{StaticResource AccentButton}" Click="Validate_Click"
                                         ToolTip="Run BuildSystem.FindGcc / FindWindres for both archs"/>
                             </StackPanel>
                         </Grid>

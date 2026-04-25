@@ -665,8 +665,9 @@
         <Setter Property="Background" Value="{StaticResource Blue}"/>
         <Setter Property="Foreground" Value="#FFFFFF"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="16,6"/>
-        <Setter Property="MinHeight" Value="30"/>
+        <Setter Property="Padding" Value="18,6"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="MinWidth" Value="110"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontFamily" Value="{StaticResource FontSans}"/>

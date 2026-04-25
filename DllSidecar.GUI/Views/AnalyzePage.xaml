@@ -28,7 +28,7 @@
                     />
             <Button Grid.Column="1" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
                     Margin="10,0,0,0" Click="Browse_Click" ToolTip="Browse for DLL / EXE"/>
-            <Button Grid.Column="2" Content="Analyze" Style="{StaticResource AccentButton}"
+            <Button Grid.Column="2" Content="&#x1F50D;  Analyze" Style="{StaticResource AccentButton}"
                     Margin="10,0,0,0" Click="Analyze_Click"/>
         </Grid>
 

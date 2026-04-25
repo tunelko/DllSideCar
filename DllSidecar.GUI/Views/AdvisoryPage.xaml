@@ -165,7 +165,7 @@
                     <Button x:Name="SaveSourceBtn" Content="Save .md" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" Click="SaveMd_Click"/>
                     <Button x:Name="SaveHtmlBtn" Content="Save HTML" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" Click="SaveHtml_Click"
                             ToolTip="Save a styled HTML file (Markdown only)"/>
-                    <Button Content="Export PDF" Style="{StaticResource AccentButton}" Margin="8,0,0,0" Click="ExportPdf_Click"
+                    <Button Content="&#x21A7;  Export PDF" Style="{StaticResource AccentButton}" Margin="8,0,0,0" Click="ExportPdf_Click"
                             ToolTip="Render directly to PDF — no print dialog, no external tool needed"/>
                 </StackPanel>
             </Grid>

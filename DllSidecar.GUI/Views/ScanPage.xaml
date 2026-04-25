@@ -51,7 +51,7 @@
             <Button Grid.Column="1" x:Name="BrowseBtn" Content="&#x1F4C1;"
                     Style="{StaticResource IconButton}" Margin="10,0,0,0" Click="BrowseDir_Click"
                     ToolTip="Browse for install directory"/>
-            <Button Grid.Column="2" x:Name="ScanBtn" Content="Scan"
+            <Button Grid.Column="2" x:Name="ScanBtn" Content="&#x1F50E;  Scan"
                     Style="{StaticResource AccentButton}" Margin="10,0,0,0" Click="Scan_Click"/>
             <Button Grid.Column="3" x:Name="CancelBtn" Content="Cancel"
                     Style="{StaticResource DangerButton}" Margin="10,0,0,0"
@@ -314,7 +314,7 @@
                                     ToolTip="Expand this panel in a modal at 80% of the window"/>
                         </Grid>
                         <StackPanel x:Name="ActionBar" Orientation="Horizontal" Margin="0,0,0,8" Visibility="Collapsed">
-                            <Button Content="Open in Analyze" Style="{StaticResource AccentButton}" Click="OpenInAnalyze_Click"/>
+                            <Button Content="&#x2197;  Open in Analyze" Style="{StaticResource AccentButton}" Click="OpenInAnalyze_Click"/>
                             <Button x:Name="GenerateSideloadBtn" Content="Generate Sideload"
                                     Style="{StaticResource TerminalButton}" Margin="6,0,0,0"
                                     Click="GenerateSideload_Click"
