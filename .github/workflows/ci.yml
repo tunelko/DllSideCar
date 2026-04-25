@@ -2,11 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - develop
+      - 'release/**'
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - develop
+      - 'release/**'
   schedule:
-    # Re-run weekly so vulnerable-package and CodeQL signals pick up new advisories.
+    # Re-run weekly so vulnerable-package and dependency-audit signals pick up new advisories.
     - cron: '0 6 * * 1'
 
 permissions:
