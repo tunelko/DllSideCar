@@ -1,0 +1,36 @@
+<Page x:Class="DllSidecar.GUI.Views.HashPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Background="{StaticResource Base}">
+    <StackPanel Margin="28,20" MaxWidth="720" HorizontalAlignment="Left">
+        <TextBlock Text="DJB2 Hash Calculator" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+        <TextBlock Text="Compute hashes for DInvoke API/module resolution + XOR-encode strings"
+                   FontSize="12" Foreground="{StaticResource Overlay}" Margin="0,4,0,16"/>
+
+        <TextBlock Text="STRING" Style="{StaticResource SectionHeader}" Margin="0,0,0,6"/>
+        <Grid Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="InputBox" FontFamily="Cascadia Mono,Consolas"/>
+            <ComboBox Grid.Column="1" x:Name="XorKeyCombo" Width="100" Margin="10,0,0,0"/>
+            <Button Grid.Column="2" Content="Compute" Style="{StaticResource AccentButton}"
+                    Margin="10,0,0,0" Click="Hash_Click"/>
+        </Grid>
+
+        <Border Style="{StaticResource SectionCard}">
+            <StackPanel>
+                <TextBlock Text="RESULT" Style="{StaticResource SectionHeader}"/>
+                <TextBlock x:Name="HashSensitive" Foreground="{StaticResource Text}"
+                           FontFamily="Cascadia Mono,Consolas" FontSize="13" Margin="0,2"/>
+                <TextBlock x:Name="HashInsensitive" Foreground="{StaticResource Text}"
+                           FontFamily="Cascadia Mono,Consolas" FontSize="13" Margin="0,2"/>
+                <TextBlock x:Name="XorResult" Foreground="{StaticResource Yellow}"
+                           FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                           Margin="0,12,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</Page>

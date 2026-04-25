@@ -1,0 +1,213 @@
+<Page x:Class="DllSidecar.GUI.Views.ProcmonPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ctrl="clr-namespace:DllSidecar.GUI.Controls"
+      Background="{StaticResource Base}">
+    <Grid>
+    <Grid Margin="28,20,28,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="ProcMon CSV" FontSize="22"
+                       FontWeight="Bold" Foreground="{StaticResource Text}"/>
+            <TextBlock Foreground="{StaticResource Overlay}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap">
+                <Run Text="Ingest a Process Monitor CSV export to see which DLLs the loader actually searched for at runtime — the dynamic ground truth that complements the static scan. Pre-filter in ProcMon: "/>
+                <Run Text="Operation=CreateFile · Result=NAME NOT FOUND · Path ends with .dll"
+                     FontFamily="Cascadia Mono,Consolas" Foreground="{StaticResource Subtext}"/>
+                <Run Text=" · File → Save → CSV. Then Browse + Parse here."/>
+            </TextBlock>
+        </StackPanel>
+
+        <!-- CSV picker -->
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="CsvPathBox" Grid.Column="0" FontFamily="Cascadia Mono,Consolas"
+                    />
+            <Button Grid.Column="1" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
+                    Margin="10,0,0,0" Click="Browse_Click" ToolTip="Browse for ProcMon CSV"/>
+            <Button Grid.Column="2" Content="Parse" Style="{StaticResource AccentButton}"
+                    Margin="10,0,0,0" Click="Parse_Click"/>
+            <Button Grid.Column="3" x:Name="LaunchProcmonBtn" Content="LAUNCH PROCMON"
+                    Style="{StaticResource TerminalButton}" Margin="10,0,0,0" Click="LaunchProcmon_Click"/>
+        </Grid>
+
+        <!-- Filters (homogenized with ScanPage) -->
+        <Border Grid.Row="2" Background="{StaticResource Mantle}" CornerRadius="6" Padding="14,10" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="FILTERS" Foreground="{StaticResource Blue}"
+                           FontWeight="Bold" FontSize="11" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                        BorderThickness="1" CornerRadius="6">
+                    <StackPanel Orientation="Horizontal">
+                        <CheckBox x:Name="ChkOnlyUserSpace" Style="{StaticResource SegmentedCheck}"
+                                  Content="Only user-space dirs"
+                                  Checked="Filter_Changed" Unchecked="Filter_Changed"/>
+                        <CheckBox x:Name="ChkOnlyHighRisk" Style="{StaticResource SegmentedCheck}"
+                                  Content="High risk only"
+                                  Checked="Filter_Changed" Unchecked="Filter_Changed"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- Stats (GlassCapsule to match ScanPage) -->
+        <Grid Grid.Row="3" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Style="{StaticResource GlassCapsule}" Margin="0,0,5,0">
+                <StackPanel>
+                    <TextBlock Text="ROWS PARSED" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatTotal" Text="0" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Style="{StaticResource GlassCapsule}" Margin="5,0">
+                <StackPanel>
+                    <TextBlock Text="NOT-FOUND EVENTS" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatEvents" Text="0" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="2" Style="{StaticResource GlassCapsule}" Margin="5,0">
+                <StackPanel>
+                    <TextBlock Text="UNIQUE DLLS" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatDlls" Text="0" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="3" Style="{StaticResource GlassCapsule}" Margin="5,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="HIGH RISK" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatHigh" Text="0" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Grid + details -->
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="2*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{StaticResource Mantle}" CornerRadius="6" Padding="2" Margin="0,0,6,0">
+                <DockPanel>
+                    <!-- Framed search bar with SEARCH label + icon actions, matches RuntimeTrace pattern -->
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                            BorderThickness="1" CornerRadius="4" Margin="4,4,4,2" Padding="8,3">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="SEARCH" Foreground="{StaticResource Blue}"
+                                       FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"
+                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBox Grid.Column="1" x:Name="DllSearchBox"
+                                     Background="Transparent" BorderThickness="0"
+                                     FontFamily="Cascadia Mono,Consolas" FontSize="11" Padding="0,2"
+                                     ToolTip="Filter by DLL name, process or search path"
+                                     TextChanged="Search_Changed"/>
+                            <Button Grid.Column="2" x:Name="CopyProcmonBtn" Content="&#x29C9;"
+                                    Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                                    Click="CopyList_Click"
+                                    ToolTip="Copy current filtered rows to clipboard (TSV)"/>
+                            <Button Grid.Column="3" x:Name="ExportProcmonBtn" Content="&#x21A7;"
+                                    Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                                    Click="ExportCsv_Click"
+                                    ToolTip="Export current filtered rows to CSV/TSV"/>
+                        </Grid>
+                    </Border>
+                    <DataGrid x:Name="DllGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                              Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
+                              RowBackground="{StaticResource Surface0}" AlternatingRowBackground="#3B3B52"
+                              GridLinesVisibility="None" HeadersVisibility="Column"
+                              FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                              SelectionMode="Single" RowHeight="26"
+                              SelectionChanged="DllGrid_SelectionChanged"
+                              VerticalScrollBarVisibility="Auto">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="{StaticResource Surface1}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+                                <Setter Property="Padding" Value="8,6"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Risk" Binding="{Binding Risk}" Width="60"/>
+                            <DataGridTextColumn Header="DLL" Binding="{Binding DllName}" Width="200"/>
+                            <DataGridTextColumn Header="Procs" Binding="{Binding ProcessCount}" Width="60"/>
+                            <DataGridTextColumn Header="Events" Binding="{Binding EventCount}" Width="80"/>
+                            <DataGridTextColumn Header="Dirs" Binding="{Binding DirCount}" Width="60"/>
+                            <DataGridTextColumn Header="Processes" Binding="{Binding ProcessList}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </Border>
+
+            <!-- Details -->
+            <Border Grid.Column="1" Style="{StaticResource SectionCard}" Margin="6,0,0,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="EVENT DETAILS" Style="{StaticResource SectionHeader}"/>
+                        <TextBlock x:Name="DetailsEmpty"
+                                   Text="Select a row to see all NAME NOT FOUND paths and processes."
+                                   Foreground="{StaticResource Overlay}" FontSize="11" TextWrapping="Wrap"/>
+
+                        <StackPanel x:Name="DetailsContent" Visibility="Collapsed">
+                            <TextBlock x:Name="DetailTitle" Foreground="{StaticResource Text}" FontSize="14"
+                                       FontWeight="Bold" Margin="0,0,0,6"/>
+
+                            <TextBlock Text="PROCESSES" Foreground="{StaticResource Blue}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,8,0,4"/>
+                            <TextBlock x:Name="DetailProcesses" Foreground="{StaticResource Text}" FontSize="11"
+                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+
+                            <TextBlock Text="SEARCHED PATHS (NAME NOT FOUND)" Foreground="{StaticResource Blue}"
+                                       FontWeight="Bold" FontSize="10" Margin="0,12,0,4"/>
+                            <ItemsControl x:Name="DetailPaths">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource Surface0}" CornerRadius="3" Padding="8,5" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Path}" Foreground="{StaticResource Text}"
+                                                           FontFamily="Cascadia Mono,Consolas" FontSize="10" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding Meta}" Foreground="{StaticResource Overlay}"
+                                                           FontSize="10" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Footer: status only — Copy/Export moved to the search bar above the grid -->
+        <TextBlock Grid.Row="5" x:Name="Status" Foreground="{StaticResource Overlay}" FontSize="12"
+                   Margin="0,10,0,0"
+                   Text="Ready. Export from ProcMon with File → Save → CSV after applying your filter."/>
+    </Grid>
+    <ctrl:LoadingOverlay x:Name="Overlay"/>
+    </Grid>
+</Page>

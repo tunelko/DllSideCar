@@ -1,0 +1,514 @@
+<Page x:Class="DllSidecar.GUI.Views.ScanPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Background="{StaticResource Base}">
+    <Page.Resources>
+        <!-- Axis cell styles — one accent colour per axis so the eye can parse
+             Exploit / Impact / Confidence at a glance without reading the header -->
+        <Style x:Key="AxisExploitCell" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Phosphor}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style x:Key="AxisImpactCell" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Red}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style x:Key="AxisConfCell" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Blue}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+    </Page.Resources>
+
+    <Grid Margin="28,20,28,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="Sideload Candidate Scanner" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+            <TextBlock FontSize="12" Foreground="{StaticResource Overlay}" Margin="0,4,0,0" TextWrapping="Wrap"
+                       Text="Scan an install directory for DLL sideloading candidates. Every PE is cross-referenced against import tables, Authenticode signatures, directory ACLs and manifests, then ranked against CWE-427 / CWE-426 prerequisites. Pick a directory, press SCAN."/>
+        </StackPanel>
+
+        <!-- Path + Controls -->
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="DirPathBox" Grid.Column="0" FontFamily="Cascadia Mono,Consolas"
+                    />
+            <Button Grid.Column="1" x:Name="BrowseBtn" Content="&#x1F4C1;"
+                    Style="{StaticResource IconButton}" Margin="10,0,0,0" Click="BrowseDir_Click"
+                    ToolTip="Browse for install directory"/>
+            <Button Grid.Column="2" x:Name="ScanBtn" Content="SCAN"
+                    Style="{StaticResource TerminalButton}" Margin="10,0,0,0" Click="Scan_Click"/>
+            <Button Grid.Column="3" x:Name="CancelBtn" Content="Cancel"
+                    Style="{StaticResource DangerButton}" Margin="10,0,0,0"
+                    Click="Cancel_Click" IsEnabled="False" Visibility="Collapsed"/>
+        </Grid>
+
+        <!-- Filters -->
+        <Border Grid.Row="2" Background="{StaticResource Mantle}" CornerRadius="6" Padding="14,10" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="FILTERS" Foreground="{StaticResource Blue}"
+                           FontWeight="Bold" FontSize="11" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                        BorderThickness="1" CornerRadius="6">
+                    <StackPanel Orientation="Horizontal">
+                        <CheckBox x:Name="ChkRequireImporter" Style="{StaticResource SegmentedCheck}"
+                                  Content="Require importer" IsChecked="True"/>
+                        <CheckBox x:Name="ChkOnlyWritable" Style="{StaticResource SegmentedCheck}"
+                                  Content="Writable dir only"/>
+                        <CheckBox x:Name="ChkOnlySignedExe" Style="{StaticResource SegmentedCheck}"
+                                  Content="Signed importer only"/>
+                        <CheckBox x:Name="ChkIncludePhantoms" Style="{StaticResource SegmentedCheck}"
+                                  Content="Include phantoms" IsChecked="True"/>
+                    </StackPanel>
+                </Border>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="18,0,0,0">
+                    <TextBlock Text="exploit:" Foreground="{StaticResource Subtext}" FontSize="11"
+                               VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <ComboBox x:Name="MinExploitCombo" Width="52" SelectedIndex="0"
+                              ToolTip="Minimum Exploitability axis (write + load certainty + proxy ease)">
+                        <ComboBoxItem Content="0"/><ComboBoxItem Content="3"/><ComboBoxItem Content="5"/><ComboBoxItem Content="7"/><ComboBoxItem Content="9"/>
+                    </ComboBox>
+                    <TextBlock Text="impact:" Foreground="{StaticResource Subtext}" FontSize="11"
+                               VerticalAlignment="Center" Margin="10,0,4,0"/>
+                    <ComboBox x:Name="MinImpactCombo" Width="52" SelectedIndex="0"
+                              ToolTip="Minimum Impact axis (privilege gained)">
+                        <ComboBoxItem Content="0"/><ComboBoxItem Content="3"/><ComboBoxItem Content="5"/><ComboBoxItem Content="8"/>
+                    </ComboBox>
+                    <TextBlock Text="conf:" Foreground="{StaticResource Subtext}" FontSize="11"
+                               VerticalAlignment="Center" Margin="10,0,4,0"/>
+                    <ComboBox x:Name="MinConfCombo" Width="52" SelectedIndex="0"
+                              ToolTip="Minimum Confidence axis (evidence quality). Applied after scan and after ProcMon correlation — change to refilter instantly."
+                              SelectionChanged="MinConfCombo_Changed">
+                        <ComboBoxItem Content="0"/><ComboBoxItem Content="3"/><ComboBoxItem Content="5"/><ComboBoxItem Content="7"/><ComboBoxItem Content="9"/>
+                    </ComboBox>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Progress -->
+        <Grid Grid.Row="3" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" x:Name="PhaseLabel" Text="" Foreground="{StaticResource Overlay}"
+                       FontSize="11" FontFamily="Cascadia Mono,Consolas" VerticalAlignment="Center"
+                       Margin="0,0,10,0" MinWidth="80"/>
+            <ProgressBar Grid.Column="1" x:Name="ScanProgressBar" Height="6"
+                         Background="{StaticResource Surface0}" Foreground="{StaticResource Blue}"
+                         BorderThickness="0" Minimum="0" Maximum="100" Value="0"/>
+            <TextBlock Grid.Column="2" x:Name="ProgressPct" Text="0%"
+                       Margin="10,0,0,0" VerticalAlignment="Center"
+                       FontFamily="Cascadia Mono,Consolas" FontSize="11" Foreground="{StaticResource Subtext}"
+                       MinWidth="40" TextAlignment="Right"/>
+        </Grid>
+        <TextBlock Grid.Row="4" x:Name="CurrentFile" Text=""
+                   Margin="0,4,0,12" FontFamily="Cascadia Mono,Consolas" FontSize="10"
+                   Foreground="{StaticResource Overlay}" TextTrimming="CharacterEllipsis" MinHeight="14"/>
+
+        <!-- Stats -->
+        <Grid Grid.Row="5" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Style="{StaticResource GlassCapsule}" Margin="0,0,5,0">
+                <StackPanel>
+                    <TextBlock Text="FILES SCANNED" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatScanned" Text="0" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Style="{StaticResource GlassCapsule}" Margin="5,0">
+                <StackPanel>
+                    <TextBlock Text="TOTAL FILES" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatTotal" Text="0" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="2" Style="{StaticResource GlassCapsule}" Margin="5,0">
+                <StackPanel>
+                    <TextBlock Text="EXISTING" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatCandidates" Text="0" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="3" Style="{StaticResource GlassCapsule}" Margin="5,0">
+                <StackPanel>
+                    <TextBlock Text="PHANTOMS" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatPhantoms" Text="0" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="4" Style="{StaticResource GlassCapsule}" Margin="5,0">
+                <StackPanel>
+                    <TextBlock Text="TOP SCORE" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatTopScore" Text="–" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="5" Style="{StaticResource GlassCapsule}" Margin="5,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="ELAPSED" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatElapsed" Text="0.0s" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Results grid + details panel -->
+        <Grid Grid.Row="6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="2*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{StaticResource Mantle}" CornerRadius="6" Padding="2" Margin="0,0,6,0">
+                <DockPanel>
+                <Border DockPanel.Dock="Top" Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                        BorderThickness="1" CornerRadius="4" Margin="4,4,4,2" Padding="8,3">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="SEARCH" Foreground="{StaticResource Blue}"
+                                   FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"
+                                   VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox Grid.Column="1" x:Name="DllSearchBox"
+                                 Background="Transparent" BorderThickness="0"
+                                 FontFamily="Cascadia Mono,Consolas" FontSize="11" Padding="0,2"
+                                 ToolTip="Filter by DLL name, process, path or kind"
+                                 TextChanged="DllSearch_Changed"/>
+                        <Button Grid.Column="2" x:Name="CopyListBtn" Content="&#x29C9;"
+                                Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                                Click="CopyList_Click"
+                                ToolTip="Copy current filtered candidate list to clipboard (TSV)"/>
+                        <Button Grid.Column="3" x:Name="ExportCsvBtn" Content="&#x21A7;"
+                                Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                                Click="ExportCsv_Click"
+                                ToolTip="Export current filtered candidate list to CSV/TSV"/>
+                    </Grid>
+                </Border>
+                <DataGrid x:Name="CandidatesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
+                          RowBackground="{StaticResource Surface0}" AlternatingRowBackground="#3B3B52"
+                          GridLinesVisibility="None" HeadersVisibility="Column"
+                          FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                          SelectionMode="Single" RowHeight="28"
+                          SelectionChanged="CandidatesGrid_SelectionChanged"
+                          MouseDoubleClick="CandidatesGrid_DoubleClick"
+                          VerticalScrollBarVisibility="Auto">
+                    <DataGrid.ColumnHeaderStyle>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="{StaticResource Surface1}"/>
+                            <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+                            <Setter Property="Padding" Value="8,6"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                        </Style>
+                    </DataGrid.ColumnHeaderStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Total"   Binding="{Binding ScoreText}"     Width="55" SortMemberPath="ScoreValue"/>
+                        <DataGridTextColumn Header="Exploit" Binding="{Binding ExploitText}"   Width="60" SortMemberPath="ExploitValue"
+                                            ElementStyle="{StaticResource AxisExploitCell}"
+                                            ToolTipService.ToolTip="Exploitability — write primitive + load certainty + proxy/sideload ease"/>
+                        <DataGridTextColumn Header="Impact"  Binding="{Binding ImpactText}"    Width="55" SortMemberPath="ImpactValue"
+                                            ElementStyle="{StaticResource AxisImpactCell}"
+                                            ToolTipService.ToolTip="Impact — privilege gained (user → SYSTEM)"/>
+                        <DataGridTextColumn Header="Conf"    Binding="{Binding ConfidenceText}" Width="50" SortMemberPath="ConfidenceValue"
+                                            ElementStyle="{StaticResource AxisConfCell}"
+                                            ToolTipService.ToolTip="Confidence — evidence quality (static → runtime-dir-match)"/>
+                        <DataGridTemplateColumn Header="Privesc" Width="90" SortMemberPath="PrivescLabel">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Background="{Binding PrivescBg}" CornerRadius="999"
+                                            Padding="8,2" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding PrivescLabel}" Foreground="{Binding PrivescFg}"
+                                                   FontSize="10" FontWeight="Bold"
+                                                   FontFamily="Cascadia Mono,Consolas"/>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Kind" Width="85" SortMemberPath="KindLabel">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Background="{Binding KindBg}" CornerRadius="999"
+                                            Padding="8,2" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding KindLabel}" Foreground="{Binding KindFg}"
+                                                   FontSize="10" FontWeight="Bold"
+                                                   FontFamily="Cascadia Mono,Consolas"/>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="CVE" Width="60" SortMemberPath="CveSortKey">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Background="{Binding CveBg}" CornerRadius="4"
+                                            Padding="6,1" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                            ToolTip="{Binding CveTooltip}">
+                                        <TextBlock Text="{Binding CveLabel}" Foreground="{Binding CveFg}"
+                                                   FontSize="10" FontWeight="Bold"
+                                                   FontFamily="Cascadia Mono,Consolas"/>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="Dyn" Binding="{Binding DynLabel}" Width="55"/>
+                        <DataGridTemplateColumn Header="Reported" Width="80" SortMemberPath="ReportedLabel">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Background="{Binding ReportedBg}" CornerRadius="999"
+                                            Padding="8,1" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                            ToolTip="{Binding ReportedTooltip}">
+                                        <TextBlock Text="{Binding ReportedLabel}" Foreground="{Binding ReportedFg}"
+                                                   FontSize="10" FontWeight="Bold"
+                                                   FontFamily="Cascadia Mono,Consolas"/>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="DLL" Binding="{Binding Filename}" Width="200"/>
+                        <DataGridTextColumn Header="Arch" Binding="{Binding Arch}" Width="55"/>
+                        <DataGridTextColumn Header="DLL sig" Binding="{Binding DllSig}" Width="70"/>
+                        <DataGridTextColumn Header="Importers" Binding="{Binding ImportersText}" Width="85"/>
+                        <DataGridTextColumn Header="Writable" Binding="{Binding WritableText}" Width="85"/>
+                        <DataGridTextColumn Header="Path" Binding="{Binding ShortPath}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+                </DockPanel>
+            </Border>
+
+            <!-- Details panel -->
+            <Border Grid.Column="1" Style="{StaticResource SectionCard}" Margin="6,0,0,0" x:Name="CandidateDetailsBorder">
+                <DockPanel x:Name="CandidateDetailsHost">
+                    <StackPanel DockPanel.Dock="Top">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="CANDIDATE DETAILS" Style="{StaticResource SectionHeader}"/>
+                            <Button Grid.Column="1" x:Name="ExpandDetailsBtn" Content="&#x26F6;"
+                                    FontSize="14" Padding="6,0" MinWidth="28" MinHeight="22"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Click="ExpandDetails_Click"
+                                    ToolTip="Expand this panel in a modal at 80% of the window"/>
+                        </Grid>
+                        <StackPanel x:Name="ActionBar" Orientation="Horizontal" Margin="0,0,0,8" Visibility="Collapsed">
+                            <Button Content="Open in Analyze" Style="{StaticResource AccentButton}" Click="OpenInAnalyze_Click"/>
+                            <Button x:Name="GenerateSideloadBtn" Content="Generate Sideload"
+                                    Style="{StaticResource TerminalButton}" Margin="6,0,0,0"
+                                    Click="GenerateSideload_Click"
+                                    ToolTip="Generate a DLL Sideload for this slot — the primary research move for phantoms"/>
+                            <Button Content="Copy path" Style="{StaticResource SecondaryButton}" Margin="6,0,0,0" Click="CopyPath_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="DetailsPanel">
+                        <TextBlock x:Name="DetailsEmpty" Text="Select a row to see details, score breakdown, importers, ACL..."
+                                   Foreground="{StaticResource Overlay}" FontSize="11" TextWrapping="Wrap"/>
+                        <StackPanel x:Name="DetailsContent" Visibility="Collapsed">
+                            <TextBlock x:Name="DetailTitle" Foreground="{StaticResource Text}" FontSize="14"
+                                       FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="DetailPath" Foreground="{StaticResource Overlay}" FontSize="10"
+                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="DIRECTORY ACL" Foreground="{StaticResource Blue}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,8,0,4"/>
+                            <TextBlock x:Name="DetailAcl" Foreground="{StaticResource Text}" FontSize="11"
+                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+
+                            <TextBlock Text="DLL SIGNING" Foreground="{StaticResource Blue}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,12,0,4"/>
+                            <TextBlock x:Name="DetailDllSig" Foreground="{StaticResource Text}" FontSize="11"
+                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+
+                            <!-- 3-axis score pills: Exploit/Impact/Conf badges for at-a-glance reading -->
+                            <TextBlock Text="SCORE AXES" Foreground="{StaticResource Blue}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,0,0,4"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <Border Background="#1F00F0A3" CornerRadius="4" Padding="8,3" Margin="0,0,6,0">
+                                    <TextBlock x:Name="DetailExploitBadge" Foreground="{StaticResource Phosphor}"
+                                               FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="11"
+                                               Text="EXPLOIT —"/>
+                                </Border>
+                                <Border Background="#33FF5B4F" CornerRadius="4" Padding="8,3" Margin="0,0,6,0">
+                                    <TextBlock x:Name="DetailImpactBadge" Foreground="{StaticResource Red}"
+                                               FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="11"
+                                               Text="IMPACT —"/>
+                                </Border>
+                                <Border Background="#330A72EF" CornerRadius="4" Padding="8,3">
+                                    <TextBlock x:Name="DetailConfBadge" Foreground="{StaticResource Blue}"
+                                               FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="11"
+                                               Text="CONF —"/>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- Sprint-3 Attack Path: structured per-step list (Kind / Label / Detail).
+                                 ChainSummary (one-liner) stays above as a quick glance. -->
+                            <TextBlock Text="ATTACK CHAIN" Foreground="{StaticResource Phosphor}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,12,0,4" FontFamily="{StaticResource FontMono}"/>
+                            <TextBlock x:Name="DetailChainSummary" Foreground="{StaticResource Text}" FontSize="11"
+                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"
+                                       Text="(no chain available — privesc context empty)"/>
+
+                            <!-- Sprint-3 indirect-discovery trace (only shown when applicable) -->
+                            <Border x:Name="DetailDiscoveredViaBlock" Visibility="Collapsed"
+                                    Background="#1F00F0A3" BorderBrush="{StaticResource Phosphor}"
+                                    BorderThickness="0,0,0,1" Padding="8,5" Margin="0,6,0,0" CornerRadius="3">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="DISCOVERED VIA" Foreground="{StaticResource Phosphor}"
+                                               FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="9"/>
+                                    <TextBlock x:Name="DetailDiscoveredVia" Foreground="{StaticResource Text}"
+                                               FontSize="11" Margin="8,0,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <ItemsControl x:Name="DetailChainSteps" Margin="0,8,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="82"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Background="{Binding KindBg}" CornerRadius="3"
+                                                    Padding="6,2" VerticalAlignment="Top" HorizontalAlignment="Left">
+                                                <TextBlock Text="{Binding KindLabel}" Foreground="{Binding KindFg}"
+                                                           FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="9"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="{Binding Label}" Foreground="{StaticResource Text}"
+                                                           FontSize="11" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding Detail}" Foreground="{StaticResource Overlay}"
+                                                           FontFamily="Cascadia Mono,Consolas" FontSize="10"
+                                                           TextWrapping="Wrap" Visibility="{Binding DetailVisibility}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="PRIVESC VECTORS" Foreground="{StaticResource Phosphor}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,12,0,4" FontFamily="{StaticResource FontMono}"/>
+                            <TextBlock x:Name="DetailPrivescSummary" Foreground="{StaticResource Text}" FontSize="11"
+                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"
+                                       Text="(no privesc path detected)"/>
+                            <ItemsControl x:Name="DetailPrivescFindings" Margin="0,6,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource Surface0}" CornerRadius="3" Padding="8,6" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border Background="{Binding SeverityBg}" CornerRadius="999" Padding="8,1" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding SeverityLabel}" Foreground="{Binding SeverityFg}"
+                                                                   FontSize="9" FontWeight="Bold" FontFamily="{StaticResource FontMono}"/>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding Vector}" Foreground="{StaticResource Subtext}"
+                                                               FontFamily="Cascadia Mono,Consolas" FontSize="10" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Title}" Foreground="{StaticResource Text}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding Evidence}" Foreground="{StaticResource Overlay}"
+                                                           FontFamily="Cascadia Mono,Consolas" FontSize="10" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="DYNAMIC EVIDENCE (ProcMon)" Foreground="{StaticResource Blue}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,12,0,4"/>
+                            <TextBlock x:Name="DetailEvidence" Foreground="{StaticResource Text}" FontSize="11"
+                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"
+                                       Text="(no ProcMon CSV loaded — static-only result)"/>
+
+                            <TextBlock Text="IMPORTERS" Foreground="{StaticResource Blue}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,12,0,4"/>
+                            <ItemsControl x:Name="DetailImporters">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource Surface0}" CornerRadius="3" Padding="8,5" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Filename}" Foreground="{StaticResource Text}" FontSize="11" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding Meta}" Foreground="{StaticResource Overlay}"
+                                                           FontFamily="Cascadia Mono,Consolas" FontSize="10"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="SCORE BREAKDOWN" Foreground="{StaticResource Blue}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,12,0,4"/>
+                            <ItemsControl x:Name="DetailFactors">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,3">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="60"/>
+                                                <ColumnDefinition Width="36"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding Axis}" Foreground="{Binding AxisBrush}"
+                                                       FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="9"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Points}" Foreground="{Binding PointsBrush}"
+                                                       FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="11" TextAlignment="Right"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Reason}" Foreground="{StaticResource Subtext}"
+                                                       FontSize="10" Margin="8,0,0,0" TextWrapping="Wrap"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- Footer: status left, post-scan actions right -->
+        <Grid Grid.Row="7" Margin="0,10,0,0">
+            <TextBlock x:Name="ScanStatus" HorizontalAlignment="Left" VerticalAlignment="Center"
+                       Foreground="{StaticResource Overlay}" FontSize="12" TextTrimming="CharacterEllipsis"
+                       Text="Ready. Pick an install directory — a 'sideload candidate' means a DLL actually imported by a PE in the dir, scored against CWE-427 prerequisites."/>
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                <CheckBox x:Name="ChkAutoCve" VerticalAlignment="Center"
+                          Style="{StaticResource SegmentedCheck}" Content="Auto"
+                          Checked="AutoCve_Changed" Unchecked="AutoCve_Changed"
+                          ToolTip="Run CVE dedup automatically in background after each scan. Cached 24h — off by default to avoid NVD traffic on repeat local scans."/>
+                <Button x:Name="CheckCvesBtn" VerticalAlignment="Center"
+                        Content="Check CVEs" Style="{StaticResource SecondaryButton}"
+                        Margin="6,0,0,0" Click="CheckCves_Click" IsEnabled="False"
+                        ToolTip="Query NVD for each existing candidate — BLOCKING dedup check per CLAUDE.md, cached 24h"/>
+                <Button x:Name="CorrelateBtn" VerticalAlignment="Center"
+                        Content="Correlate with ProcMon CSV..." Style="{StaticResource SecondaryButton}"
+                        Margin="6,0,0,0" Click="Correlate_Click" IsEnabled="False"
+                        ToolTip="Cross-reference static candidates with a ProcMon NAME-NOT-FOUND CSV"/>
+                <Button x:Name="CorrelateEtwBtn" VerticalAlignment="Center"
+                        Content="Correlate with Runtime Trace" Style="{StaticResource SecondaryButton}"
+                        Margin="6,0,0,0" Click="CorrelateEtw_Click" IsEnabled="False"
+                        ToolTip="Cross-reference static candidates with the last Runtime Trace session"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

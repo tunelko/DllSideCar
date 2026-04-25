@@ -1,0 +1,67 @@
+# ---- .NET / build output ----
+bin/
+obj/
+publish/
+dist/
+*.user
+*.suo
+*.userprefs
+*.cache
+*.lock.json
+TestResults/
+
+# ---- IDE / tooling ----
+.vs/
+.vscode/
+.idea/
+.claude/
+*.swp
+
+# ---- Per-user / secrets ----
+**/config.local.json
+**/appsettings.Development.json
+**/appsettings.Local.json
+**/secrets.json
+**/launchSettings.json
+.env
+.env.*
+*.pfx
+*.snk
+*.key
+*.pem
+
+# ---- Excluded by project policy ----
+# Markdown docs (kept locally, not pushed)
+*.md
+# PowerShell helpers (build/ops scripts kept local)
+*.ps1
+# Image assets per policy
+*.png
+*.jpg
+*.jpeg
+*.gif
+# Python research helpers (one-off scripts, not part of the product)
+*.py
+# Installer (releases produced manually on GitHub)
+installer/
+# Throwaway codex marker
+codex
+
+# ---- OS junk ----
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# ---- Runtime / data ----
+*.log
+*.db
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# ---- Local artifacts ----
+spike-*/
+**/AdvisoryLibrary.db*
+attachments/
+results/

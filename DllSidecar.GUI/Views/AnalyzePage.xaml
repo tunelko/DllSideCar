@@ -1,0 +1,254 @@
+<Page x:Class="DllSidecar.GUI.Views.AnalyzePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Background="{StaticResource Base}">
+    <Grid Margin="28,20,28,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="PE Analysis" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+            <TextBlock FontSize="12" Foreground="{StaticResource Overlay}" Margin="0,4,0,0" TextWrapping="Wrap"
+                       Text="Inspect a single DLL or EXE. Extracts exports, imports, Authenticode signature, security flags (ASLR · DEP · CFG · Integrity) and version resources. Start here when you already know your target."/>
+        </StackPanel>
+
+        <!-- File picker -->
+        <Grid Grid.Row="1" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="FilePathBox" Grid.Column="0" FontFamily="Cascadia Mono,Consolas"
+                    />
+            <Button Grid.Column="1" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
+                    Margin="10,0,0,0" Click="Browse_Click" ToolTip="Browse for DLL / EXE"/>
+            <Button Grid.Column="2" Content="Analyze" Style="{StaticResource AccentButton}"
+                    Margin="10,0,0,0" Click="Analyze_Click"/>
+        </Grid>
+
+        <!-- Results row: 3 cards -->
+        <Grid Grid.Row="2" x:Name="ResultsPanel" Visibility="Collapsed" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- File Info -->
+            <Border Grid.Column="0" Style="{StaticResource SectionCard}" Margin="0,0,6,0">
+                <StackPanel>
+                    <TextBlock Text="FILE INFO" Style="{StaticResource SectionHeader}"/>
+                    <TextBlock x:Name="InfoFilename" Foreground="{StaticResource Text}" FontSize="12" Margin="0,2"/>
+                    <TextBlock x:Name="InfoArch"     Foreground="{StaticResource Text}" FontSize="12" Margin="0,2"/>
+                    <TextBlock x:Name="InfoType"     Foreground="{StaticResource Text}" FontSize="12" Margin="0,2"/>
+                    <TextBlock x:Name="InfoSize"     Foreground="{StaticResource Text}" FontSize="12" Margin="0,2"/>
+                    <TextBlock x:Name="InfoProduct"  Foreground="{StaticResource Text}" FontSize="12" Margin="0,2"/>
+                    <TextBlock x:Name="InfoVersion"  Foreground="{StaticResource Text}" FontSize="12" Margin="0,2"/>
+
+                    <!-- KnownDLL verdict with explanation -->
+                    <Border BorderBrush="{StaticResource Ring}" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,8,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock x:Name="InfoKnownDll" FontSize="12" FontWeight="Bold" TextWrapping="Wrap"/>
+                                <TextBlock Style="{StaticResource HelpGlyph}">
+                                    <TextBlock.ToolTip>
+                                        <TextBlock MaxWidth="380" TextWrapping="Wrap">
+                                            <Run FontWeight="Bold">KnownDLLs</Run>
+                                            <Run> are the system DLLs Windows caches and always resolves from System32 (</Run>
+                                            <Run FontFamily="Cascadia Mono,Consolas">kernel32.dll, user32.dll, ntdll.dll</Run>
+                                            <Run>, etc.) — the loader consults the KnownDLLs list BEFORE the search path, so they cannot be sideloaded.</Run>
+                                            <LineBreak/><LineBreak/>
+                                            <Run Foreground="#00CA4E" FontWeight="Bold">NO </Run>
+                                            <Run>= third-party DLL, goes through the normal loader search order → </Run>
+                                            <Run FontWeight="Bold">potentially sideloadable</Run>
+                                            <Run> (subject to directory ACL, importer manifest, etc.).</Run>
+                                            <LineBreak/><LineBreak/>
+                                            <Run Foreground="#FF5B4F" FontWeight="Bold">YES </Run>
+                                            <Run>= system DLL → always from System32 → not a sideload target.</Run>
+                                        </TextBlock>
+                                    </TextBlock.ToolTip>
+                                </TextBlock>
+                            </StackPanel>
+                            <TextBlock x:Name="InfoKnownDllHint" Foreground="{StaticResource Overlay}"
+                                       FontSize="10" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Security -->
+            <Border Grid.Column="1" Style="{StaticResource SectionCard}" Margin="6,0,6,0">
+                <StackPanel>
+                    <TextBlock Text="SECURITY FLAGS" Style="{StaticResource SectionHeader}"/>
+                    <TextBlock x:Name="FlagAslr"           FontSize="12" Margin="0,2"/>
+                    <TextBlock x:Name="FlagHighEntropy"    FontSize="12" Margin="0,2"/>
+                    <TextBlock x:Name="FlagDep"            FontSize="12" Margin="0,2"/>
+                    <TextBlock x:Name="FlagCfg"            FontSize="12" Margin="0,2"/>
+                    <TextBlock x:Name="FlagForceIntegrity" FontSize="12" Margin="0,2"/>
+                    <TextBlock x:Name="FlagAuthenticode"   FontSize="12" Margin="0,2"/>
+                    <TextBlock x:Name="FlagDepLoad" Foreground="{StaticResource Overlay}" FontSize="11" Margin="0,8,0,0"/>
+
+                    <!-- Security Score with explanation -->
+                    <Border BorderBrush="{StaticResource Ring}" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,8,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="FlagScore" FontWeight="Bold" Foreground="{StaticResource Yellow}" FontSize="14"/>
+                            <TextBlock Style="{StaticResource HelpGlyph}" VerticalAlignment="Center">
+                                <TextBlock.ToolTip>
+                                    <TextBlock MaxWidth="400" TextWrapping="Wrap">
+                                        <Run FontWeight="Bold">Security Score</Run>
+                                        <Run> = number of runtime exploit-mitigations enabled on this PE, out of 7.</Run>
+                                        <LineBreak/><LineBreak/>
+                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">1. ASLR</Run>
+                                        <Run>  — base address randomization (DYNAMIC_BASE)</Run>
+                                        <LineBreak/>
+                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">2. High-Entropy ASLR</Run>
+                                        <Run>  — 64-bit entropy for ASLR</Run>
+                                        <LineBreak/>
+                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">3. DEP / NX</Run>
+                                        <Run>  — non-executable data pages</Run>
+                                        <LineBreak/>
+                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">4. CFG</Run>
+                                        <Run>  — Control Flow Guard</Run>
+                                        <LineBreak/>
+                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">5. SafeSEH</Run>
+                                        <Run>  — validated exception handler table (x86 only)</Run>
+                                        <LineBreak/>
+                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">6. Force Integrity</Run>
+                                        <Run>  — loader requires valid signature</Run>
+                                        <LineBreak/>
+                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">7. Authenticode</Run>
+                                        <Run>  — embedded code signature</Run>
+                                        <LineBreak/><LineBreak/>
+                                        <Run Foreground="#F5A524">Note:</Run>
+                                        <Run> For DLL sideloading research this score is informational — we don't exploit the PE's memory, we replace the DLL file on disk. But a HIGHER score may help target triage (signed, high-integrity apps = more valuable exploit chain).</Run>
+                                    </TextBlock>
+                                </TextBlock.ToolTip>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Quick Actions: 3 prominent tiles + compact secondary row -->
+            <Border Grid.Column="2" Style="{StaticResource SectionCard}" Margin="6,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="QUICK ACTIONS" Style="{StaticResource SectionHeader}"/>
+
+                    <!-- Primary: 3 tiles Tracer/Proxy/Sideload -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0" x:Name="ActTracer" Style="{StaticResource ActionTile}"
+                                Margin="0,0,4,0" Click="ActTracer_Click">
+                            <StackPanel>
+                                <TextBlock Text="&#x1F4DD;" FontSize="22" TextAlignment="Center"/>
+                                <TextBlock Text="Tracer" FontSize="12" FontWeight="SemiBold" TextAlignment="Center"
+                                           Foreground="{StaticResource Text}" Margin="0,6,0,0"/>
+                                <TextBlock Text="log calls" FontSize="10" TextAlignment="Center"
+                                           Foreground="{StaticResource Overlay}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Grid.Column="1" x:Name="ActProxy" Style="{StaticResource ActionTile}"
+                                Margin="2,0,2,0" Click="ActProxy_Click">
+                            <StackPanel>
+                                <TextBlock Text="&#x26A1;" FontSize="22" TextAlignment="Center"/>
+                                <TextBlock Text="Proxy" FontSize="12" FontWeight="SemiBold" TextAlignment="Center"
+                                           Foreground="{StaticResource Text}" Margin="0,6,0,0"/>
+                                <TextBlock Text="forward + fire" FontSize="10" TextAlignment="Center"
+                                           Foreground="{StaticResource Overlay}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Grid.Column="2" x:Name="ActSideload" Style="{StaticResource ActionTile}"
+                                Margin="4,0,0,0" Click="ActSideload_Click">
+                            <StackPanel>
+                                <TextBlock Text="&#x1F4E6;" FontSize="22" TextAlignment="Center"/>
+                                <TextBlock Text="Sideload" FontSize="12" FontWeight="SemiBold" TextAlignment="Center"
+                                           Foreground="{StaticResource Text}" Margin="0,6,0,0"/>
+                                <TextBlock Text="drop + run" FontSize="10" TextAlignment="Center"
+                                           Foreground="{StaticResource Overlay}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <!-- Secondary: compact icon row -->
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" x:Name="ActCheckCves" Style="{StaticResource ActionTile}"
+                                Margin="0,0,4,0" Padding="8,10" Click="ActCheckCves_Click"
+                                ToolTip="Query NVD for existing CVEs — honor the dedup rule BEFORE reporting">
+                            <StackPanel>
+                                <TextBlock Text="&#x1F6E1;" FontSize="16" TextAlignment="Center"/>
+                                <TextBlock Text="CVEs" FontSize="10" TextAlignment="Center"
+                                           Foreground="{StaticResource Subtext}" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="1" x:Name="ActScanParent" Style="{StaticResource ActionTile}"
+                                Margin="2,0,2,0" Padding="8,10" Click="ActScanParent_Click"
+                                ToolTip="Scan the directory containing this PE">
+                            <StackPanel>
+                                <TextBlock Text="&#x1F4C1;" FontSize="16" TextAlignment="Center"/>
+                                <TextBlock Text="Scan dir" FontSize="10" TextAlignment="Center"
+                                           Foreground="{StaticResource Subtext}" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="2" x:Name="ActCopyPath" Style="{StaticResource ActionTile}"
+                                Margin="4,0,0,0" Padding="8,10" Click="ActCopyPath_Click"
+                                ToolTip="Copy full path to clipboard">
+                            <StackPanel>
+                                <TextBlock Text="&#x1F4CB;" FontSize="16" TextAlignment="Center"/>
+                                <TextBlock Text="Copy" FontSize="10" TextAlignment="Center"
+                                           Foreground="{StaticResource Subtext}" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Exports table (fills remaining space) -->
+        <Border Grid.Row="3" x:Name="ExportsPanel" Style="{StaticResource SectionCard}" Visibility="Collapsed">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" x:Name="ExportTitle" Text="EXPORTS"
+                           Style="{StaticResource SectionHeader}" Margin="0,0,0,12"/>
+                <DataGrid x:Name="ExportsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
+                          RowBackground="{StaticResource Surface0}" AlternatingRowBackground="#3B3B52"
+                          GridLinesVisibility="None" HeadersVisibility="Column"
+                          FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                          RowHeight="26" VerticalScrollBarVisibility="Auto">
+                    <DataGrid.ColumnHeaderStyle>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="{StaticResource Surface1}"/>
+                            <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+                            <Setter Property="Padding" Value="10,6"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                        </Style>
+                    </DataGrid.ColumnHeaderStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Ordinal" Binding="{Binding Ordinal}" Width="80"/>
+                        <DataGridTextColumn Header="Name" Binding="{Binding DisplayName}" Width="*"/>
+                        <DataGridTextColumn Header="RVA" Binding="{Binding Rva, StringFormat=0x{0:X8}}" Width="120"/>
+                        <DataGridTextColumn Header="Forwarded" Binding="{Binding ForwardedTo}" Width="240"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Page>

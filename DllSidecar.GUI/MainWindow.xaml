@@ -1,0 +1,445 @@
+<Window x:Class="DllSidecar.GUI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        mc:Ignorable="d"
+        Title="DllSidecar — DLL Sideloading Automation"
+        Height="750" Width="1200" MinHeight="600" MinWidth="900"
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        Background="{StaticResource Base}"
+        FontFamily="{StaticResource FontSans}"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType"
+        TextOptions.TextHintingMode="Animated">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="32"
+                            ResizeBorderThickness="6"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <!-- Nav button: Grid content with icon (fixed 28px) + label (Visibility bound to sidebar state) -->
+        <Style x:Key="NavButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,9"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource Surface0}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Nav row content: icon + label. Label collapses when sidebar is collapsed. -->
+        <Style x:Key="NavIcon" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="NavLabel" TargetType="TextBlock">
+            <Setter Property="Margin" Value="10,0,0,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Visibility" Value="{Binding IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
+        </Style>
+        <Style x:Key="NavGroup" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
+            <Setter Property="Foreground" Value="{StaticResource Overlay}"/>
+            <Setter Property="Margin" Value="12,18,0,6"/>
+            <Setter Property="Visibility" Value="{Binding IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
+        </Style>
+
+        <!-- Sidebar toggle button (hamburger) -->
+        <Style x:Key="SidebarToggleBtn" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Ring}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface0}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- GridSplitter thumb style — thin horizontal divider that lights up on hover/drag -->
+        <Style TargetType="GridSplitter">
+            <Setter Property="Background" Value="{StaticResource Ring}"/>
+            <Setter Property="Height" Value="4"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="ResizeBehavior" Value="PreviousAndNext"/>
+            <Setter Property="ResizeDirection" Value="Rows"/>
+            <Setter Property="ShowsPreview" Value="False"/>
+            <Setter Property="Cursor" Value="SizeNS"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource Blue}"/>
+                </Trigger>
+                <Trigger Property="IsDragging" Value="True">
+                    <Setter Property="Background" Value="{StaticResource Blue}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <!-- Width is set programmatically on toggle: 220 expanded, 56 collapsed -->
+            <ColumnDefinition x:Name="SidebarCol" Width="220"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ========== Sidebar ========== -->
+        <Border Grid.Column="0" Background="{StaticResource Mantle}"
+                BorderBrush="{StaticResource Ring}" BorderThickness="0,0,1,0" Padding="8">
+            <DockPanel>
+                <!-- Header (brand + toggle) -->
+                <Grid DockPanel.Dock="Top" Margin="4,12,4,18">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="6,0,0,0"
+                                Visibility="{Binding IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="DllSidecar" FontSize="17" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Text}"/>
+                        <TextBlock Text="@tunelko · BugAInters 2026" FontSize="10"
+                                   Foreground="{StaticResource Overlay}" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" x:Name="SidebarToggle" Style="{StaticResource SidebarToggleBtn}"
+                            Click="SidebarToggle_Click" ToolTip="Collapse / expand sidebar (Ctrl+B)"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <Path x:Name="ToggleIcon" Stroke="{StaticResource Subtext}" StrokeThickness="1.6"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Data="M 0 0 H 14 M 0 5 H 14 M 0 10 H 14"/>
+                    </Button>
+                </Grid>
+
+                <!-- Tool status (fixed bottom) -->
+                <StackPanel DockPanel.Dock="Bottom" Margin="8,10,8,4"
+                            Visibility="{Binding IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}">
+                    <TextBlock x:Name="StatusGcc" Text="GCC — checking" FontSize="10"
+                               FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Overlay}"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="StatusWindres" Text="WINDRES — checking" FontSize="10"
+                               FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Overlay}"
+                               Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+
+                <!-- Nav items -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,4">
+                        <TextBlock Text="WIZARD" Style="{StaticResource NavGroup}" Margin="12,0,0,6"/>
+                        <Button Style="{StaticResource NavButton}" Click="NavWizard_Click"
+                                ToolTip="Research Wizard — guided end-to-end pipeline from input to advisory (Guided or Express)">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x2728;" Style="{StaticResource NavIcon}"/>
+                                <TextBlock Text="Research Wizard" Style="{StaticResource NavLabel}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <TextBlock Text="ANALYSIS" Style="{StaticResource NavGroup}"/>
+                        <Button Style="{StaticResource NavButton}" Click="NavAnalyze_Click" ToolTip="Analyze PE — inspect a single DLL/EXE (exports, signature, flags)">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F50D;" Style="{StaticResource NavIcon}"/>
+                                <TextBlock Text="Analyze PE" Style="{StaticResource NavLabel}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource NavButton}" Click="NavScan_Click" ToolTip="Scan Directory — find sideload candidates ranked by exploitability">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F4C1;" Style="{StaticResource NavIcon}"/>
+                                <TextBlock Text="Scan Directory" Style="{StaticResource NavLabel}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource NavButton}" Click="NavProcmon_Click" ToolTip="ProcMon CSV — ingest Process Monitor export, correlate with scan">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F4CA;" Style="{StaticResource NavIcon}"/>
+                                <TextBlock Text="ProcMon CSV" Style="{StaticResource NavLabel}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource NavButton}" Click="NavRuntimeTrace_Click" ToolTip="Runtime Trace — live ETW monitoring of DLL load failures (requires admin)">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x23F1;" Style="{StaticResource NavIcon}"/>
+                                <TextBlock Text="Runtime Trace" Style="{StaticResource NavLabel}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource NavButton}" Click="NavInstaller_Click" ToolTip="Installer Extract — statically unpack .msi/.exe without running it">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F4E5;" Style="{StaticResource NavIcon}"/>
+                                <TextBlock Text="Installer Extract" Style="{StaticResource NavLabel}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource NavButton}" Click="NavPrivesc_Click" ToolTip="Privesc Surface — map SYSTEM services, tasks, autoElevate manifests">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F510;" Style="{StaticResource NavIcon}"/>
+                                <TextBlock Text="Privesc Surface" Style="{StaticResource NavLabel}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <TextBlock Text="GENERATE" Style="{StaticResource NavGroup}"/>
+                        <Button Style="{StaticResource NavButton}" Click="NavTracer_Click" ToolTip="Export Tracer — wrap every export to log which ones the host actually calls">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F4DD;" Style="{StaticResource NavIcon}"/>
+                                <TextBlock Text="Export Tracer" Style="{StaticResource NavLabel}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource NavButton}" Click="NavProxy_Click" ToolTip="DLL Proxy — forward exports to _orig.dll, fire payload on chosen export">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x26A1;" Style="{StaticResource NavIcon}"/>
+                                <TextBlock Text="DLL Proxy" Style="{StaticResource NavLabel}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource NavButton}" Click="NavSideload_Click" ToolTip="DLL Sideload — one-shot stub, no forwarding, payload in DllMain">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F4E6;" Style="{StaticResource NavIcon}"/>
+                                <TextBlock Text="DLL Sideload" Style="{StaticResource NavLabel}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource NavButton}" Click="NavAdvisory_Click" ToolTip="Advisory — draft a markdown report, preview live, export to PDF">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F4C4;" Style="{StaticResource NavIcon}"/>
+                                <TextBlock Text="Advisory" Style="{StaticResource NavLabel}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource NavButton}" Click="NavAdvisoryLibrary_Click" ToolTip="Advisory Library — persisted case archive with disclosure timeline and status tracking">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F5C2;" Style="{StaticResource NavIcon}"/>
+                                <TextBlock Text="Library" Style="{StaticResource NavLabel}"/>
+                            </StackPanel>
+                        </Button>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
+        <!-- ========== Content + Console (GridSplitter) ========== -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>            <!-- 0: title strip (window chrome) -->
+                <RowDefinition Height="Auto"/>            <!-- 1: menu bar (Tools, status) -->
+                <RowDefinition Height="*" MinHeight="160"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition x:Name="LogRow" Height="160" MinHeight="32"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title strip: pure window chrome — drag area + min/max/close. Solid Crust
+                 so it visually disappears as ambient chrome. The CaptionHeight (32) makes
+                 only this band drag the window; the menu bar below is fully interactive. -->
+            <Border Grid.Row="0" Background="{StaticResource Crust}" Height="32">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="MinBtn" Style="{StaticResource HudWindowButton}"
+                                Click="MinBtn_Click" ToolTip="Minimize"
+                                shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                            <TextBlock Text="&#x2014;" FontSize="14"/>
+                        </Button>
+                        <Button x:Name="MaxBtn" Style="{StaticResource HudWindowButton}"
+                                Click="MaxBtn_Click" ToolTip="Maximize"
+                                shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                            <TextBlock x:Name="MaxBtnGlyph" Text="&#x25A1;" FontSize="13"/>
+                        </Button>
+                        <Button x:Name="CloseBtn" Style="{StaticResource HudWindowCloseButton}"
+                                Click="CloseBtn_Click" ToolTip="Close"
+                                shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                            <TextBlock Text="&#x2715;" FontSize="14"/>
+                        </Button>
+                    </StackPanel>
+                    <!-- Center: empty drag region (could host a window title later) -->
+                    <TextBlock Text="" VerticalAlignment="Center" HorizontalAlignment="Center"
+                               Foreground="{StaticResource Overlay}" FontSize="11"
+                               FontFamily="{StaticResource FontMono}"/>
+                </DockPanel>
+            </Border>
+
+            <!-- Menu bar: app actions (Tools), status indicators. Subtle bottom border
+                 separates it from the page content; gradient mirrors the previous toolbar. -->
+            <Border Grid.Row="1" Padding="8,5"
+                    BorderBrush="{StaticResource Ring}" BorderThickness="0,0,0,1">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#0A0A0A" Offset="0"/>
+                        <GradientStop Color="#111118" Offset="0.5"/>
+                        <GradientStop Color="#0D0D14" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="StatusGcc2" Text="" FontSize="10"
+                                   FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Overlay}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="ToolsDropdown" Click="ToolsDropdown_Click"
+                                ToolTip="Build, Toolkit, Configuration" Cursor="Hand">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource Ring}"/>
+                                    <Setter Property="Padding" Value="14,5,12,5"/>
+                                    <Setter Property="FontSize" Value="12"/>
+                                    <Setter Property="FontWeight" Value="Medium"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface1}"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                                                        <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource RingStrong}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x2699;" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBlock Text="Tools &amp; Settings" VerticalAlignment="Center"/>
+                                <TextBlock Text=" &#x25BE;" FontSize="10" Foreground="{StaticResource Overlay}"
+                                           VerticalAlignment="Center" Margin="6,0,0,0"/>
+                            </StackPanel>
+                        </Button>
+                        <Popup x:Name="ToolsPopup" PlacementTarget="{Binding ElementName=ToolsDropdown}"
+                               Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                               PopupAnimation="Fade" HorizontalOffset="-2" VerticalOffset="4">
+                            <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource RingStrong}"
+                                    BorderThickness="1" CornerRadius="8" Padding="4,6"
+                                    MinWidth="260">
+                                <Border.Effect>
+                                    <DropShadowEffect ShadowDepth="4" Opacity="0.5" BlurRadius="12"/>
+                                </Border.Effect>
+                                <StackPanel>
+                                    <Button Style="{StaticResource NavButton}" Click="NavBuild_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x2699;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Build Project" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  compile C source" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource NavButton}" Click="NavToolkit_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x1F9F0;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Toolkit" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  external tool status" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Border Height="1" Background="{StaticResource Ring}" Margin="8,4"/>
+                                    <Button Style="{StaticResource NavButton}" Click="NavConfig_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x1F527;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Configuration" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  paths, XOR keys" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- Main content frame -->
+            <Frame x:Name="ContentFrame" NavigationUIVisibility="Hidden" Grid.Row="2"/>
+
+            <!-- Horizontal splitter — drag to resize log -->
+            <GridSplitter Grid.Row="3"/>
+
+            <!-- Console / Log panel -->
+            <Border Grid.Row="4" Background="{StaticResource Crust}">
+                <DockPanel>
+                    <!-- Console header with controls -->
+                    <Grid DockPanel.Dock="Top" Background="{StaticResource Mantle}"
+                          Height="32">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
+                            <TextBlock Text="CONSOLE" FontFamily="{StaticResource FontMono}" FontSize="10"
+                                       FontWeight="Medium" Foreground="{StaticResource Subtext}"/>
+                            <TextBlock Text="—" Foreground="{StaticResource Overlay}" Margin="8,0" FontSize="10"/>
+                            <TextBlock x:Name="LogLineCount" Text="0 lines" FontFamily="{StaticResource FontMono}"
+                                       FontSize="10" Foreground="{StaticResource Overlay}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0">
+                            <Button x:Name="LogExpandBtn" Style="{StaticResource SidebarToggleBtn}"
+                                    Width="26" Height="22" Margin="2,0" FontSize="11"
+                                    Click="LogExpand_Click" ToolTip="Expand console / restore"
+                                    Content="↕"/>
+                            <Button x:Name="LogClearBtn" Style="{StaticResource SidebarToggleBtn}"
+                                    Width="26" Height="22" Margin="2,0" FontSize="11"
+                                    Click="LogClear_Click" ToolTip="Clear console"
+                                    Content="×"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <ScrollViewer x:Name="LogScroller" VerticalScrollBarVisibility="Auto">
+                        <TextBox x:Name="LogBox" IsReadOnly="True" Background="Transparent"
+                                 Foreground="{StaticResource Subtext}" FontFamily="{StaticResource FontMono}"
+                                 FontSize="11" BorderThickness="0" Padding="14,8"
+                                 TextWrapping="Wrap" AcceptsReturn="True"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

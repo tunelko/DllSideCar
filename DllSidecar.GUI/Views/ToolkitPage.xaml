@@ -1,0 +1,132 @@
+<Page x:Class="DllSidecar.GUI.Views.ToolkitPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ctrl="clr-namespace:DllSidecar.GUI.Controls"
+      Background="{StaticResource Base}">
+    <Grid>
+    <Grid Margin="28,20,28,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="Toolkit Status" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+            <TextBlock FontSize="12" Foreground="{StaticResource Overlay}" Margin="0,4,0,0" TextWrapping="Wrap"
+                       Text="Health-check of every external tool the pipeline needs: MinGW (compile), Process Monitor (dynamic verify), sigcheck (Authenticode cross-check), Dependencies + x64dbg (manual inspection), Python+pefile (legacy scripts), 7-Zip + InnoUnp (installer extraction). Green = ready. Red = required and missing."/>
+        </StackPanel>
+
+        <!-- Stats header -->
+        <Grid Grid.Row="1" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Style="{StaticResource SectionCard}" Margin="0,0,6,0">
+                <StackPanel>
+                    <TextBlock Text="AVAILABLE" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Overlay}"/>
+                    <TextBlock x:Name="StatAvailable" Text="–" FontSize="22" FontWeight="Bold"
+                               Foreground="{StaticResource Green}" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Style="{StaticResource SectionCard}" Margin="6,0">
+                <StackPanel>
+                    <TextBlock Text="REQUIRED MISSING" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Overlay}"/>
+                    <TextBlock x:Name="StatRequired" Text="–" FontSize="22" FontWeight="Bold"
+                               Foreground="{StaticResource Red}" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="2" Style="{StaticResource SectionCard}" Margin="6,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="READINESS" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Overlay}"/>
+                    <TextBlock x:Name="StatReadiness" Text="–" FontSize="22" FontWeight="Bold"
+                               Foreground="{StaticResource Yellow}" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Tool list -->
+        <Border Grid.Row="2" Style="{StaticResource SectionCard}">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="TOOLS" Style="{StaticResource SectionHeader}"/>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="ToolsList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource Surface0}" CornerRadius="4" Padding="14,12" Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="16"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Grid.Column="0" Width="10" Height="10" VerticalAlignment="Top" Margin="0,6,0,0"
+                                                 Fill="{Binding StatusBrush}"/>
+                                        <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource Text}"
+                                                       FontWeight="Bold" FontSize="13"/>
+                                            <TextBlock Text="{Binding Purpose}" Foreground="{StaticResource Subtext}"
+                                                       FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding StatusLine}" Foreground="{StaticResource Overlay}"
+                                                       FontFamily="Cascadia Mono,Consolas" FontSize="10"
+                                                       Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding Notes}" Foreground="{StaticResource Yellow}"
+                                                       FontSize="10" Margin="0,4,0,0"
+                                                       Visibility="{Binding HasNotes}" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+                                            <Button Content="Configure..." Style="{StaticResource SecondaryButton}"
+                                                    Tag="{Binding Name}" Click="Configure_Click"/>
+                                            <!-- Install: tool is missing + auto-install available -->
+                                            <Button Content="Install" Style="{StaticResource AccentButton}"
+                                                    Margin="6,0,0,0" Tag="{Binding InstallDefId}"
+                                                    Visibility="{Binding ShowInstallButton}"
+                                                    Click="Install_Click"
+                                                    ToolTip="Auto-download and verify via Authenticode"/>
+                                            <!-- Re-install: tool is already OK — offer re-install as a secondary action -->
+                                            <Button Content="Re-install" Style="{StaticResource SecondaryButton}"
+                                                    Margin="6,0,0,0" Tag="{Binding InstallDefId}"
+                                                    Visibility="{Binding ShowReinstallButton}"
+                                                    Click="Install_Click"
+                                                    ToolTip="Re-download and re-verify"/>
+                                            <!-- Open page: tool missing AND no auto-install — manual download link -->
+                                            <Button Content="Open page" Style="{StaticResource SecondaryButton}"
+                                                    Margin="6,0,0,0" Tag="{Binding DownloadUrl}"
+                                                    Visibility="{Binding ShowDownloadButton}"
+                                                    Click="Download_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
+        <!-- Footer -->
+        <Border Grid.Row="3" Background="{StaticResource Mantle}" CornerRadius="6" Padding="16,12" Margin="0,14,0,0">
+            <Grid>
+                <TextBlock x:Name="FooterStatus" HorizontalAlignment="Left" VerticalAlignment="Center"
+                           FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                           Foreground="{StaticResource Overlay}"
+                           Text="Click Refresh to re-probe external tools."/>
+                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                    <Button x:Name="SysInstallBtn" Content="Install Sysinternals Suite"
+                            Style="{StaticResource PrimaryButton}" Click="InstallSysinternalsSuite_Click"
+                            ToolTip="Auto-download Sysinternals Suite from Microsoft + verify Authenticode"/>
+                    <Button x:Name="SysReinstallBtn" Content="Re-install Sysinternals Suite"
+                            Style="{StaticResource SecondaryButton}" Click="InstallSysinternalsSuite_Click"
+                            Visibility="Collapsed"
+                            ToolTip="Sysinternals already installed — click to re-download and re-verify"/>
+                    <Button Content="Refresh" Style="{StaticResource AccentButton}" Margin="8,0,0,0" Click="Refresh_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+    <ctrl:LoadingOverlay x:Name="Overlay"/>
+    </Grid>
+</Page>

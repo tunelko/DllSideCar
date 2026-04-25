@@ -1,0 +1,531 @@
+<Page x:Class="DllSidecar.GUI.Views.AdvisoryLibraryPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ctrl="clr-namespace:DllSidecar.GUI.Controls"
+      xmlns:local="clr-namespace:DllSidecar.GUI.Views"
+      Background="{StaticResource Base}">
+    <Grid Margin="28,20,28,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="Advisory Library" FontSize="22"
+                       FontWeight="Bold" Foreground="{StaticResource Text}"/>
+            <TextBlock Foreground="{StaticResource Overlay}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
+                       Text="Local repository of research cases with disclosure timeline. Everything you save here persists in %LOCALAPPDATA%\DllSidecar\advisories\library.db — advisories stay editable in the AdvisoryPage, the library just remembers them and tracks status."/>
+        </StackPanel>
+
+        <!-- Filters: search + status combo -->
+        <Border Grid.Row="1" Background="{StaticResource Mantle}" CornerRadius="6"
+                Padding="14,10" Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="SEARCH" Foreground="{StaticResource Blue}"
+                           FontWeight="Bold" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                <TextBox Grid.Column="1" x:Name="SearchBox"
+                         FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                         Padding="6,4"
+                         ToolTip="Filter by title, vendor, product or filename"
+                         TextChanged="Search_Changed"/>
+                <TextBlock Grid.Column="2" Text="status:" VerticalAlignment="Center"
+                           Foreground="{StaticResource Subtext}" FontSize="11" Margin="14,0,4,0"/>
+                <ComboBox Grid.Column="3" x:Name="StatusFilterCombo" Width="130"
+                          SelectedIndex="0" SelectionChanged="StatusFilter_Changed">
+                    <ComboBoxItem Content="any"/>
+                    <ComboBoxItem Content="Draft"/>
+                    <ComboBoxItem Content="ReadyToReport"/>
+                    <ComboBoxItem Content="SentToVendor"/>
+                    <ComboBoxItem Content="Acknowledged"/>
+                    <ComboBoxItem Content="CveRequested"/>
+                    <ComboBoxItem Content="CveAssigned"/>
+                    <ComboBoxItem Content="Fixed"/>
+                    <ComboBoxItem Content="Public"/>
+                    <ComboBoxItem Content="Closed"/>
+                    <ComboBoxItem Content="Rejected"/>
+                </ComboBox>
+                <Button Grid.Column="4" x:Name="ImportBtn" Content="Import…"
+                        Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
+                        Click="ImportBundle_Click"
+                        ToolTip="Import a .dsa bundle (full advisory round-trip) or a standalone .md file as a new Draft."/>
+                <Button Grid.Column="5" x:Name="RefreshBtn" Content="Refresh"
+                        Style="{StaticResource SecondaryButton}" Margin="6,0,0,0"
+                        Click="Refresh_Click"/>
+            </Grid>
+        </Border>
+
+        <!-- Split: list left, detail right -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="2*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: Explorer-style tree — vendor → advisory (future: → format → file) -->
+            <Border Grid.Column="0" Style="{StaticResource SectionCard}" Padding="2" Margin="0,0,6,0">
+                <TreeView x:Name="RecordsTree"
+                          Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
+                          FontFamily="{StaticResource FontSans}" FontSize="13"
+                          VerticalContentAlignment="Center"
+                          SelectedItemChanged="RecordsTree_SelectionChanged"
+                          PreviewMouseLeftButtonDown="Tree_PreviewMouseLeftButtonDown"
+                          PreviewMouseMove="Tree_PreviewMouseMove"
+                          DragOver="Tree_DragOver"
+                          Drop="Tree_Drop"
+                          AllowDrop="True"
+                          VirtualizingStackPanel.IsVirtualizing="True">
+                    <TreeView.Resources>
+                        <!-- Neutralize the system highlight so per-template triggers own the selection color -->
+                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
+                        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
+                        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="Transparent"/>
+
+                        <!-- Trash-level template: sits at the end of the tree; shows soft-deleted advisories.
+                             Uses a dim gray icon to separate it visually from the amber vendor folders. -->
+                        <HierarchicalDataTemplate DataType="{x:Type local:AdvisoryLibraryPage+TrashNode}"
+                                                  ItemsSource="{Binding Advisories}">
+                            <Border CornerRadius="4" Padding="6,3">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" Value="True">
+                                                <Setter Property="Background" Value="#22737680"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#x1F5D1;" FontSize="15" Margin="0,0,8,0"
+                                               Foreground="{StaticResource Overlay}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Name}" Foreground="{StaticResource Subtext}"
+                                               FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Count}" Foreground="{StaticResource Overlay}" FontSize="13" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </HierarchicalDataTemplate>
+
+                        <!-- Vendor-level template: yellow folder glyph + name + count. Green selection background.
+                             Double-click anywhere on the row enters rename mode without toggling expansion. -->
+                        <HierarchicalDataTemplate DataType="{x:Type local:AdvisoryLibraryPage+VendorNode}"
+                                                  ItemsSource="{Binding Folders}">
+                            <Border CornerRadius="4" Padding="6,3"
+                                    MouseDown="Vendor_MouseDown">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" Value="True">
+                                                <Setter Property="Background" Value="#2200F0A3"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#x1F4C1;" FontSize="15" Margin="0,0,8,0"
+                                               Foreground="{StaticResource Yellow}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Name}" Foreground="{StaticResource Text}"
+                                               FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"
+                                               Visibility="{Binding ViewVisibility}"/>
+                                    <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                             Visibility="{Binding EditVisibility}"
+                                             MinWidth="180" FontSize="13" FontWeight="SemiBold"
+                                             Padding="4,1" VerticalAlignment="Center"
+                                             KeyDown="VendorEdit_KeyDown"
+                                             LostKeyboardFocus="VendorEdit_LostFocus"
+                                             Loaded="VendorEdit_Loaded"/>
+                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Count}" Foreground="{StaticResource Subtext}" FontSize="13" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </HierarchicalDataTemplate>
+
+                        <!-- Gray selection style reused by advisory/folder/file levels -->
+                        <Style x:Key="TreeRowBorder" TargetType="Border">
+                            <Setter Property="CornerRadius" Value="4"/>
+                            <Setter Property="Padding" Value="6,3"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" Value="True">
+                                    <Setter Property="Background" Value="#22737680"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+
+                        <!-- Advisory-level template: status pill + title + meta; now hierarchical over format folders -->
+                        <HierarchicalDataTemplate DataType="{x:Type local:AdvisoryLibraryPage+AdvisoryNode}"
+                                                  ItemsSource="{Binding Folders}">
+                            <Border Style="{StaticResource TreeRowBorder}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Background="{Binding StatusBg}" CornerRadius="999"
+                                            Padding="10,2" Margin="0,0,10,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding StatusLabel}" Foreground="{Binding StatusFg}"
+                                                   FontSize="10" FontWeight="Bold"
+                                                   FontFamily="Cascadia Mono,Consolas"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding Title}" Foreground="{StaticResource Text}"
+                                               FontSize="13" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" MaxWidth="420"/>
+                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="12" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding UpdatedText}" Foreground="{StaticResource Subtext}"
+                                               FontSize="11" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </HierarchicalDataTemplate>
+
+                        <!-- Format-folder template (per-advisory, used inside the Trash group) -->
+                        <HierarchicalDataTemplate DataType="{x:Type local:AdvisoryLibraryPage+FormatFolderNode}"
+                                                  ItemsSource="{Binding Files}">
+                            <Border Style="{StaticResource TreeRowBorder}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#x1F4C1;" FontSize="13" Margin="0,0,6,0"
+                                               Foreground="{Binding FolderBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding DisplayName}" Foreground="{Binding NameBrush}"
+                                               FontSize="12" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="11" VerticalAlignment="Center"
+                                               Visibility="{Binding CountVisibility}"/>
+                                    <TextBlock Text="{Binding CountText}" Foreground="{StaticResource Subtext}"
+                                               FontSize="11" VerticalAlignment="Center"
+                                               Visibility="{Binding CountVisibility}"/>
+                                </StackPanel>
+                            </Border>
+                        </HierarchicalDataTemplate>
+
+                        <!-- Vendor-format-folder template (per-vendor, used in the main tree).
+                             Same visual as FormatFolderNode but bound to its own DataType so
+                             the TreeView can pick the right ItemsSource for each level. -->
+                        <HierarchicalDataTemplate DataType="{x:Type local:AdvisoryLibraryPage+VendorFormatFolderNode}"
+                                                  ItemsSource="{Binding Files}">
+                            <Border Style="{StaticResource TreeRowBorder}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#x1F4C1;" FontSize="13" Margin="0,0,6,0"
+                                               Foreground="{Binding FolderBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding DisplayName}" Foreground="{Binding NameBrush}"
+                                               FontSize="12" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="11" VerticalAlignment="Center"
+                                               Visibility="{Binding CountVisibility}"/>
+                                    <TextBlock Text="{Binding CountText}" Foreground="{StaticResource Subtext}"
+                                               FontSize="11" VerticalAlignment="Center"
+                                               Visibility="{Binding CountVisibility}"/>
+                                </StackPanel>
+                            </Border>
+                        </HierarchicalDataTemplate>
+
+                        <!-- File-leaf template: status pill + filename + advisory title.
+                             Status pill / title only show when the leaf knows its owning advisory
+                             (main tree); under Trash the leaf falls back to file/date display. -->
+                        <DataTemplate DataType="{x:Type local:AdvisoryLibraryPage+FileLeafNode}">
+                            <Border Style="{StaticResource TreeRowBorder}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Background="{Binding StatusBg}" CornerRadius="999"
+                                            Padding="8,1" Margin="0,0,8,0" VerticalAlignment="Center"
+                                            Visibility="{Binding StatusVisibility}">
+                                        <TextBlock Text="{Binding StatusLabel}" Foreground="{Binding StatusFg}"
+                                                   FontSize="9" FontWeight="Bold"
+                                                   FontFamily="Cascadia Mono,Consolas"/>
+                                    </Border>
+                                    <TextBlock Text="&#x1F4C4;" FontSize="12" Margin="0,0,6,0"
+                                               Foreground="{StaticResource Subtext}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Filename}" Foreground="{StaticResource Text}"
+                                               FontSize="12" FontFamily="Cascadia Mono,Consolas"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="11" VerticalAlignment="Center"
+                                               Visibility="{Binding OwnerTitleVisibility}"/>
+                                    <TextBlock Text="{Binding OwnerTitle}" Foreground="{StaticResource Subtext}"
+                                               FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                               MaxWidth="320" Visibility="{Binding OwnerTitleVisibility}"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </TreeView.Resources>
+                    <TreeView.ItemContainerStyle>
+                        <Style TargetType="TreeViewItem">
+                            <Setter Property="IsExpanded" Value="True"/>
+                            <Setter Property="Padding" Value="3,2"/>
+                            <Setter Property="MinHeight" Value="26"/>
+                        </Style>
+                    </TreeView.ItemContainerStyle>
+                </TreeView>
+            </Border>
+
+            <!-- Right: detail + actions + timeline -->
+            <Border Grid.Column="1" Style="{StaticResource SectionCard}" Margin="6,0,0,0" x:Name="AdvisoryDetailsBorder">
+                <DockPanel x:Name="AdvisoryDetailsHost">
+                    <StackPanel DockPanel.Dock="Top">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="ADVISORY DETAILS" Style="{StaticResource SectionHeader}"
+                                       VerticalAlignment="Center"/>
+                            <!-- Actions: swaps between normal (↗⇄✎✕→trash) and trash (⟲🗑 permanent). -->
+                            <StackPanel Grid.Column="1" x:Name="ActionIconsBar" Orientation="Horizontal"
+                                        Visibility="Collapsed" VerticalAlignment="Center" Margin="0,0,8,0">
+                                <StackPanel x:Name="NormalActions" Orientation="Horizontal">
+                                    <Button Content="&#x2197;" Style="{StaticResource IconButton}"
+                                            Click="OpenInAdvisory_Click" Margin="0,0,4,0"
+                                            ToolTip="Open in AdvisoryPage — load this advisory into the editor"/>
+                                    <Button Content="&#x21C4;" Style="{StaticResource IconButton}"
+                                            Click="ChangeStatus_Click" Margin="0,0,4,0"
+                                            ToolTip="Check / change status — record a disclosure milestone"/>
+                                    <Button Content="&#x270E;" Style="{StaticResource IconButton}"
+                                            Click="AddNote_Click" Margin="0,0,4,0"
+                                            ToolTip="Add note — append a free-text event to the timeline"/>
+                                    <Button Content="&#x1F4E6;" Style="{StaticResource IconButton}"
+                                            Click="ExportBundle_Click" Margin="0,0,4,0"
+                                            ToolTip="Export .dsa — full-case bundle (metadata + timeline + all rendered files + attachments) for backup or sharing"/>
+                                    <Button Content="&#x1F5D1;" Style="{StaticResource IconButton}"
+                                            Click="Delete_Click"
+                                            ToolTip="Move advisory to Trash (recoverable)"/>
+                                </StackPanel>
+                                <StackPanel x:Name="TrashActions" Orientation="Horizontal" Visibility="Collapsed">
+                                    <Button Content="&#x21BA;" Style="{StaticResource IconButton}"
+                                            Click="RestoreAdvisory_Click" Margin="0,0,4,0"
+                                            ToolTip="Restore from Trash — return to its vendor group"/>
+                                    <Button Content="&#x232B;" Style="{StaticResource IconButton}"
+                                            Click="PermanentDelete_Click"
+                                            ToolTip="Permanent delete — drop from DB and remove files (irreversible)"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <Button Grid.Column="2" x:Name="ExpandAdvisoryBtn" Content="&#x26F6;"
+                                    FontSize="14" Padding="6,0" MinWidth="28" MinHeight="22"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Click="ExpandAdvisoryDetails_Click"
+                                    ToolTip="Expand this panel in a modal at 80% of the window"/>
+                        </Grid>
+                        <TextBlock x:Name="DetailEmpty"
+                                   Text="Select an advisory from the list to see metadata and timeline."
+                                   Foreground="{StaticResource Overlay}" FontSize="11" TextWrapping="Wrap"
+                                   Margin="0,6,0,0"/>
+                    </StackPanel>
+
+                    <!-- Vendor summary pane — shown when a vendor folder is selected. Top row has
+                         Expand + Delete-all-soft actions; body shows count + severity / status breakdown +
+                         compact list of advisories under this vendor. -->
+                    <DockPanel x:Name="VendorPanel" Visibility="Collapsed">
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" x:Name="VendorSummaryTitle" Foreground="{StaticResource Text}"
+                                           FontSize="16" FontWeight="Bold" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Content="&#x1F4E6;" Style="{StaticResource IconButton}"
+                                            Click="ExportVendorBundle_Click" Margin="0,0,4,0"
+                                            ToolTip="Export every advisory under this vendor as a single .zip containing one .dsa per advisory"/>
+                                    <Button Content="&#x1F5D1;" Style="{StaticResource IconButton}"
+                                            Click="DeleteVendor_Click"
+                                            ToolTip="Move every advisory under this vendor to Trash (recoverable)"/>
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock x:Name="VendorSummaryCount" Foreground="{StaticResource Overlay}"
+                                       FontSize="11" Margin="0,4,0,0"/>
+                            <TextBlock Text="SEVERITY" Foreground="{StaticResource Blue}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,10,0,4"/>
+                            <TextBlock x:Name="VendorSeverityText" Foreground="{StaticResource Text}" FontSize="11"
+                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                            <TextBlock Text="STATUS" Foreground="{StaticResource Blue}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,10,0,4"/>
+                            <TextBlock x:Name="VendorStatusText" Foreground="{StaticResource Text}" FontSize="11"
+                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                            <TextBlock Text="ADVISORIES" Foreground="{StaticResource Blue}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,12,0,4"/>
+                        </StackPanel>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="VendorAdvisoriesList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource Surface0}" CornerRadius="3" Padding="10,6" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource Blue}"
+                                                               FontSize="9" FontWeight="Bold" FontFamily="Cascadia Mono,Consolas"
+                                                               VerticalAlignment="Center"/>
+                                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding Product}" Foreground="{StaticResource Subtext}" FontSize="10"/>
+                                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding Updated}" Foreground="{StaticResource Overlay}" FontSize="10"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Title}" Foreground="{StaticResource Text}" FontSize="11"
+                                                           Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+
+                    <!-- Trash summary pane — shown when the Trash root node is selected. -->
+                    <DockPanel x:Name="TrashPanel" Visibility="Collapsed">
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                            <TextBlock Text="Trash" Foreground="{StaticResource Text}"
+                                       FontSize="16" FontWeight="Bold"/>
+                            <TextBlock x:Name="TrashSummaryCount" Foreground="{StaticResource Overlay}"
+                                       FontSize="11" Margin="0,4,0,0"/>
+                            <TextBlock Foreground="{StaticResource Subtext}" FontSize="11" Margin="0,10,0,0" TextWrapping="Wrap"
+                                       Text="Deleted advisories stay here until you choose to restore them to their vendor group or permanently remove them. Select an item inside Trash for the restore / permanent-delete actions."/>
+                            <TextBlock Text="DELETED" Foreground="{StaticResource Blue}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,14,0,4"/>
+                        </StackPanel>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="TrashAdvisoriesList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource Surface0}" CornerRadius="3" Padding="10,6" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource Overlay}"
+                                                               FontSize="9" FontWeight="Bold" FontFamily="Cascadia Mono,Consolas"/>
+                                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding Product}" Foreground="{StaticResource Subtext}" FontSize="10"/>
+                                                    <TextBlock Text="  ·  deleted " Foreground="{StaticResource Overlay}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding Updated}" Foreground="{StaticResource Overlay}" FontSize="10"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Title}" Foreground="{StaticResource Subtext}" FontSize="11"
+                                                           Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+
+                    <!-- Folder-hint pane — shown when a format folder node is selected -->
+                    <StackPanel x:Name="FolderHintPanel" Visibility="Collapsed" DockPanel.Dock="Top">
+                        <TextBlock x:Name="FolderHintText" Foreground="{StaticResource Overlay}" FontSize="12"
+                                   TextWrapping="Wrap" Margin="0,8,0,0"/>
+                    </StackPanel>
+
+                    <!-- File-preview pane — shown when a rendered file leaf is selected -->
+                    <DockPanel x:Name="FilePreviewPanel" Visibility="Collapsed">
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock x:Name="FilePreviewTitle" Foreground="{StaticResource Text}"
+                                           FontSize="14" FontWeight="Bold"
+                                           FontFamily="Cascadia Mono,Consolas"/>
+                                <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
+                                    <Button Content="&#x2197;" Style="{StaticResource IconButton}"
+                                            Click="OpenFile_Click" Margin="0,0,4,0"
+                                            ToolTip="Open externally — launch default app for this extension"/>
+                                    <Button Content="&#x29C9;" Style="{StaticResource IconButton}"
+                                            Click="CopyFilePath_Click" Margin="0,0,4,0"
+                                            ToolTip="Copy file path to clipboard"/>
+                                    <Button Content="&#x1F5D1;" Style="{StaticResource IconButton}"
+                                            Click="DeleteFile_Click"
+                                            ToolTip="Delete this rendered file (row + file on disk)"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <TextBlock x:Name="FilePreviewPath" Foreground="{StaticResource Overlay}"
+                                       FontSize="10" FontFamily="Cascadia Mono,Consolas"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <Border Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
+                                BorderThickness="1" CornerRadius="4">
+                            <TextBox x:Name="FilePreviewBox" IsReadOnly="True" Background="Transparent"
+                                     Foreground="{StaticResource Text}" BorderThickness="0"
+                                     FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                     AcceptsReturn="True" TextWrapping="NoWrap"
+                                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                     Padding="10,8"/>
+                        </Border>
+                    </DockPanel>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="DetailContent" Visibility="Collapsed">
+                            <TextBlock x:Name="DetailTitle" Foreground="{StaticResource Text}" FontSize="14"
+                                       FontWeight="Bold" Margin="0,0,0,4" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="DetailSubtitle" Foreground="{StaticResource Overlay}" FontSize="11"
+                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                            <!-- Status + CVSS row -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <Border x:Name="DetailStatusBadge" Background="#1F0A72EF" CornerRadius="999" Padding="10,3" Margin="0,0,8,0">
+                                    <TextBlock x:Name="DetailStatusText" Foreground="{StaticResource Blue}"
+                                               FontSize="11" FontWeight="Bold" FontFamily="Cascadia Mono,Consolas"/>
+                                </Border>
+                                <Border x:Name="DetailCvssBadge" Background="#33FF5B4F" CornerRadius="4" Padding="8,3" Margin="0,0,8,0" Visibility="Collapsed">
+                                    <TextBlock x:Name="DetailCvssText" Foreground="{StaticResource Red}"
+                                               FontSize="11" FontWeight="Bold" FontFamily="Cascadia Mono,Consolas"/>
+                                </Border>
+                                <Border x:Name="DetailCveBadge" Background="#1F00F0A3" CornerRadius="4" Padding="8,3" Visibility="Collapsed">
+                                    <TextBlock x:Name="DetailCveText" Foreground="{StaticResource Phosphor}"
+                                               FontSize="11" FontWeight="Bold" FontFamily="Cascadia Mono,Consolas"/>
+                                </Border>
+                            </StackPanel>
+
+
+                            <!-- Metadata block -->
+                            <TextBlock Text="METADATA" Foreground="{StaticResource Blue}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,4,0,4"/>
+                            <Border Background="{StaticResource Surface0}" CornerRadius="3" Padding="10,8" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock x:Name="DetailMetaVendor" Foreground="{StaticResource Text}" FontSize="11"
+                                               FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="DetailMetaPe" Foreground="{StaticResource Subtext}" FontSize="11"
+                                               FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                    <TextBlock x:Name="DetailMetaInstall" Foreground="{StaticResource Overlay}" FontSize="10"
+                                               FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                    <TextBlock x:Name="DetailMetaDates" Foreground="{StaticResource Overlay}" FontSize="10"
+                                               Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Timeline -->
+                            <TextBlock Text="TIMELINE" Foreground="{StaticResource Phosphor}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,4,0,4" FontFamily="{StaticResource FontMono}"/>
+                            <ItemsControl x:Name="TimelineList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource Surface0}" CornerRadius="3"
+                                                Padding="10,6" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border Background="{Binding KindBg}" CornerRadius="999" Padding="6,1" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding KindLabel}" Foreground="{Binding KindFg}"
+                                                                   FontSize="9" FontWeight="Bold" FontFamily="{StaticResource FontMono}"/>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding DateText}" Foreground="{StaticResource Subtext}"
+                                                               FontFamily="Cascadia Mono,Consolas" FontSize="10"
+                                                               Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Title}" Foreground="{StaticResource Text}" FontSize="11"
+                                                           Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding Note}" Foreground="{StaticResource Overlay}"
+                                                           FontSize="10" Margin="0,2,0,0" TextWrapping="Wrap"
+                                                           Visibility="{Binding NoteVisibility}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- Footer -->
+        <TextBlock Grid.Row="3" x:Name="Status" Foreground="{StaticResource Overlay}" FontSize="12"
+                   Margin="0,10,0,0" Text="Library empty — save your first advisory from the AdvisoryPage to populate."/>
+    </Grid>
+</Page>

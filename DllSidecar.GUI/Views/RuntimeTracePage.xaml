@@ -1,0 +1,387 @@
+<Page x:Class="DllSidecar.GUI.Views.RuntimeTracePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ctrl="clr-namespace:DllSidecar.GUI.Controls"
+      Background="{StaticResource Base}">
+    <Page.Resources>
+        <!-- Labeled group box — thin border, rounded, with a phosphor-tagged label at top-left -->
+        <Style x:Key="GroupCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Mantle}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Ring}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="14,12"/>
+        </Style>
+        <Style x:Key="GroupLabel" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{StaticResource Phosphor}"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+        </Style>
+        <Style x:Key="GroupSubtitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource Overlay}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+        <Style x:Key="ModeRadio" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,16,0"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+    </Page.Resources>
+    <Grid>
+    <Grid Margin="28,20,28,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="Runtime Trace" FontSize="22"
+                       FontWeight="Bold" Foreground="{StaticResource Text}"/>
+            <TextBlock Foreground="{StaticResource Overlay}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap">
+                <Run Text="Live ETW-based monitoring of DLL load failures. Launch an EXE (zero events lost) or attach to a running PID. The process tree and all NAME NOT FOUND events are captured in real time."/>
+            </TextBlock>
+        </StackPanel>
+
+        <!-- Row 1: EXE · ATTACH (wide) + IL/FILTERS stacked compact card -->
+        <Grid Grid.Row="1" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- EXE · ATTACH — stretches to fill up to the IL/FILTERS column -->
+            <Border Grid.Column="0" Style="{StaticResource GroupCard}" Margin="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="EXE · ATTACH" Style="{StaticResource GroupLabel}" Margin="0,0,0,6"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <RadioButton x:Name="ModeLaunch" Style="{StaticResource ModeRadio}"
+                                     Content="Launch EXE" IsChecked="True"
+                                     Checked="Mode_Changed"/>
+                        <RadioButton x:Name="ModeAttach" Style="{StaticResource ModeRadio}"
+                                     Content="Attach to PID"
+                                     Checked="Mode_Changed"/>
+                    </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- Target picker swaps per mode (launch path vs PID chip) -->
+                        <Grid Grid.Column="0">
+                            <TextBox x:Name="TargetBox" FontFamily="Cascadia Mono,Consolas"
+                                     ToolTip="Path to EXE to launch. Quoted paths with args are parsed automatically."/>
+                            <Grid x:Name="AttachPicker" Visibility="Collapsed">
+                                <Border x:Name="PidChip" Visibility="Collapsed"
+                                        Background="{StaticResource Surface1}" BorderBrush="{StaticResource Ring}"
+                                        BorderThickness="1" CornerRadius="4" Padding="10,4"
+                                        HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="PidChipText" Foreground="{StaticResource Text}"
+                                                   FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                                   VerticalAlignment="Center"/>
+                                        <Button Content="&#x2715;" Click="ClearPid_Click" Background="Transparent"
+                                                BorderThickness="0" Foreground="{StaticResource Overlay}"
+                                                FontSize="11" Cursor="Hand"
+                                                Padding="8,0,0,0" ToolTip="Clear selection"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                        <!-- Action icons: Browse (folder), Pick (list) — visibility per mode -->
+                        <Button x:Name="BrowseBtn" Grid.Column="1" Content="&#x1F5C1;"
+                                Style="{StaticResource IconButton}" Margin="8,0,0,0"
+                                Click="Browse_Click" ToolTip="Browse EXE"/>
+                        <Button x:Name="PickProcBtn" Grid.Column="2" Content="&#x22EE;"
+                                Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                                Click="PickProc_Click" ToolTip="Pick process"
+                                Visibility="Collapsed"/>
+                        <!-- Start/Stop — swaps content and tooltip between ▶ and ■ at runtime -->
+                        <Button x:Name="TraceBtn" Grid.Column="3" Content="&#x25B6;"
+                                Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                                Click="Trace_Click" ToolTip="Start trace"/>
+                    </Grid>
+                    <TextBlock x:Name="ElapsedText" Foreground="{StaticResource Overlay}"
+                               FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                               Margin="0,6,0,0"/>
+                    <!-- Hidden args kept for ParseCommandLine -->
+                    <TextBox x:Name="ArgsBox" Visibility="Collapsed" Text=""/>
+                    <Grid x:Name="ArgsRow" Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
+
+            <!-- IL + FILTERS stacked in one compact card -->
+            <Border Grid.Column="1" Style="{StaticResource GroupCard}">
+                <StackPanel>
+                    <TextBlock Text="IL" Style="{StaticResource GroupLabel}" Margin="0,0,0,4"/>
+                    <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                            BorderThickness="1" CornerRadius="6" HorizontalAlignment="Stretch"
+                            ToolTip="Auto = Medium IL first (Shell token), fall back to same-integrity. Medium = always de-elevate. Same = inherit admin."
+                            Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <RadioButton Grid.Column="0" x:Name="IlAuto" GroupName="IlMode"
+                                         Style="{StaticResource SegmentedRadio}"
+                                         HorizontalContentAlignment="Center"
+                                         Content="Auto" IsChecked="True"/>
+                            <RadioButton Grid.Column="1" x:Name="IlMedium" GroupName="IlMode"
+                                         Style="{StaticResource SegmentedRadio}"
+                                         HorizontalContentAlignment="Center"
+                                         Content="Medium"/>
+                            <RadioButton Grid.Column="2" x:Name="IlSame" GroupName="IlMode"
+                                         Style="{StaticResource SegmentedRadio}"
+                                         HorizontalContentAlignment="Center"
+                                         Content="Same"/>
+                        </Grid>
+                    </Border>
+                    <TextBlock Text="FILTERS" Style="{StaticResource GroupLabel}" Margin="0,0,0,4"/>
+                    <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                            BorderThickness="1" CornerRadius="6" HorizontalAlignment="Stretch">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" x:Name="ChkChildren" Style="{StaticResource SegmentedCheck}"
+                                      HorizontalContentAlignment="Center"
+                                      Content="Children" IsChecked="True"
+                                      ToolTip="Include child processes spawned by the target"/>
+                            <CheckBox Grid.Column="1" x:Name="ChkDllOnly" Style="{StaticResource SegmentedCheck}"
+                                      HorizontalContentAlignment="Center"
+                                      Content=".dll only" IsChecked="True"/>
+                            <CheckBox Grid.Column="2" x:Name="ChkNotFoundOnly" Style="{StaticResource SegmentedCheck}"
+                                      HorizontalContentAlignment="Center"
+                                      Content="NAME NOT FOUND" IsChecked="True"/>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Row 2 kept as empty placeholder (previously held second cards row) -->
+        <Grid Grid.Row="2"/>
+
+        <!-- Stats as glass capsules — flat, no accent colors -->
+        <Grid Grid.Row="3" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Style="{StaticResource GlassCapsule}" Margin="0,0,5,0">
+                <StackPanel>
+                    <TextBlock Text="EVENTS" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatEvents" Text="0" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Style="{StaticResource GlassCapsule}" Margin="5,0">
+                <StackPanel>
+                    <TextBlock Text="UNIQUE DLLS" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatDlls" Text="0" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="2" Style="{StaticResource GlassCapsule}" Margin="5,0">
+                <StackPanel>
+                    <TextBlock Text="PROCESSES" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatProcs" Text="0" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="3" Style="{StaticResource GlassCapsule}" Margin="5,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="WRITABLE DIR" Style="{StaticResource CapsuleLabel}"/>
+                    <TextBlock x:Name="StatWritable" Text="0" Style="{StaticResource CapsuleValue}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Main content: Process tree (left) + DLL grid + details (right) -->
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="240" MinWidth="160"/>
+                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="2*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Process tree — clicking a node filters the DLL grid to that PID + descendants -->
+            <Border Grid.Column="0" Style="{StaticResource SectionCard}" Margin="0,0,6,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="PROCESS TREE · click to filter" Style="{StaticResource SectionHeader}"/>
+                    <TreeView x:Name="ProcessTree" Background="Transparent" BorderThickness="0"
+                              Foreground="{StaticResource Text}" FontFamily="Cascadia Mono,Consolas"
+                              FontSize="11" SelectedItemChanged="ProcessTree_Selected"
+                              ItemContainerStyle="{StaticResource BoxedTreeViewItem}">
+                        <TreeView.ItemTemplate>
+                            <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Icon}" Foreground="{StaticResource Phosphor}"
+                                               Margin="0,0,4,0"/>
+                                    <TextBlock Text="{Binding Label}" ToolTip="{Binding Tooltip}"/>
+                                </StackPanel>
+                            </HierarchicalDataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
+                </DockPanel>
+            </Border>
+
+            <!-- DLL grid -->
+            <Border Grid.Column="1" Background="{StaticResource Mantle}" CornerRadius="6" Padding="2" Margin="0,0,6,0">
+                <DockPanel>
+                <Border DockPanel.Dock="Top" Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                        BorderThickness="1" CornerRadius="4" Margin="4,4,4,2" Padding="8,3">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="SEARCH" Foreground="{StaticResource Blue}"
+                               FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"
+                               VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBox x:Name="DllSearchBox" Grid.Column="1"
+                             Background="Transparent" BorderThickness="0"
+                             FontFamily="Cascadia Mono,Consolas" FontSize="11" Padding="0,2"
+                             ToolTip="Filter by DLL name, process or directory"
+                             TextChanged="DllSearch_Changed"/>
+                    <Border x:Name="FilterChip" Grid.Column="2" Visibility="Collapsed"
+                            Background="{StaticResource Surface1}" BorderBrush="{StaticResource Ring}"
+                            BorderThickness="1" CornerRadius="4" Padding="8,2" Margin="6,0,0,0"
+                            VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="FilterChipText" Foreground="{StaticResource Text}"
+                                       FontFamily="Cascadia Mono,Consolas" FontSize="10"
+                                       VerticalAlignment="Center"/>
+                            <Button Content="&#x2715;" Click="ClearProcessFilter_Click" Background="Transparent"
+                                    BorderThickness="0" Foreground="{StaticResource Overlay}"
+                                    FontSize="11" Cursor="Hand"
+                                    Padding="6,0,0,0" ToolTip="Clear process filter"/>
+                        </StackPanel>
+                    </Border>
+                    <Button x:Name="CopyTraceBtn" Grid.Column="3" Content="&#x29C9;"
+                            Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                            Click="CopyList_Click"
+                            ToolTip="Copy current rows to clipboard (TSV)"/>
+                    <Button x:Name="ExportTraceBtn" Grid.Column="4" Content="&#x21A7;"
+                            Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                            Click="ExportCsv_Click"
+                            ToolTip="Export current rows to .csv"/>
+                </Grid>
+                </Border>
+                <DataGrid x:Name="DllGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
+                          RowBackground="{StaticResource Surface0}" AlternatingRowBackground="#3B3B52"
+                          GridLinesVisibility="None" HeadersVisibility="Column"
+                          FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                          SelectionMode="Single" RowHeight="26"
+                          SelectionChanged="DllGrid_SelectionChanged"
+                          VerticalScrollBarVisibility="Auto">
+                    <DataGrid.ColumnHeaderStyle>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="{StaticResource Surface1}"/>
+                            <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+                            <Setter Property="Padding" Value="8,6"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                        </Style>
+                    </DataGrid.ColumnHeaderStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="DLL" Binding="{Binding DllName}" Width="160"/>
+                        <DataGridTextColumn Header="Process" Binding="{Binding ProcessName}" Width="130"/>
+                        <DataGridTextColumn Header="Evts" Binding="{Binding EventCount}" Width="50"/>
+                        <DataGridTextColumn Header="Directory" Binding="{Binding Directory}" Width="*"/>
+                        <DataGridTextColumn Header="W" Binding="{Binding WritableLabel}" Width="30"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+                </DockPanel>
+            </Border>
+
+            <!-- Details -->
+            <Border Grid.Column="2" Style="{StaticResource SectionCard}" Margin="0" x:Name="TraceDetailsBorder">
+                <ScrollViewer x:Name="TraceDetailsHost" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="TRACE DETAILS" Style="{StaticResource SectionHeader}"/>
+                            <Button Grid.Column="1" x:Name="ExpandTraceBtn" Content="&#x26F6;"
+                                    FontSize="14" Padding="6,0" MinWidth="28" MinHeight="22"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Click="ExpandTraceDetails_Click"
+                                    ToolTip="Expand this panel in a modal at 80% of the window"/>
+                        </Grid>
+                        <TextBlock x:Name="DetailsEmpty"
+                                   Text="Select a DLL row or process tree node to see details."
+                                   Foreground="{StaticResource Overlay}" FontSize="11" TextWrapping="Wrap"/>
+
+                        <StackPanel x:Name="DetailsContent" Visibility="Collapsed">
+                            <TextBlock x:Name="DetailTitle" Foreground="{StaticResource Text}" FontSize="14"
+                                       FontWeight="Bold" Margin="0,0,0,6"/>
+                            <TextBlock x:Name="DetailBody" Foreground="{StaticResource Text}" FontSize="11"
+                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+
+                            <TextBlock Text="SEARCHED PATHS" Foreground="{StaticResource Blue}"
+                                       FontWeight="Bold" FontSize="10" Margin="0,12,0,4"/>
+                            <ItemsControl x:Name="DetailPaths">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource Surface0}" CornerRadius="3" Padding="8,5" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Path}" Foreground="{StaticResource Text}"
+                                                           FontFamily="Cascadia Mono,Consolas" FontSize="10" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding Meta}" Foreground="{StaticResource Overlay}"
+                                                           FontSize="10" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Footer: status + actions -->
+        <Grid Grid.Row="5" Margin="0,10,0,0">
+            <TextBlock x:Name="Status" HorizontalAlignment="Left" VerticalAlignment="Center"
+                       Foreground="{StaticResource Overlay}" FontSize="12"
+                       Text="Ready. Choose Launch EXE or Attach to PID."/>
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                <Button x:Name="ResumeWizardBtn" Content="← Back to Wizard"
+                        Style="{StaticResource AccentButton}" Visibility="Collapsed"
+                        Click="ResumeWizard_Click"
+                        ToolTip="Return to the research wizard. If you promoted phantoms, the wizard skips to Survey with them loaded."/>
+                <Button x:Name="PromoteBtn" Content="Promote to Scan"
+                        Style="{StaticResource SecondaryButton}" Margin="6,0,0,0"
+                        Click="Promote_Click" IsEnabled="False"
+                        ToolTip="Convert runtime phantoms into scan candidates"/>
+                <Button x:Name="CorrelateBtn" Content="Correlate with Scan"
+                        Style="{StaticResource SecondaryButton}" Margin="6,0,0,0"
+                        Click="Correlate_Click" IsEnabled="False"
+                        ToolTip="Cross-reference with last static scan"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+    <ctrl:LoadingOverlay x:Name="Overlay"/>
+    </Grid>
+</Page>

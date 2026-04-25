@@ -1,0 +1,45 @@
+<Window x:Class="DllSidecar.GUI.Views.DetailModalWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        Background="{StaticResource Base}"
+        FontFamily="{StaticResource FontSans}"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType"
+        Title="Details">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="32"
+                            ResizeBorderThickness="6"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+    <Border BorderBrush="{StaticResource Ring}" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <!-- Caption bar: doubles as drag area (WindowChrome) + hosts the close button -->
+            <Grid Grid.Row="0" Background="{StaticResource Mantle}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" x:Name="TitleText" Text="Details"
+                           FontSize="13" FontWeight="SemiBold"
+                           Foreground="{StaticResource Text}"
+                           VerticalAlignment="Center" Margin="16,0,0,0"/>
+                <Button Grid.Column="1" Content="&#x2715;" Style="{StaticResource IconButton}"
+                        Margin="8,4,8,4" Click="Close_Click" IsCancel="True"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                        ToolTip="Close"/>
+            </Grid>
+            <ContentPresenter Grid.Row="1" x:Name="Host" Margin="12"/>
+        </Grid>
+    </Border>
+</Window>

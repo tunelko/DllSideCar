@@ -1,0 +1,278 @@
+<Page x:Class="DllSidecar.GUI.Views.GeneratePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ctrl="clr-namespace:DllSidecar.GUI.Controls"
+      Background="{StaticResource Base}">
+    <Grid>
+    <Grid Margin="28,20,28,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock x:Name="PageTitle" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+            <TextBlock x:Name="PageSubtitle" FontSize="12" Foreground="{StaticResource Overlay}"
+                       Margin="0,4,0,0" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- DLL picker -->
+        <Grid Grid.Row="1" Margin="0,0,0,14">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock Text="TARGET DLL" Style="{StaticResource SectionHeader}" Margin="0,0,0,6"/>
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="DllPathBox" FontFamily="Cascadia Mono,Consolas"/>
+                <Button Grid.Column="1" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
+                        Margin="10,0,0,0" Click="Browse_Click" ToolTip="Browse for target DLL"/>
+            </Grid>
+        </Grid>
+
+        <!-- Deploy banner — visible when ScanPage handed off a phantom slot. The
+             generated build .bat will copy + run + restore. Host EXE is editable:
+             default = importer detected at scan, but you often want the upstream
+             launcher (portable app, installer, orchestrator) instead. -->
+        <Border Grid.Row="2" x:Name="DeployBanner" Visibility="Collapsed"
+                Background="#1F00F0A3" BorderBrush="{StaticResource Phosphor}" BorderThickness="0,0,0,1"
+                CornerRadius="6" Padding="14,10" Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="DEPLOY + RUN" Foreground="{StaticResource Phosphor}"
+                               FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"/>
+                    <TextBlock x:Name="AutoModeText" Foreground="{StaticResource Phosphor}"
+                               FontFamily="Cascadia Mono,Consolas" FontSize="11" Margin="0,4,0,0"
+                               TextWrapping="Wrap" Visibility="Collapsed"/>
+                    <!-- Arch override — static scan's majority vote sometimes picks the wrong arch
+                         when a dir mixes x86 and x64 importers (MobaXterm's mx86_64b\bin\ mostly x86
+                         with a few x64 stragglers). Let the researcher flip it. -->
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0" x:Name="ArchRow" Visibility="Collapsed">
+                        <TextBlock Text="Arch:" Foreground="{StaticResource Subtext}"
+                                   FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                                BorderThickness="1" CornerRadius="6">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton x:Name="ArchX86" GroupName="ArchOverride"
+                                             Style="{StaticResource SegmentedRadio}"
+                                             Content="x86" Checked="ArchToggle_Changed"/>
+                                <RadioButton x:Name="ArchX64" GroupName="ArchOverride"
+                                             Style="{StaticResource SegmentedRadio}"
+                                             Content="x64" Checked="ArchToggle_Changed"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock x:Name="DeployDropText" Foreground="{StaticResource Subtext}"
+                               FontFamily="Cascadia Mono,Consolas" FontSize="11" Margin="0,6,0,6"
+                               TextWrapping="Wrap"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="70"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Host:" Foreground="{StaticResource Subtext}"
+                                   FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                   VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="1" x:Name="HostExeBox" FontFamily="Cascadia Mono,Consolas"
+                                 FontSize="11" Padding="6,4"
+                                 TextChanged="HostExeBox_Changed"
+                                 ToolTip="EXE launched after deploy. Default = IAT importer. Change to the upstream launcher if the importer is an internal binary that doesn't run standalone."/>
+                        <Button Grid.Column="2" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
+                                Margin="6,0,0,0" Click="BrowseHost_Click" ToolTip="Browse for Host EXE"/>
+                    </Grid>
+                    <TextBlock x:Name="HostWarning" Visibility="Collapsed" Margin="70,4,0,0"
+                               Foreground="{StaticResource Yellow}" FontSize="10.5"
+                               FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"
+                               Text="⚠ Looks like a temp-extracted path. The real launcher (portable EXE / installer / parent) probably lives elsewhere — override above."/>
+                </StackPanel>
+                <Button Grid.Column="1" Content="Clear" Style="{StaticResource GhostButton}"
+                        Click="ClearDeploy_Click" VerticalAlignment="Top" Margin="10,0,0,0"
+                        ToolTip="Drop the deploy/run context — generated .bat will compile only"/>
+            </Grid>
+        </Border>
+
+        <!-- Configuration columns + output -->
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left column -->
+                    <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                        <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="PAYLOAD" Style="{StaticResource SectionHeader}"/>
+                                <ComboBox x:Name="PayloadCombo" SelectedIndex="0" SelectionChanged="PayloadCombo_Changed">
+                                    <ComboBoxItem Content="MessageBox PoC (safe, visual proof)"/>
+                                    <ComboBoxItem Content="Execute command"/>
+                                    <ComboBoxItem Content="Shellcode injection"/>
+                                    <ComboBoxItem Content="Sandbox escape (AppContainer — Acrobat/Office/Chromium)"
+                                                  ToolTip="Cross-process inject into a less-restricted sibling (e.g. AcroCEF) + CreateProcessA on WinSta0\Default so cmd.exe appears on desktop. Required for AppContainer hosts where WinExec is blocked."/>
+                                </ComboBox>
+                                <TextBox x:Name="PayloadDataBox" Margin="0,8,0,0"
+                                         FontFamily="Cascadia Mono,Consolas" Visibility="Collapsed"
+                                         ToolTip="Command to execute. calc.exe / cmd.exe / cmd.exe /k whoami / full path etc."/>
+                                <StackPanel x:Name="SandboxTargetsPanel" Visibility="Collapsed" Margin="0,8,0,0">
+                                    <TextBlock Text="Inject targets (CSV)" Foreground="{StaticResource Subtext}" FontSize="10"/>
+                                    <TextBox x:Name="SandboxTargetsBox" FontFamily="Cascadia Mono,Consolas"
+                                             Text="AcroCEF.exe,AdobeCollabSync.exe"
+                                             ToolTip="Sibling processes to try inject-escape into. Adobe default shown. Office: MsoSync.exe,msoxmlmf.exe. Edge: msedgewebview2.exe. First one that passes OpenProcess + VirtualAllocEx RWX test wins."/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10"
+                                x:Name="ExportPanel" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="TARGET EXPORT" Style="{StaticResource SectionHeader}"/>
+                                <ComboBox x:Name="ExportCombo" MaxDropDownHeight="240"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCard}" x:Name="ThreadPanel" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="THREAD MODE" Style="{StaticResource SectionHeader}"/>
+                                <ComboBox x:Name="ThreadCombo" SelectedIndex="0">
+                                    <ComboBoxItem Content="Calling thread (hijack, most reliable)"/>
+                                    <ComboBoxItem Content="New thread (CreateThread)"/>
+                                    <ComboBoxItem Content="Native thread (NtCreateThreadEx)"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Right column -->
+                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                        <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="EVASION" Style="{StaticResource SectionHeader}"/>
+                                <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,4"/>
+                                <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,4"/>
+                                <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,4"/>
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="120"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Delay (ms):" Foreground="{StaticResource Subtext}"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox Grid.Column="1" x:Name="DelayBox" Text="0"/>
+                                    <TextBlock Grid.Column="2" Text="XOR key:" Foreground="{StaticResource Subtext}"
+                                               VerticalAlignment="Center" Margin="16,0,8,0"/>
+                                    <ComboBox Grid.Column="3" x:Name="XorKeyCombo"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="POST-PROCESSING" Style="{StaticResource SectionHeader}"/>
+                                <CheckBox x:Name="ChkCloneMeta" Content="Clone version info (metadata)" Margin="0,4"/>
+                                <CheckBox x:Name="ChkStomp" Content="Timestamp stomping" Margin="0,4"/>
+                                <CheckBox x:Name="ChkAutoBuild" Content="Compile after generation" Margin="0,4" IsChecked="True"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Runtime / deploy options — only relevant when a deploy context
+                             is handed off (phantom flow). Left visible always so the user can
+                             pre-configure before hitting Generate Sideload from Scan. -->
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="EXECUTION" Style="{StaticResource SectionHeader}"/>
+                                <CheckBox x:Name="ChkWriteProof" Content="Write proof file to %TEMP% (diagnostic)"
+                                          IsChecked="True" Margin="0,4"
+                                          ToolTip="Payload writes dllsidecar_proof_&lt;PID&gt;.txt to %TEMP%. Reliable when MessageBox is invisible (service desktop, X server)."/>
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Pre-launch delay (s):"
+                                               Foreground="{StaticResource Subtext}"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox Grid.Column="1" x:Name="PreLaunchDelayBox" Text="0"
+                                             ToolTip="Seconds to wait between deploy and launch. 0 = immediate."/>
+                                </Grid>
+                                <TextBlock Text="Host wait strategy" Foreground="{StaticResource Subtext}"
+                                           FontSize="11" Margin="0,10,0,4"/>
+                                <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                                        BorderThickness="1" CornerRadius="6" HorizontalAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton x:Name="WaitBlock" GroupName="WaitStrategy"
+                                                     Style="{StaticResource SegmentedRadio}"
+                                                     Content="Block until exit" IsChecked="True"
+                                                     Checked="WaitStrategy_Changed"
+                                                     ToolTip="start /WAIT — user closes host to trigger cleanup"/>
+                                        <RadioButton x:Name="WaitFire" GroupName="WaitStrategy"
+                                                     Style="{StaticResource SegmentedRadio}"
+                                                     Content="Fire-and-forget"
+                                                     Checked="WaitStrategy_Changed"
+                                                     ToolTip="start + timeout N + show proof file — cleanup auto after timeout"/>
+                                    </StackPanel>
+                                </Border>
+                                <Grid Margin="0,6,0,0" x:Name="FireTimeoutRow" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="80"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Fire timeout (s):"
+                                               Foreground="{StaticResource Subtext}"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox Grid.Column="1" x:Name="FireTimeoutBox" Text="15"
+                                             ToolTip="Seconds to wait after launch before inspecting proof + cleaning up."/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Output preview -->
+                <Border x:Name="OutputPanel" Style="{StaticResource SectionCard}" Margin="0,12,0,0" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="GENERATED FILES" Style="{StaticResource SectionHeader}" Foreground="{StaticResource Green}"/>
+                        <TextBlock x:Name="OutputInfo" Foreground="{StaticResource Text}"
+                                   FontFamily="Cascadia Mono,Consolas" FontSize="11" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer: right-aligned Generate button -->
+        <Border Grid.Row="4" Background="{StaticResource Mantle}" CornerRadius="6" Padding="16,12" Margin="0,14,0,0">
+            <Grid>
+                <TextBlock x:Name="GenStatus" HorizontalAlignment="Left" VerticalAlignment="Center"
+                           FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                           Foreground="{StaticResource Overlay}" TextTrimming="CharacterEllipsis"/>
+                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                    <Button Content="Reset to Starter defaults" Style="{StaticResource SecondaryButton}" Click="Reset_Click"
+                            ToolTip="Turn off DInvoke / syscalls / encryption, reset payload to MessageBox, thread to Calling — safe defaults for a first PoC"/>
+                    <Button x:Name="GenerateBtn" Content="Generate"
+                            Style="{StaticResource PrimaryButton}" Margin="10,0,0,0"
+                            Padding="32,10" Click="Generate_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+    <ctrl:LoadingOverlay x:Name="Overlay"/>
+    </Grid>
+</Page>
