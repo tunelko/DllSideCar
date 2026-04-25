@@ -25,7 +25,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBox x:Name="DirBox" FontFamily="Cascadia Mono,Consolas"/>
+                <TextBox x:Name="DirBox" FontFamily="{StaticResource FontMono}"/>
                 <Button Grid.Column="1" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
                         Margin="10,0,0,0" Click="BrowseDir_Click" ToolTip="Browse for project directory"/>
             </Grid>
@@ -37,7 +37,7 @@
                            Style="{StaticResource SectionHeader}"/>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <TextBlock x:Name="ResultText" Foreground="{StaticResource Text}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="12" TextWrapping="Wrap"/>
+                               FontFamily="{StaticResource FontMono}" FontSize="12" TextWrapping="Wrap"/>
                 </ScrollViewer>
             </DockPanel>
         </Border>
@@ -45,7 +45,7 @@
         <Border Grid.Row="3" Background="{StaticResource Mantle}" CornerRadius="6" Padding="16,12" Margin="0,14,0,0">
             <Grid>
                 <TextBlock x:Name="BuildStatus" HorizontalAlignment="Left" VerticalAlignment="Center"
-                           FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                           FontFamily="{StaticResource FontMono}" FontSize="11"
                            Foreground="{StaticResource Overlay}" TextTrimming="CharacterEllipsis"
                            Text="Pick a generated project directory and press Build."/>
                 <Button x:Name="BuildBtn" Content="Build"

@@ -46,7 +46,7 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="DirPathBox" Grid.Column="0" FontFamily="Cascadia Mono,Consolas"
+            <TextBox x:Name="DirPathBox" Grid.Column="0" FontFamily="{StaticResource FontMono}"
                     />
             <Button Grid.Column="1" x:Name="BrowseBtn" Content="&#x1F4C1;"
                     Style="{StaticResource IconButton}" Margin="10,0,0,0" Click="BrowseDir_Click"
@@ -108,18 +108,18 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" x:Name="PhaseLabel" Text="" Foreground="{StaticResource Overlay}"
-                       FontSize="11" FontFamily="Cascadia Mono,Consolas" VerticalAlignment="Center"
+                       FontSize="11" FontFamily="{StaticResource FontMono}" VerticalAlignment="Center"
                        Margin="0,0,10,0" MinWidth="80"/>
             <ProgressBar Grid.Column="1" x:Name="ScanProgressBar" Height="6"
                          Background="{StaticResource Surface0}" Foreground="{StaticResource Blue}"
                          BorderThickness="0" Minimum="0" Maximum="100" Value="0"/>
             <TextBlock Grid.Column="2" x:Name="ProgressPct" Text="0%"
                        Margin="10,0,0,0" VerticalAlignment="Center"
-                       FontFamily="Cascadia Mono,Consolas" FontSize="11" Foreground="{StaticResource Subtext}"
+                       FontFamily="{StaticResource FontMono}" FontSize="11" Foreground="{StaticResource Subtext}"
                        MinWidth="40" TextAlignment="Right"/>
         </Grid>
         <TextBlock Grid.Row="4" x:Name="CurrentFile" Text=""
-                   Margin="0,4,0,12" FontFamily="Cascadia Mono,Consolas" FontSize="10"
+                   Margin="0,4,0,12" FontFamily="{StaticResource FontMono}" FontSize="10"
                    Foreground="{StaticResource Overlay}" TextTrimming="CharacterEllipsis" MinHeight="14"/>
 
         <!-- Stats -->
@@ -193,7 +193,7 @@
                                    VerticalAlignment="Center" Margin="0,0,10,0"/>
                         <TextBox Grid.Column="1" x:Name="DllSearchBox"
                                  Background="Transparent" BorderThickness="0"
-                                 FontFamily="Cascadia Mono,Consolas" FontSize="11" Padding="0,2"
+                                 FontFamily="{StaticResource FontMono}" FontSize="11" Padding="0,2"
                                  ToolTip="Filter by DLL name, process, path or kind"
                                  TextChanged="DllSearch_Changed"/>
                         <Button Grid.Column="2" x:Name="CopyListBtn" Content="&#x29C9;"
@@ -210,7 +210,7 @@
                           Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
                           RowBackground="{StaticResource Surface0}" AlternatingRowBackground="#3B3B52"
                           GridLinesVisibility="None" HeadersVisibility="Column"
-                          FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                          FontFamily="{StaticResource FontMono}" FontSize="11"
                           SelectionMode="Single" RowHeight="28"
                           SelectionChanged="CandidatesGrid_SelectionChanged"
                           MouseDoubleClick="CandidatesGrid_DoubleClick"
@@ -242,7 +242,7 @@
                                             Padding="8,2" HorizontalAlignment="Left" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding PrivescLabel}" Foreground="{Binding PrivescFg}"
                                                    FontSize="10" FontWeight="Bold"
-                                                   FontFamily="Cascadia Mono,Consolas"/>
+                                                   FontFamily="{StaticResource FontBadge}"/>
                                     </Border>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
@@ -254,7 +254,7 @@
                                             Padding="8,2" HorizontalAlignment="Left" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding KindLabel}" Foreground="{Binding KindFg}"
                                                    FontSize="10" FontWeight="Bold"
-                                                   FontFamily="Cascadia Mono,Consolas"/>
+                                                   FontFamily="{StaticResource FontBadge}"/>
                                     </Border>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
@@ -267,7 +267,7 @@
                                             ToolTip="{Binding CveTooltip}">
                                         <TextBlock Text="{Binding CveLabel}" Foreground="{Binding CveFg}"
                                                    FontSize="10" FontWeight="Bold"
-                                                   FontFamily="Cascadia Mono,Consolas"/>
+                                                   FontFamily="{StaticResource FontMono}"/>
                                     </Border>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
@@ -281,7 +281,7 @@
                                             ToolTip="{Binding ReportedTooltip}">
                                         <TextBlock Text="{Binding ReportedLabel}" Foreground="{Binding ReportedFg}"
                                                    FontSize="10" FontWeight="Bold"
-                                                   FontFamily="Cascadia Mono,Consolas"/>
+                                                   FontFamily="{StaticResource FontBadge}"/>
                                     </Border>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
@@ -330,17 +330,17 @@
                             <TextBlock x:Name="DetailTitle" Foreground="{StaticResource Text}" FontSize="14"
                                        FontWeight="Bold" Margin="0,0,0,4"/>
                             <TextBlock x:Name="DetailPath" Foreground="{StaticResource Overlay}" FontSize="10"
-                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap" Margin="0,0,0,10"/>
 
                             <TextBlock Text="DIRECTORY ACL" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                        FontSize="10" Margin="0,8,0,4"/>
                             <TextBlock x:Name="DetailAcl" Foreground="{StaticResource Text}" FontSize="11"
-                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"/>
 
                             <TextBlock Text="DLL SIGNING" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                        FontSize="10" Margin="0,12,0,4"/>
                             <TextBlock x:Name="DetailDllSig" Foreground="{StaticResource Text}" FontSize="11"
-                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"/>
 
                             <!-- 3-axis score pills: Exploit/Impact/Conf badges for at-a-glance reading -->
                             <TextBlock Text="SCORE AXES" Foreground="{StaticResource Blue}" FontWeight="Bold"
@@ -348,17 +348,17 @@
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                 <Border Background="#1F00F0A3" CornerRadius="4" Padding="8,3" Margin="0,0,6,0">
                                     <TextBlock x:Name="DetailExploitBadge" Foreground="{StaticResource Phosphor}"
-                                               FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="11"
+                                               FontFamily="{StaticResource FontMono}" FontWeight="Bold" FontSize="11"
                                                Text="EXPLOIT —"/>
                                 </Border>
                                 <Border Background="#33FF5B4F" CornerRadius="4" Padding="8,3" Margin="0,0,6,0">
                                     <TextBlock x:Name="DetailImpactBadge" Foreground="{StaticResource Red}"
-                                               FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="11"
+                                               FontFamily="{StaticResource FontMono}" FontWeight="Bold" FontSize="11"
                                                Text="IMPACT —"/>
                                 </Border>
                                 <Border Background="#330A72EF" CornerRadius="4" Padding="8,3">
                                     <TextBlock x:Name="DetailConfBadge" Foreground="{StaticResource Blue}"
-                                               FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="11"
+                                               FontFamily="{StaticResource FontMono}" FontWeight="Bold" FontSize="11"
                                                Text="CONF —"/>
                                 </Border>
                             </StackPanel>
@@ -368,7 +368,7 @@
                             <TextBlock Text="ATTACK CHAIN" Foreground="{StaticResource Phosphor}" FontWeight="Bold"
                                        FontSize="10" Margin="0,12,0,4" FontFamily="{StaticResource FontMono}"/>
                             <TextBlock x:Name="DetailChainSummary" Foreground="{StaticResource Text}" FontSize="11"
-                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"
+                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"
                                        Text="(no chain available — privesc context empty)"/>
 
                             <!-- Sprint-3 indirect-discovery trace (only shown when applicable) -->
@@ -377,7 +377,7 @@
                                     BorderThickness="0,0,0,1" Padding="8,5" Margin="0,6,0,0" CornerRadius="3">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="DISCOVERED VIA" Foreground="{StaticResource Phosphor}"
-                                               FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="9"/>
+                                               FontFamily="{StaticResource FontMono}" FontWeight="Bold" FontSize="9"/>
                                     <TextBlock x:Name="DetailDiscoveredVia" Foreground="{StaticResource Text}"
                                                FontSize="11" Margin="8,0,0,0"/>
                                 </StackPanel>
@@ -394,13 +394,13 @@
                                             <Border Grid.Column="0" Background="{Binding KindBg}" CornerRadius="3"
                                                     Padding="6,2" VerticalAlignment="Top" HorizontalAlignment="Left">
                                                 <TextBlock Text="{Binding KindLabel}" Foreground="{Binding KindFg}"
-                                                           FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="9"/>
+                                                           FontFamily="{StaticResource FontMono}" FontWeight="Bold" FontSize="9"/>
                                             </Border>
                                             <StackPanel Grid.Column="1" Margin="8,0,0,0">
                                                 <TextBlock Text="{Binding Label}" Foreground="{StaticResource Text}"
                                                            FontSize="11" TextWrapping="Wrap"/>
                                                 <TextBlock Text="{Binding Detail}" Foreground="{StaticResource Overlay}"
-                                                           FontFamily="Cascadia Mono,Consolas" FontSize="10"
+                                                           FontFamily="{StaticResource FontMono}" FontSize="10"
                                                            TextWrapping="Wrap" Visibility="{Binding DetailVisibility}"/>
                                             </StackPanel>
                                         </Grid>
@@ -411,7 +411,7 @@
                             <TextBlock Text="PRIVESC VECTORS" Foreground="{StaticResource Phosphor}" FontWeight="Bold"
                                        FontSize="10" Margin="0,12,0,4" FontFamily="{StaticResource FontMono}"/>
                             <TextBlock x:Name="DetailPrivescSummary" Foreground="{StaticResource Text}" FontSize="11"
-                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"
+                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"
                                        Text="(no privesc path detected)"/>
                             <ItemsControl x:Name="DetailPrivescFindings" Margin="0,6,0,0">
                                 <ItemsControl.ItemTemplate>
@@ -421,14 +421,14 @@
                                                 <StackPanel Orientation="Horizontal">
                                                     <Border Background="{Binding SeverityBg}" CornerRadius="999" Padding="8,1" VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding SeverityLabel}" Foreground="{Binding SeverityFg}"
-                                                                   FontSize="9" FontWeight="Bold" FontFamily="{StaticResource FontMono}"/>
+                                                                   FontSize="9" FontWeight="Bold" FontFamily="{StaticResource FontBadge}"/>
                                                     </Border>
                                                     <TextBlock Text="{Binding Vector}" Foreground="{StaticResource Subtext}"
-                                                               FontFamily="Cascadia Mono,Consolas" FontSize="10" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                                               FontFamily="{StaticResource FontMono}" FontSize="10" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <TextBlock Text="{Binding Title}" Foreground="{StaticResource Text}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>
                                                 <TextBlock Text="{Binding Evidence}" Foreground="{StaticResource Overlay}"
-                                                           FontFamily="Cascadia Mono,Consolas" FontSize="10" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                                           FontFamily="{StaticResource FontMono}" FontSize="10" Margin="0,2,0,0" TextWrapping="Wrap"/>
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>
@@ -438,7 +438,7 @@
                             <TextBlock Text="DYNAMIC EVIDENCE (ProcMon)" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                        FontSize="10" Margin="0,12,0,4"/>
                             <TextBlock x:Name="DetailEvidence" Foreground="{StaticResource Text}" FontSize="11"
-                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"
+                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"
                                        Text="(no ProcMon CSV loaded — static-only result)"/>
 
                             <TextBlock Text="IMPORTERS" Foreground="{StaticResource Blue}" FontWeight="Bold"
@@ -450,7 +450,7 @@
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Filename}" Foreground="{StaticResource Text}" FontSize="11" FontWeight="SemiBold"/>
                                                 <TextBlock Text="{Binding Meta}" Foreground="{StaticResource Overlay}"
-                                                           FontFamily="Cascadia Mono,Consolas" FontSize="10"/>
+                                                           FontFamily="{StaticResource FontMono}" FontSize="10"/>
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>
@@ -469,9 +469,9 @@
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0" Text="{Binding Axis}" Foreground="{Binding AxisBrush}"
-                                                       FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="9"/>
+                                                       FontFamily="{StaticResource FontMono}" FontWeight="Bold" FontSize="9"/>
                                             <TextBlock Grid.Column="1" Text="{Binding Points}" Foreground="{Binding PointsBrush}"
-                                                       FontFamily="Cascadia Mono,Consolas" FontWeight="Bold" FontSize="11" TextAlignment="Right"/>
+                                                       FontFamily="{StaticResource FontMono}" FontWeight="Bold" FontSize="11" TextAlignment="Right"/>
                                             <TextBlock Grid.Column="2" Text="{Binding Reason}" Foreground="{StaticResource Subtext}"
                                                        FontSize="10" Margin="8,0,0,0" TextWrapping="Wrap"/>
                                         </Grid>

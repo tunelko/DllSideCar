@@ -17,11 +17,11 @@
                     <TextBlock Text="DEPLOY + RUN" Foreground="{StaticResource Phosphor}"
                                FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"/>
                     <TextBlock x:Name="AutoModeText" Foreground="{StaticResource Phosphor}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="11" Margin="0,4,0,0"
+                               FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,4,0,0"
                                TextWrapping="Wrap" Visibility="Collapsed"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <TextBlock Text="Arch:" Foreground="{StaticResource Subtext}"
-                                   FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                   FontFamily="{StaticResource FontMono}" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
                                 BorderThickness="1" CornerRadius="6">
@@ -36,7 +36,7 @@
                         </Border>
                     </StackPanel>
                     <TextBlock x:Name="DeployDropText" Foreground="{StaticResource Subtext}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="11" Margin="0,6,0,6"
+                               FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,6,0,6"
                                TextWrapping="Wrap"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -45,9 +45,9 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="Host:" Foreground="{StaticResource Subtext}"
-                                   FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                   FontFamily="{StaticResource FontMono}" FontSize="11"
                                    VerticalAlignment="Center"/>
-                        <TextBox Grid.Column="1" x:Name="HostExeBox" FontFamily="Cascadia Mono,Consolas"
+                        <TextBox Grid.Column="1" x:Name="HostExeBox" FontFamily="{StaticResource FontMono}"
                                  FontSize="11" Padding="6,4"
                                  TextChanged="HostExeBox_Changed"
                                  ToolTip="EXE launched after deploy. Default = first arch-matching importer. Change if you want the upstream launcher."/>
@@ -56,7 +56,7 @@
                     </Grid>
                     <TextBlock x:Name="HostWarning" Visibility="Collapsed" Margin="70,4,0,0"
                                Foreground="{StaticResource Yellow}" FontSize="10.5"
-                               FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"
+                               FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"
                                Text="⚠ Looks like a temp-extracted path. The real launcher (portable EXE / installer / parent) probably lives elsewhere — override above."/>
                 </StackPanel>
             </Border>
@@ -122,11 +122,11 @@
                                               ToolTip="Cross-process inject into a less-restricted sibling + CreateProcessA on WinSta0\Default. Use for AppContainer hosts where WinExec is blocked."/>
                             </ComboBox>
                             <TextBox x:Name="PayloadDataBox" Margin="0,8,0,0"
-                                     FontFamily="Cascadia Mono,Consolas" Visibility="Collapsed"
+                                     FontFamily="{StaticResource FontMono}" Visibility="Collapsed"
                                      ToolTip="Command to execute. calc.exe / cmd.exe / cmd.exe /k whoami / full path etc."/>
                             <StackPanel x:Name="SandboxTargetsPanel" Visibility="Collapsed" Margin="0,8,0,0">
                                 <TextBlock Text="Inject targets (CSV)" Foreground="{StaticResource Subtext}" FontSize="10"/>
-                                <TextBox x:Name="SandboxTargetsBox" FontFamily="Cascadia Mono,Consolas"
+                                <TextBox x:Name="SandboxTargetsBox" FontFamily="{StaticResource FontMono}"
                                          Text="AcroCEF.exe,AdobeCollabSync.exe"
                                          ToolTip="Sibling processes to try inject-escape into. Adobe default. Office: MsoSync.exe,msoxmlmf.exe. Edge: msedgewebview2.exe."/>
                             </StackPanel>
@@ -245,7 +245,7 @@
             </Grid>
 
             <TextBlock x:Name="StatusLine" Foreground="{StaticResource Overlay}" FontSize="11"
-                       FontFamily="Cascadia Mono,Consolas" Margin="0,14,0,0" TextWrapping="Wrap"/>
+                       FontFamily="{StaticResource FontMono}" Margin="0,14,0,0" TextWrapping="Wrap"/>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

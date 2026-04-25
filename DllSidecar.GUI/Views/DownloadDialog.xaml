@@ -19,7 +19,7 @@
 
         <TextBlock Grid.Row="0" x:Name="ToolTitle" FontSize="18" FontWeight="Bold"
                    Foreground="{StaticResource Text}"/>
-        <TextBlock Grid.Row="1" x:Name="ToolSubtitle" FontSize="12" FontFamily="Cascadia Mono,Consolas"
+        <TextBlock Grid.Row="1" x:Name="ToolSubtitle" FontSize="12" FontFamily="{StaticResource FontMono}"
                    Foreground="{StaticResource Overlay}" Margin="0,4,0,16" TextWrapping="Wrap"/>
 
         <!-- Phase label -->
@@ -31,7 +31,7 @@
             <TextBlock Grid.Column="0" x:Name="PhaseLabel" Text="Ready"
                        Foreground="{StaticResource Blue}" FontWeight="Bold" FontSize="11"/>
             <TextBlock Grid.Column="1" x:Name="PercentLabel" Text=""
-                       Foreground="{StaticResource Subtext}" FontFamily="Cascadia Mono,Consolas" FontSize="11"/>
+                       Foreground="{StaticResource Subtext}" FontFamily="{StaticResource FontMono}" FontSize="11"/>
         </Grid>
 
         <!-- Progress bar -->
@@ -44,7 +44,7 @@
             <ScrollViewer x:Name="LogScroller" VerticalScrollBarVisibility="Auto">
                 <TextBox x:Name="LogBox" IsReadOnly="True" Background="Transparent"
                          Foreground="{StaticResource Text}" BorderThickness="0"
-                         FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                         FontFamily="{StaticResource FontMono}" FontSize="11"
                          TextWrapping="Wrap" AcceptsReturn="True"/>
             </ScrollViewer>
         </Border>

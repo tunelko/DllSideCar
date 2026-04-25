@@ -80,7 +80,7 @@
                         </Grid.ColumnDefinitions>
                         <!-- Target picker swaps per mode (launch path vs PID chip) -->
                         <Grid Grid.Column="0">
-                            <TextBox x:Name="TargetBox" FontFamily="Cascadia Mono,Consolas"
+                            <TextBox x:Name="TargetBox" FontFamily="{StaticResource FontMono}"
                                      ToolTip="Path to EXE to launch. Quoted paths with args are parsed automatically."/>
                             <Grid x:Name="AttachPicker" Visibility="Collapsed">
                                 <Border x:Name="PidChip" Visibility="Collapsed"
@@ -89,7 +89,7 @@
                                         HorizontalAlignment="Left" VerticalAlignment="Center">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock x:Name="PidChipText" Foreground="{StaticResource Text}"
-                                                   FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                                   FontFamily="{StaticResource FontMono}" FontSize="11"
                                                    VerticalAlignment="Center"/>
                                         <Button Content="&#x2715;" Click="ClearPid_Click" Background="Transparent"
                                                 BorderThickness="0" Foreground="{StaticResource Overlay}"
@@ -113,7 +113,7 @@
                                 Click="Trace_Click" ToolTip="Start trace"/>
                     </Grid>
                     <TextBlock x:Name="ElapsedText" Foreground="{StaticResource Overlay}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                               FontFamily="{StaticResource FontMono}" FontSize="11"
                                Margin="0,6,0,0"/>
                     <!-- Hidden args kept for ParseCommandLine -->
                     <TextBox x:Name="ArgsBox" Visibility="Collapsed" Text=""/>
@@ -224,7 +224,7 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="PROCESS TREE · click to filter" Style="{StaticResource SectionHeader}"/>
                     <TreeView x:Name="ProcessTree" Background="Transparent" BorderThickness="0"
-                              Foreground="{StaticResource Text}" FontFamily="Cascadia Mono,Consolas"
+                              Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}"
                               FontSize="11" SelectedItemChanged="ProcessTree_Selected"
                               ItemContainerStyle="{StaticResource BoxedTreeViewItem}">
                         <TreeView.ItemTemplate>
@@ -258,7 +258,7 @@
                                VerticalAlignment="Center" Margin="0,0,10,0"/>
                     <TextBox x:Name="DllSearchBox" Grid.Column="1"
                              Background="Transparent" BorderThickness="0"
-                             FontFamily="Cascadia Mono,Consolas" FontSize="11" Padding="0,2"
+                             FontFamily="{StaticResource FontMono}" FontSize="11" Padding="0,2"
                              ToolTip="Filter by DLL name, process or directory"
                              TextChanged="DllSearch_Changed"/>
                     <Border x:Name="FilterChip" Grid.Column="2" Visibility="Collapsed"
@@ -267,7 +267,7 @@
                             VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock x:Name="FilterChipText" Foreground="{StaticResource Text}"
-                                       FontFamily="Cascadia Mono,Consolas" FontSize="10"
+                                       FontFamily="{StaticResource FontMono}" FontSize="10"
                                        VerticalAlignment="Center"/>
                             <Button Content="&#x2715;" Click="ClearProcessFilter_Click" Background="Transparent"
                                     BorderThickness="0" Foreground="{StaticResource Overlay}"
@@ -289,7 +289,7 @@
                           Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
                           RowBackground="{StaticResource Surface0}" AlternatingRowBackground="#3B3B52"
                           GridLinesVisibility="None" HeadersVisibility="Column"
-                          FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                          FontFamily="{StaticResource FontMono}" FontSize="11"
                           SelectionMode="Single" RowHeight="26"
                           SelectionChanged="DllGrid_SelectionChanged"
                           VerticalScrollBarVisibility="Auto">
@@ -337,7 +337,7 @@
                             <TextBlock x:Name="DetailTitle" Foreground="{StaticResource Text}" FontSize="14"
                                        FontWeight="Bold" Margin="0,0,0,6"/>
                             <TextBlock x:Name="DetailBody" Foreground="{StaticResource Text}" FontSize="11"
-                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"/>
 
                             <TextBlock Text="SEARCHED PATHS" Foreground="{StaticResource Blue}"
                                        FontWeight="Bold" FontSize="10" Margin="0,12,0,4"/>
@@ -347,7 +347,7 @@
                                         <Border Background="{StaticResource Surface0}" CornerRadius="3" Padding="8,5" Margin="0,0,0,4">
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Path}" Foreground="{StaticResource Text}"
-                                                           FontFamily="Cascadia Mono,Consolas" FontSize="10" TextWrapping="Wrap"/>
+                                                           FontFamily="{StaticResource FontMono}" FontSize="10" TextWrapping="Wrap"/>
                                                 <TextBlock Text="{Binding Meta}" Foreground="{StaticResource Overlay}"
                                                            FontSize="10" Margin="0,2,0,0"/>
                                             </StackPanel>

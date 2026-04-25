@@ -32,7 +32,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBox x:Name="DllPathBox" FontFamily="Cascadia Mono,Consolas"/>
+                <TextBox x:Name="DllPathBox" FontFamily="{StaticResource FontMono}"/>
                 <Button Grid.Column="1" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
                         Margin="10,0,0,0" Click="Browse_Click" ToolTip="Browse for target DLL"/>
             </Grid>
@@ -54,14 +54,14 @@
                     <TextBlock Text="DEPLOY + RUN" Foreground="{StaticResource Phosphor}"
                                FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"/>
                     <TextBlock x:Name="AutoModeText" Foreground="{StaticResource Phosphor}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="11" Margin="0,4,0,0"
+                               FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,4,0,0"
                                TextWrapping="Wrap" Visibility="Collapsed"/>
                     <!-- Arch override — static scan's majority vote sometimes picks the wrong arch
                          when a dir mixes x86 and x64 importers (MobaXterm's mx86_64b\bin\ mostly x86
                          with a few x64 stragglers). Let the researcher flip it. -->
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0" x:Name="ArchRow" Visibility="Collapsed">
                         <TextBlock Text="Arch:" Foreground="{StaticResource Subtext}"
-                                   FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                   FontFamily="{StaticResource FontMono}" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
                                 BorderThickness="1" CornerRadius="6">
@@ -76,7 +76,7 @@
                         </Border>
                     </StackPanel>
                     <TextBlock x:Name="DeployDropText" Foreground="{StaticResource Subtext}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="11" Margin="0,6,0,6"
+                               FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,6,0,6"
                                TextWrapping="Wrap"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -85,9 +85,9 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="Host:" Foreground="{StaticResource Subtext}"
-                                   FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                   FontFamily="{StaticResource FontMono}" FontSize="11"
                                    VerticalAlignment="Center"/>
-                        <TextBox Grid.Column="1" x:Name="HostExeBox" FontFamily="Cascadia Mono,Consolas"
+                        <TextBox Grid.Column="1" x:Name="HostExeBox" FontFamily="{StaticResource FontMono}"
                                  FontSize="11" Padding="6,4"
                                  TextChanged="HostExeBox_Changed"
                                  ToolTip="EXE launched after deploy. Default = IAT importer. Change to the upstream launcher if the importer is an internal binary that doesn't run standalone."/>
@@ -96,7 +96,7 @@
                     </Grid>
                     <TextBlock x:Name="HostWarning" Visibility="Collapsed" Margin="70,4,0,0"
                                Foreground="{StaticResource Yellow}" FontSize="10.5"
-                               FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"
+                               FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"
                                Text="⚠ Looks like a temp-extracted path. The real launcher (portable EXE / installer / parent) probably lives elsewhere — override above."/>
                 </StackPanel>
                 <Button Grid.Column="1" Content="Clear" Style="{StaticResource GhostButton}"
@@ -127,11 +127,11 @@
                                                   ToolTip="Cross-process inject into a less-restricted sibling (e.g. AcroCEF) + CreateProcessA on WinSta0\Default so cmd.exe appears on desktop. Required for AppContainer hosts where WinExec is blocked."/>
                                 </ComboBox>
                                 <TextBox x:Name="PayloadDataBox" Margin="0,8,0,0"
-                                         FontFamily="Cascadia Mono,Consolas" Visibility="Collapsed"
+                                         FontFamily="{StaticResource FontMono}" Visibility="Collapsed"
                                          ToolTip="Command to execute. calc.exe / cmd.exe / cmd.exe /k whoami / full path etc."/>
                                 <StackPanel x:Name="SandboxTargetsPanel" Visibility="Collapsed" Margin="0,8,0,0">
                                     <TextBlock Text="Inject targets (CSV)" Foreground="{StaticResource Subtext}" FontSize="10"/>
-                                    <TextBox x:Name="SandboxTargetsBox" FontFamily="Cascadia Mono,Consolas"
+                                    <TextBox x:Name="SandboxTargetsBox" FontFamily="{StaticResource FontMono}"
                                              Text="AcroCEF.exe,AdobeCollabSync.exe"
                                              ToolTip="Sibling processes to try inject-escape into. Adobe default shown. Office: MsoSync.exe,msoxmlmf.exe. Edge: msedgewebview2.exe. First one that passes OpenProcess + VirtualAllocEx RWX test wins."/>
                                 </StackPanel>
@@ -251,7 +251,7 @@
                     <StackPanel>
                         <TextBlock Text="GENERATED FILES" Style="{StaticResource SectionHeader}" Foreground="{StaticResource Green}"/>
                         <TextBlock x:Name="OutputInfo" Foreground="{StaticResource Text}"
-                                   FontFamily="Cascadia Mono,Consolas" FontSize="11" TextWrapping="Wrap"/>
+                                   FontFamily="{StaticResource FontMono}" FontSize="11" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -261,7 +261,7 @@
         <Border Grid.Row="4" Background="{StaticResource Mantle}" CornerRadius="6" Padding="16,12" Margin="0,14,0,0">
             <Grid>
                 <TextBlock x:Name="GenStatus" HorizontalAlignment="Left" VerticalAlignment="Center"
-                           FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                           FontFamily="{StaticResource FontMono}" FontSize="11"
                            Foreground="{StaticResource Overlay}" TextTrimming="CharacterEllipsis"/>
                 <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                     <Button Content="Reset to Starter defaults" Style="{StaticResource SecondaryButton}" Click="Reset_Click"

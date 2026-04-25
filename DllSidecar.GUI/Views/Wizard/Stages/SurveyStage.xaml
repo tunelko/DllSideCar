@@ -83,7 +83,7 @@
                       Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
                       RowBackground="Transparent" AlternatingRowBackground="Transparent"
                       GridLinesVisibility="None" HeadersVisibility="Column"
-                      FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                      FontFamily="{StaticResource FontMono}" FontSize="11"
                       RowHeight="26" VerticalScrollBarVisibility="Auto"
                       SelectionMode="Single">
                 <DataGrid.Resources>
@@ -176,6 +176,6 @@
         </Border>
 
         <TextBlock Grid.Row="5" x:Name="StatusLine" Foreground="{StaticResource Overlay}" FontSize="11"
-                   FontFamily="Cascadia Mono,Consolas" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                   FontFamily="{StaticResource FontMono}" Margin="0,12,0,0" TextWrapping="Wrap"/>
     </Grid>
 </UserControl>

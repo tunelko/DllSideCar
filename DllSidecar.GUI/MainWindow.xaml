@@ -87,7 +87,7 @@
         <Style x:Key="NavGroup" TargetType="TextBlock">
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
+            <Setter Property="FontFamily" Value="{StaticResource FontDisplay}"/>
             <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
             <Setter Property="Margin" Value="0"/>
         </Style>
@@ -172,6 +172,7 @@
                     <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="6,0,0,0"
                                 Visibility="{Binding IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="DllSidecar" FontSize="17" FontWeight="SemiBold"
+                                   FontFamily="{StaticResource FontDisplay}"
                                    Foreground="{StaticResource Text}"/>
                         <TextBlock Text="@tunelko · BugAInters 2026" FontSize="10"
                                    Foreground="{StaticResource Overlay}" Margin="0,2,0,0"/>

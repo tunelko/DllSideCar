@@ -40,7 +40,7 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="DirPathBox" Grid.Column="0" FontFamily="Cascadia Mono,Consolas"/>
+            <TextBox x:Name="DirPathBox" Grid.Column="0" FontFamily="{StaticResource FontMono}"/>
             <Button Grid.Column="1" x:Name="BrowseBtn" Content="&#x1F4C1;"
                     Style="{StaticResource IconButton}" Margin="10,0,0,0" Click="Browse_Click"
                     ToolTip="Browse for directory"/>
@@ -139,7 +139,7 @@
                           Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
                           RowBackground="{StaticResource Surface0}" AlternatingRowBackground="#1F1F1F"
                           GridLinesVisibility="None" HeadersVisibility="Column"
-                          FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                          FontFamily="{StaticResource FontMono}" FontSize="11"
                           SelectionMode="Single" RowHeight="28"
                           SelectionChanged="FindingsGrid_SelectionChanged"
                           VerticalScrollBarVisibility="Auto">
@@ -160,7 +160,7 @@
                                             Padding="8,2" HorizontalAlignment="Left" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding SeverityLabel}" Foreground="{Binding SeverityFg}"
                                                    FontSize="10" FontWeight="Bold"
-                                                   FontFamily="Cascadia Mono,Consolas"/>
+                                                   FontFamily="{StaticResource FontBadge}"/>
                                     </Border>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
@@ -195,18 +195,18 @@
                             <TextBlock x:Name="DetailTitle" Foreground="{StaticResource Text}" FontSize="14"
                                        FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,6"/>
                             <TextBlock x:Name="DetailPe" Foreground="{StaticResource Subtext}"
-                                       FontFamily="Cascadia Mono,Consolas" FontSize="10"
+                                       FontFamily="{StaticResource FontMono}" FontSize="10"
                                        TextWrapping="Wrap" Margin="0,0,0,14"/>
 
                             <TextBlock Text="EVIDENCE" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                        FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,4,0,4"/>
                             <TextBlock x:Name="DetailEvidence" Foreground="{StaticResource Text}" FontSize="11"
-                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"/>
 
                             <TextBlock Text="PRIVILEGED CONTEXT" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                        FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,14,0,4"/>
                             <TextBlock x:Name="DetailContext" Foreground="{StaticResource Text}" FontSize="11"
-                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"/>
 
                             <TextBlock Text="EXTRAS" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                        FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,14,0,4"/>
@@ -220,10 +220,10 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0" Text="{Binding Key}"
                                                        Foreground="{StaticResource Overlay}" Margin="0,0,10,0"
-                                                       FontFamily="Cascadia Mono,Consolas" FontSize="10"/>
+                                                       FontFamily="{StaticResource FontMono}" FontSize="10"/>
                                             <TextBlock Grid.Column="1" Text="{Binding Value}"
                                                        Foreground="{StaticResource Text}" FontSize="10"
-                                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"/>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

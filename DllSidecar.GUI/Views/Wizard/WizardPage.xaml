@@ -79,7 +79,7 @@
                            FontWeight="Medium" Foreground="{StaticResource Blue}"
                            VerticalAlignment="Center" Margin="0,0,14,0"/>
                 <TextBlock x:Name="SessionSummary" Foreground="{StaticResource Subtext}"
-                           FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                           FontFamily="{StaticResource FontMono}" FontSize="11"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                            Text="(empty — no input yet)"/>
             </StackPanel>

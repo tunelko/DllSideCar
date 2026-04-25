@@ -32,7 +32,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBox x:Name="FilterBox" Grid.Column="0"
-                     FontFamily="Cascadia Mono,Consolas" FontSize="11" Padding="6,4"
+                     FontFamily="{StaticResource FontMono}" FontSize="11" Padding="6,4"
                      ToolTip="Filter by name, PID, or window title — branches with no match are hidden, ancestors are kept for context"
                      TextChanged="Filter_Changed"/>
             <Border Grid.Column="1" Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
@@ -63,18 +63,18 @@
                         <ColumnDefinition Width="60"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="PID" Foreground="{StaticResource Subtext}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="10" FontWeight="SemiBold" Padding="6,4"/>
+                               FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="SemiBold" Padding="6,4"/>
                     <TextBlock Grid.Column="1" Text="Name" Foreground="{StaticResource Subtext}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="10" FontWeight="SemiBold" Padding="6,4"/>
+                               FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="SemiBold" Padding="6,4"/>
                     <TextBlock Grid.Column="2" Text="Window title" Foreground="{StaticResource Subtext}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="10" FontWeight="SemiBold" Padding="6,4"/>
+                               FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="SemiBold" Padding="6,4"/>
                     <TextBlock Grid.Column="3" Text="Session" Foreground="{StaticResource Subtext}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="10" FontWeight="SemiBold" Padding="6,4"
+                               FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="SemiBold" Padding="6,4"
                                HorizontalAlignment="Right"/>
                 </Grid>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                     <TreeView x:Name="Tree" Background="Transparent" BorderThickness="0"
-                              Foreground="{StaticResource Text}" FontFamily="Cascadia Mono,Consolas"
+                              Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}"
                               FontSize="11" SelectedItemChanged="Tree_SelectedChanged"
                               MouseDoubleClick="Tree_DoubleClick"
                               ItemContainerStyle="{StaticResource BoxedTreeViewItem}">
@@ -110,7 +110,7 @@
         <Grid Grid.Row="3" Margin="0,12,0,0">
             <TextBlock x:Name="Status" HorizontalAlignment="Left" VerticalAlignment="Center"
                        Foreground="{StaticResource Overlay}" FontSize="11"
-                       FontFamily="Cascadia Mono,Consolas"/>
+                       FontFamily="{StaticResource FontMono}"/>
             <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                 <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
                         Click="Cancel_Click" IsCancel="True"/>

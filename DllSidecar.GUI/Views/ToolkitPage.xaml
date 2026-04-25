@@ -71,7 +71,7 @@
                                             <TextBlock Text="{Binding Purpose}" Foreground="{StaticResource Subtext}"
                                                        FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"/>
                                             <TextBlock Text="{Binding StatusLine}" Foreground="{StaticResource Overlay}"
-                                                       FontFamily="Cascadia Mono,Consolas" FontSize="10"
+                                                       FontFamily="{StaticResource FontMono}" FontSize="10"
                                                        Margin="0,6,0,0" TextWrapping="Wrap"/>
                                             <TextBlock Text="{Binding Notes}" Foreground="{StaticResource Yellow}"
                                                        FontSize="10" Margin="0,4,0,0"
@@ -111,7 +111,7 @@
         <Border Grid.Row="3" Background="{StaticResource Mantle}" CornerRadius="6" Padding="16,12" Margin="0,14,0,0">
             <Grid>
                 <TextBlock x:Name="FooterStatus" HorizontalAlignment="Left" VerticalAlignment="Center"
-                           FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                           FontFamily="{StaticResource FontMono}" FontSize="11"
                            Foreground="{StaticResource Overlay}"
                            Text="Click Refresh to re-probe external tools."/>
                 <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">

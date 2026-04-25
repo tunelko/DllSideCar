@@ -103,7 +103,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBox x:Name="PathBox" Grid.Column="0"
-                     FontFamily="Cascadia Mono,Consolas" FontSize="12"
+                     FontFamily="{StaticResource FontMono}" FontSize="12"
                      TextChanged="PathBox_Changed"/>
             <Button Grid.Column="1" x:Name="BrowseFileBtn" Content="Browse file..."
                     Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" Click="BrowseFile_Click"/>

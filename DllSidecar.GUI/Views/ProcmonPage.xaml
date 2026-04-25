@@ -21,7 +21,7 @@
             <TextBlock Foreground="{StaticResource Overlay}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap">
                 <Run Text="Ingest a Process Monitor CSV export to see which DLLs the loader actually searched for at runtime — the dynamic ground truth that complements the static scan. Pre-filter in ProcMon: "/>
                 <Run Text="Operation=CreateFile · Result=NAME NOT FOUND · Path ends with .dll"
-                     FontFamily="Cascadia Mono,Consolas" Foreground="{StaticResource Subtext}"/>
+                     FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Subtext}"/>
                 <Run Text=" · File → Save → CSV. Then Browse + Parse here."/>
             </TextBlock>
         </StackPanel>
@@ -34,7 +34,7 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="CsvPathBox" Grid.Column="0" FontFamily="Cascadia Mono,Consolas"
+            <TextBox x:Name="CsvPathBox" Grid.Column="0" FontFamily="{StaticResource FontMono}"
                     />
             <Button Grid.Column="1" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
                     Margin="10,0,0,0" Click="Browse_Click" ToolTip="Browse for ProcMon CSV"/>
@@ -121,7 +121,7 @@
                                        VerticalAlignment="Center" Margin="0,0,10,0"/>
                             <TextBox Grid.Column="1" x:Name="DllSearchBox"
                                      Background="Transparent" BorderThickness="0"
-                                     FontFamily="Cascadia Mono,Consolas" FontSize="11" Padding="0,2"
+                                     FontFamily="{StaticResource FontMono}" FontSize="11" Padding="0,2"
                                      ToolTip="Filter by DLL name, process or search path"
                                      TextChanged="Search_Changed"/>
                             <Button Grid.Column="2" x:Name="CopyProcmonBtn" Content="&#x29C9;"
@@ -138,7 +138,7 @@
                               Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
                               RowBackground="{StaticResource Surface0}" AlternatingRowBackground="#3B3B52"
                               GridLinesVisibility="None" HeadersVisibility="Column"
-                              FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                              FontFamily="{StaticResource FontMono}" FontSize="11"
                               SelectionMode="Single" RowHeight="26"
                               SelectionChanged="DllGrid_SelectionChanged"
                               VerticalScrollBarVisibility="Auto">
@@ -179,7 +179,7 @@
                             <TextBlock Text="PROCESSES" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                        FontSize="10" Margin="0,8,0,4"/>
                             <TextBlock x:Name="DetailProcesses" Foreground="{StaticResource Text}" FontSize="11"
-                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"/>
 
                             <TextBlock Text="SEARCHED PATHS (NAME NOT FOUND)" Foreground="{StaticResource Blue}"
                                        FontWeight="Bold" FontSize="10" Margin="0,12,0,4"/>
@@ -189,7 +189,7 @@
                                         <Border Background="{StaticResource Surface0}" CornerRadius="3" Padding="8,5" Margin="0,0,0,4">
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Path}" Foreground="{StaticResource Text}"
-                                                           FontFamily="Cascadia Mono,Consolas" FontSize="10" TextWrapping="Wrap"/>
+                                                           FontFamily="{StaticResource FontMono}" FontSize="10" TextWrapping="Wrap"/>
                                                 <TextBlock Text="{Binding Meta}" Foreground="{StaticResource Overlay}"
                                                            FontSize="10" Margin="0,2,0,0"/>
                                             </StackPanel>

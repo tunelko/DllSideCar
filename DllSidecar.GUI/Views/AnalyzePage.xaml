@@ -24,7 +24,7 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="FilePathBox" Grid.Column="0" FontFamily="Cascadia Mono,Consolas"
+            <TextBox x:Name="FilePathBox" Grid.Column="0" FontFamily="{StaticResource FontMono}"
                     />
             <Button Grid.Column="1" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
                     Margin="10,0,0,0" Click="Browse_Click" ToolTip="Browse for DLL / EXE"/>
@@ -61,7 +61,7 @@
                                         <TextBlock MaxWidth="380" TextWrapping="Wrap">
                                             <Run FontWeight="Bold">KnownDLLs</Run>
                                             <Run> are the system DLLs Windows caches and always resolves from System32 (</Run>
-                                            <Run FontFamily="Cascadia Mono,Consolas">kernel32.dll, user32.dll, ntdll.dll</Run>
+                                            <Run FontFamily="{StaticResource FontMono}">kernel32.dll, user32.dll, ntdll.dll</Run>
                                             <Run>, etc.) — the loader consults the KnownDLLs list BEFORE the search path, so they cannot be sideloaded.</Run>
                                             <LineBreak/><LineBreak/>
                                             <Run Foreground="#00CA4E" FontWeight="Bold">NO </Run>
@@ -104,25 +104,25 @@
                                         <Run FontWeight="Bold">Security Score</Run>
                                         <Run> = number of runtime exploit-mitigations enabled on this PE, out of 7.</Run>
                                         <LineBreak/><LineBreak/>
-                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">1. ASLR</Run>
+                                        <Run FontFamily="{StaticResource FontMono}" FontWeight="Bold">1. ASLR</Run>
                                         <Run>  — base address randomization (DYNAMIC_BASE)</Run>
                                         <LineBreak/>
-                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">2. High-Entropy ASLR</Run>
+                                        <Run FontFamily="{StaticResource FontMono}" FontWeight="Bold">2. High-Entropy ASLR</Run>
                                         <Run>  — 64-bit entropy for ASLR</Run>
                                         <LineBreak/>
-                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">3. DEP / NX</Run>
+                                        <Run FontFamily="{StaticResource FontMono}" FontWeight="Bold">3. DEP / NX</Run>
                                         <Run>  — non-executable data pages</Run>
                                         <LineBreak/>
-                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">4. CFG</Run>
+                                        <Run FontFamily="{StaticResource FontMono}" FontWeight="Bold">4. CFG</Run>
                                         <Run>  — Control Flow Guard</Run>
                                         <LineBreak/>
-                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">5. SafeSEH</Run>
+                                        <Run FontFamily="{StaticResource FontMono}" FontWeight="Bold">5. SafeSEH</Run>
                                         <Run>  — validated exception handler table (x86 only)</Run>
                                         <LineBreak/>
-                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">6. Force Integrity</Run>
+                                        <Run FontFamily="{StaticResource FontMono}" FontWeight="Bold">6. Force Integrity</Run>
                                         <Run>  — loader requires valid signature</Run>
                                         <LineBreak/>
-                                        <Run FontFamily="Cascadia Mono,Consolas" FontWeight="Bold">7. Authenticode</Run>
+                                        <Run FontFamily="{StaticResource FontMono}" FontWeight="Bold">7. Authenticode</Run>
                                         <Run>  — embedded code signature</Run>
                                         <LineBreak/><LineBreak/>
                                         <Run Foreground="#F5A524">Note:</Run>
@@ -230,7 +230,7 @@
                           Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
                           RowBackground="{StaticResource Surface0}" AlternatingRowBackground="#3B3B52"
                           GridLinesVisibility="None" HeadersVisibility="Column"
-                          FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                          FontFamily="{StaticResource FontMono}" FontSize="11"
                           RowHeight="26" VerticalScrollBarVisibility="Auto">
                     <DataGrid.ColumnHeaderStyle>
                         <Style TargetType="DataGridColumnHeader">

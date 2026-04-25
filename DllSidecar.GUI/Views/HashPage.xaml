@@ -14,7 +14,7 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="InputBox" FontFamily="Cascadia Mono,Consolas"/>
+            <TextBox x:Name="InputBox" FontFamily="{StaticResource FontMono}"/>
             <ComboBox Grid.Column="1" x:Name="XorKeyCombo" Width="100" Margin="10,0,0,0"/>
             <Button Grid.Column="2" Content="Compute" Style="{StaticResource AccentButton}"
                     Margin="10,0,0,0" Click="Hash_Click"/>
@@ -24,11 +24,11 @@
             <StackPanel>
                 <TextBlock Text="RESULT" Style="{StaticResource SectionHeader}"/>
                 <TextBlock x:Name="HashSensitive" Foreground="{StaticResource Text}"
-                           FontFamily="Cascadia Mono,Consolas" FontSize="13" Margin="0,2"/>
+                           FontFamily="{StaticResource FontMono}" FontSize="13" Margin="0,2"/>
                 <TextBlock x:Name="HashInsensitive" Foreground="{StaticResource Text}"
-                           FontFamily="Cascadia Mono,Consolas" FontSize="13" Margin="0,2"/>
+                           FontFamily="{StaticResource FontMono}" FontSize="13" Margin="0,2"/>
                 <TextBlock x:Name="XorResult" Foreground="{StaticResource Yellow}"
-                           FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                           FontFamily="{StaticResource FontMono}" FontSize="11"
                            Margin="0,12,0,0" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>

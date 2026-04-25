@@ -97,7 +97,7 @@
                                FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,0,0,6"/>
                     <TextBox x:Name="TbAffected" MinHeight="72" MaxHeight="140"
                              AcceptsReturn="True" TextWrapping="Wrap"
-                             FontFamily="Cascadia Mono,Consolas" FontSize="11" Padding="8,6"
+                             FontFamily="{StaticResource FontMono}" FontSize="11" Padding="8,6"
                              VerticalScrollBarVisibility="Auto"/>
                     <TextBlock Foreground="{StaticResource Overlay}" FontSize="10" Margin="0,3,0,0"
                                Text="One component per line. The renderer converts to '  - entry' bullets."/>
@@ -109,7 +109,7 @@
                                FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,0,0,6"/>
                     <TextBox x:Name="TbRequirements" MinHeight="72" MaxHeight="140"
                              AcceptsReturn="True" TextWrapping="Wrap"
-                             FontFamily="Cascadia Mono,Consolas" FontSize="11" Padding="8,6"
+                             FontFamily="{StaticResource FontMono}" FontSize="11" Padding="8,6"
                              VerticalScrollBarVisibility="Auto"/>
                     <TextBlock Foreground="{StaticResource Overlay}" FontSize="10" Margin="0,3,0,0"
                                Text="One precondition per line (e.g. 'local standard user', 'write access to %TEMP%')."/>
@@ -121,7 +121,7 @@
                                FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,0,0,6"/>
                     <TextBox x:Name="TbSolution" MinHeight="100" MaxHeight="200"
                              AcceptsReturn="True" TextWrapping="Wrap"
-                             FontFamily="Cascadia Mono,Consolas" FontSize="11" Padding="8,6"
+                             FontFamily="{StaticResource FontMono}" FontSize="11" Padding="8,6"
                              VerticalScrollBarVisibility="Auto"/>
                 </StackPanel>
 
@@ -138,7 +138,7 @@
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="Vector" Foreground="{StaticResource Subtext}" FontSize="11" Margin="0,0,0,3"/>
                             <TextBox x:Name="TbV4Vector" Padding="8,6" FontSize="11"
-                                     FontFamily="Cascadia Mono,Consolas"
+                                     FontFamily="{StaticResource FontMono}"
                                      ToolTip="Paste from https://www.first.org/cvss/calculator/4.0"/>
                         </StackPanel>
                         <StackPanel Grid.Column="2">
