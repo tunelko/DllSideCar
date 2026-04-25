@@ -393,6 +393,86 @@
                                 </StackPanel>
                             </Border>
                         </Popup>
+                        <Button x:Name="HelpDropdown" Click="HelpDropdown_Click"
+                                ToolTip="Help / About" Cursor="Hand" Margin="6,0,0,0">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource Ring}"/>
+                                    <Setter Property="Padding" Value="14,5,12,5"/>
+                                    <Setter Property="FontSize" Value="12"/>
+                                    <Setter Property="FontWeight" Value="Medium"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface1}"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                                                        <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource RingStrong}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x2753;" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBlock Text="Help" VerticalAlignment="Center"/>
+                                <TextBlock Text=" &#x25BE;" FontSize="10" Foreground="{StaticResource Overlay}"
+                                           VerticalAlignment="Center" Margin="6,0,0,0"/>
+                            </StackPanel>
+                        </Button>
+                        <Popup x:Name="HelpPopup" PlacementTarget="{Binding ElementName=HelpDropdown}"
+                               Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                               PopupAnimation="Fade" HorizontalOffset="-2" VerticalOffset="4">
+                            <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource RingStrong}"
+                                    BorderThickness="1" CornerRadius="8" Padding="4,6"
+                                    MinWidth="240">
+                                <Border.Effect>
+                                    <DropShadowEffect ShadowDepth="4" Opacity="0.5" BlurRadius="12"/>
+                                </Border.Effect>
+                                <StackPanel>
+                                    <Button Style="{StaticResource NavButton}" Click="NavOpenRepo_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x1F310;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Open repository" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  github.com" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource NavButton}" Click="NavOpenBlog_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x1F4DD;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Author's blog" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  blogs.tunelko.com" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Border Height="1" Background="{StaticResource Ring}" Margin="8,4"/>
+                                    <Button Style="{StaticResource NavButton}" Click="NavAbout_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x2139;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="About DllSidecar" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  version, license" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
                     </StackPanel>
                 </DockPanel>
             </Border>

@@ -183,6 +183,30 @@ public partial class MainWindow : Window
         ToolsPopup.IsOpen = !ToolsPopup.IsOpen;
     }
 
+    private void HelpDropdown_Click(object sender, RoutedEventArgs e)
+    {
+        HelpPopup.IsOpen = !HelpPopup.IsOpen;
+    }
+
+    private void NavOpenRepo_Click(object sender, RoutedEventArgs e)
+    {
+        HelpPopup.IsOpen = false;
+        Helpers.SafeUrl.Open("https://github.com/tunelko/DllSideCar");
+    }
+
+    private void NavOpenBlog_Click(object sender, RoutedEventArgs e)
+    {
+        HelpPopup.IsOpen = false;
+        Helpers.SafeUrl.Open("https://blogs.tunelko.com");
+    }
+
+    private void NavAbout_Click(object sender, RoutedEventArgs e)
+    {
+        HelpPopup.IsOpen = false;
+        var dlg = new Views.AboutDialog { Owner = this };
+        dlg.ShowDialog();
+    }
+
     // ---------- Nav handlers ----------
 
     private void NavAnalyze_Click(object sender, RoutedEventArgs e) => NavigateTo(new AnalyzePage(this));

@@ -9,6 +9,10 @@
     <PackageReference Include="Markdig" Version="0.37.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Resource Include="Assets\dllsidecar.png" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
@@ -19,9 +23,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <AssemblyName>DllSidecar</AssemblyName>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.1.1</Version>
+    <AssemblyVersion>1.1.1.0</AssemblyVersion>
+    <FileVersion>1.1.1.0</FileVersion>
     <Product>DllSidecar</Product>
     <Company>Pedro J. Nunez-Cacho Fuentes (@tunelko)</Company>
     <Copyright>Copyright (c) 2026 Pedro J. Nunez-Cacho Fuentes</Copyright>

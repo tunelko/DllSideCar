@@ -31,8 +31,9 @@ TestResults/
 *.pem
 
 # ---- Excluded by project policy ----
-# Markdown docs (kept locally, not pushed)
+# Markdown docs (kept locally, not pushed) — except the public README.
 *.md
+!README.md
 # PowerShell helpers (build/ops scripts kept local)
 *.ps1
 # Image assets per policy
@@ -40,6 +41,8 @@ TestResults/
 *.jpg
 *.jpeg
 *.gif
+# Exception: the embedded app logo is a build-time WPF resource, not a doc asset.
+!DllSidecar.GUI/Assets/dllsidecar.png
 # Python research helpers (one-off scripts, not part of the product)
 *.py
 # Installer (releases produced manually on GitHub)
