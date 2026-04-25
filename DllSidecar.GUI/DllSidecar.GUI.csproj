@@ -11,6 +11,15 @@
 
   <ItemGroup>
     <Resource Include="Assets\dllsidecar.png" />
+    <!--
+      WPF native splash screen. Build action SplashScreen displays the image
+      via a Win32 layered window during app startup and auto-fades it when
+      MainWindow is shown. The PNG must have an alpha channel for the
+      transparency to render correctly — splash.png is a 600x400 downscale
+      of the badge with A=0 in the corners, so the logo floats on the
+      desktop with no chrome.
+    -->
+    <SplashScreen Include="Assets\splash.png" />
   </ItemGroup>
 
   <PropertyGroup>
