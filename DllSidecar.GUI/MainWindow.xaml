@@ -26,6 +26,24 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
+        <!-- Sidebar background: subtle vertical gradient from pure black at top to a slightly
+             desaturated dark grey at the bottom — same family as Mantle but with depth cue. -->
+        <LinearGradientBrush x:Key="SidebarBg" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#000000" Offset="0"/>
+            <GradientStop Color="#0E0E12" Offset="0.55"/>
+            <GradientStop Color="#1A1A22" Offset="1"/>
+        </LinearGradientBrush>
+
+        <!-- Nav section band: horizontal gradient that fades from a tinted accent to fully
+             transparent on the right. Used as the backdrop for each section header label
+             (WIZARD / ANALYSIS / GENERATE) so the groups read as visual blocks rather than
+             a uniform list. -->
+        <LinearGradientBrush x:Key="NavSectionBg" StartPoint="0,0.5" EndPoint="1,0.5">
+            <GradientStop Color="#2A3A56" Offset="0"/>
+            <GradientStop Color="#0F1A2E" Offset="0.45"/>
+            <GradientStop Color="#00000000" Offset="1"/>
+        </LinearGradientBrush>
+
         <!-- Nav button: Grid content with icon (fixed 28px) + label (Visibility bound to sidebar state) -->
         <Style x:Key="NavButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
@@ -70,8 +88,17 @@
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="FontWeight" Value="Medium"/>
             <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
-            <Setter Property="Foreground" Value="{StaticResource Overlay}"/>
-            <Setter Property="Margin" Value="12,18,0,6"/>
+            <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+            <Setter Property="Margin" Value="0"/>
+        </Style>
+
+        <!-- Wrapper Border style for section headers: paints the gradient band behind the
+             NavGroup label and collapses with the sidebar like the rest of the labels do. -->
+        <Style x:Key="NavSectionBand" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource NavSectionBg}"/>
+            <Setter Property="Margin" Value="6,16,6,4"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="CornerRadius" Value="3"/>
             <Setter Property="Visibility" Value="{Binding IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
         </Style>
 
@@ -133,7 +160,7 @@
         </Grid.ColumnDefinitions>
 
         <!-- ========== Sidebar ========== -->
-        <Border Grid.Column="0" Background="{StaticResource Mantle}"
+        <Border Grid.Column="0" Background="{StaticResource SidebarBg}"
                 BorderBrush="{StaticResource Ring}" BorderThickness="0,0,1,0" Padding="8">
             <DockPanel>
                 <!-- Header (brand + toggle) -->
@@ -172,7 +199,9 @@
                 <!-- Nav items -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,4">
-                        <TextBlock Text="WIZARD" Style="{StaticResource NavGroup}" Margin="12,0,0,6"/>
+                        <Border Style="{StaticResource NavSectionBand}" Margin="6,4,6,4">
+                            <TextBlock Text="WIZARD" Style="{StaticResource NavGroup}"/>
+                        </Border>
                         <Button Style="{StaticResource NavButton}" Click="NavWizard_Click"
                                 ToolTip="Research Wizard — guided end-to-end pipeline from input to advisory (Guided or Express)">
                             <StackPanel Orientation="Horizontal">
@@ -181,7 +210,9 @@
                             </StackPanel>
                         </Button>
 
-                        <TextBlock Text="ANALYSIS" Style="{StaticResource NavGroup}"/>
+                        <Border Style="{StaticResource NavSectionBand}">
+                            <TextBlock Text="ANALYSIS" Style="{StaticResource NavGroup}"/>
+                        </Border>
                         <Button Style="{StaticResource NavButton}" Click="NavAnalyze_Click" ToolTip="Analyze PE — inspect a single DLL/EXE (exports, signature, flags)">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F50D;" Style="{StaticResource NavIcon}"/>
@@ -219,7 +250,9 @@
                             </StackPanel>
                         </Button>
 
-                        <TextBlock Text="GENERATE" Style="{StaticResource NavGroup}"/>
+                        <Border Style="{StaticResource NavSectionBand}">
+                            <TextBlock Text="GENERATE" Style="{StaticResource NavGroup}"/>
+                        </Border>
                         <Button Style="{StaticResource NavButton}" Click="NavTracer_Click" ToolTip="Export Tracer — wrap every export to log which ones the host actually calls">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F4DD;" Style="{StaticResource NavIcon}"/>
@@ -307,12 +340,10 @@
                     </LinearGradientBrush>
                 </Border.Background>
                 <DockPanel>
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock x:Name="StatusGcc2" Text="" FontSize="10"
-                                   FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Overlay}"
-                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal">
+                    <!-- Outermost right: Tools & Settings + Help dropdowns. The Popups stay
+                         attached to their PlacementTarget so they don't need to live next
+                         to the buttons in layout order. -->
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,0">
                         <Button x:Name="ToolsDropdown" Click="ToolsDropdown_Click"
                                 ToolTip="Build, Toolkit, Configuration" Cursor="Hand">
                             <Button.Style>

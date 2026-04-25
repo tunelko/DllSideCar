@@ -51,8 +51,8 @@
             <Button Grid.Column="1" x:Name="BrowseBtn" Content="&#x1F4C1;"
                     Style="{StaticResource IconButton}" Margin="10,0,0,0" Click="BrowseDir_Click"
                     ToolTip="Browse for install directory"/>
-            <Button Grid.Column="2" x:Name="ScanBtn" Content="SCAN"
-                    Style="{StaticResource TerminalButton}" Margin="10,0,0,0" Click="Scan_Click"/>
+            <Button Grid.Column="2" x:Name="ScanBtn" Content="Scan"
+                    Style="{StaticResource AccentButton}" Margin="10,0,0,0" Click="Scan_Click"/>
             <Button Grid.Column="3" x:Name="CancelBtn" Content="Cancel"
                     Style="{StaticResource DangerButton}" Margin="10,0,0,0"
                     Click="Cancel_Click" IsEnabled="False" Visibility="Collapsed"/>

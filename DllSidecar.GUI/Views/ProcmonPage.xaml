@@ -40,8 +40,8 @@
                     Margin="10,0,0,0" Click="Browse_Click" ToolTip="Browse for ProcMon CSV"/>
             <Button Grid.Column="2" Content="Parse" Style="{StaticResource AccentButton}"
                     Margin="10,0,0,0" Click="Parse_Click"/>
-            <Button Grid.Column="3" x:Name="LaunchProcmonBtn" Content="LAUNCH PROCMON"
-                    Style="{StaticResource TerminalButton}" Margin="10,0,0,0" Click="LaunchProcmon_Click"/>
+            <Button Grid.Column="3" x:Name="LaunchProcmonBtn" Content="Launch ProcMon"
+                    Style="{StaticResource AccentButton}" Margin="10,0,0,0" Click="LaunchProcmon_Click"/>
         </Grid>
 
         <!-- Filters (homogenized with ScanPage) -->
