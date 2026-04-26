@@ -3,8 +3,39 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="24,20">
-            <TextBlock Text="Step 5 · Craft the PoC"
-                       FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Text}" Margin="0,0,0,4"/>
+            <!-- Header: title on the left, mode tiles top-right.
+                 Tiles act as page-level mode toggles, always visible without scrolling. -->
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Step 5 · Craft the PoC"
+                           FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Text}"
+                           VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="TileProxy" Style="{StaticResource ActionTile}"
+                            Width="160" Margin="0,0,8,0" Padding="12,8" Click="TileProxy_Click">
+                        <StackPanel>
+                            <TextBlock Text="&#x26A1;" FontSize="18" TextAlignment="Center"/>
+                            <TextBlock Text="Proxy" FontSize="12" FontWeight="SemiBold" TextAlignment="Center"
+                                       Foreground="{StaticResource Text}" Margin="0,3,0,1"/>
+                            <TextBlock Text="forward + fire" FontSize="10" TextAlignment="Center"
+                                       Foreground="{StaticResource Overlay}"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="TileSideload" Style="{StaticResource ActionTile}"
+                            Width="160" Padding="12,8" Click="TileSideload_Click">
+                        <StackPanel>
+                            <TextBlock Text="&#x1F4E6;" FontSize="18" TextAlignment="Center"/>
+                            <TextBlock Text="Sideload" FontSize="12" FontWeight="SemiBold" TextAlignment="Center"
+                                       Foreground="{StaticResource Text}" Margin="0,3,0,1"/>
+                            <TextBlock Text="drop + run DllMain" FontSize="10" TextAlignment="Center"
+                                       Foreground="{StaticResource Overlay}"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
             <TextBlock x:Name="HeaderHint" FontSize="12" Foreground="{StaticResource Subtext}" Margin="0,0,0,14" TextWrapping="Wrap"/>
 
             <!-- Deploy banner — seeded from ResolveTarget. Arch toggle + host editor
@@ -61,33 +92,8 @@
                 </StackPanel>
             </Border>
 
-            <!-- Mode tiles — Tracer suppressed in the wizard; reconnaissance lives on
-                 the standalone GENERATE → Export Tracer page. Two compact left-aligned
-                 tiles (Proxy / Sideload), the rest of the row is breathing room. -->
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,14" HorizontalAlignment="Left">
-                <Button x:Name="TileProxy" Style="{StaticResource ActionTile}"
-                        Width="180" Margin="0,0,8,0" Padding="14,12" Click="TileProxy_Click">
-                    <StackPanel>
-                        <TextBlock Text="&#x26A1;" FontSize="20" TextAlignment="Center"/>
-                        <TextBlock Text="Proxy" FontSize="13" FontWeight="SemiBold" TextAlignment="Center"
-                                   Foreground="{StaticResource Text}" Margin="0,4,0,2"/>
-                        <TextBlock Text="forward + fire" FontSize="10" TextAlignment="Center"
-                                   Foreground="{StaticResource Overlay}"/>
-                    </StackPanel>
-                </Button>
-                <Button x:Name="TileSideload" Style="{StaticResource ActionTile}"
-                        Width="180" Padding="14,12" Click="TileSideload_Click">
-                    <StackPanel>
-                        <TextBlock Text="&#x1F4E6;" FontSize="20" TextAlignment="Center"/>
-                        <TextBlock Text="Sideload" FontSize="13" FontWeight="SemiBold" TextAlignment="Center"
-                                   Foreground="{StaticResource Text}" Margin="0,4,0,2"/>
-                        <TextBlock Text="drop + run DllMain" FontSize="10" TextAlignment="Center"
-                                   Foreground="{StaticResource Overlay}"/>
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-
-            <!-- Config: 2 columns mirror GeneratePage (payload/export/thread | evasion/execution/options) -->
+            <!-- Config: 2 columns mirror GeneratePage (payload/export/thread | evasion/execution/options).
+                 Mode tiles live in the page header (top-right) so they stay visible without scrolling. -->
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -148,50 +154,63 @@
                 <!-- Right column -->
                 <StackPanel Grid.Column="1" Margin="8,0,0,0">
                     <Border Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
-                            BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,10">
-                        <StackPanel>
-                            <TextBlock Text="EVASION" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                       FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
-                            <!-- Two columns inside EVASION: left = the boolean toggles, right = a
-                                 labeled mini-card with the numeric tuning knobs. Mirrors the
-                                 "Host wait strategy" mini-card in EXECUTION. -->
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                    <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,4"/>
-                                    <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,4"/>
-                                    <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,4"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Top">
-                                    <TextBlock Text="Tuning" Foreground="{StaticResource Subtext}"
-                                               FontSize="11" Margin="0,2,0,4"/>
-                                    <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
-                                            BorderThickness="1" CornerRadius="6" Padding="10,8">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="80"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="Auto"/>
-                                            </Grid.RowDefinitions>
-                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Delay (ms):"
-                                                       Foreground="{StaticResource Subtext}"
-                                                       VerticalAlignment="Center" Margin="0,0,8,4"/>
-                                            <TextBox Grid.Row="0" Grid.Column="1" x:Name="DelayBox" Text="0" Margin="0,0,0,4"/>
-                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="XOR key:"
-                                                       Foreground="{StaticResource Subtext}"
-                                                       VerticalAlignment="Center" Margin="0,4,8,0"/>
-                                            <ComboBox Grid.Row="1" Grid.Column="1" x:Name="XorKeyCombo" Margin="0,4,0,0"/>
-                                        </Grid>
-                                    </Border>
-                                </StackPanel>
-                            </Grid>
-                        </StackPanel>
+                            BorderThickness="1" CornerRadius="8" Padding="16,14" Margin="0,0,0,10">
+                        <!-- Two columns inside EVASION. Labels (EVASION / Tuning) live in
+                             Row 0 so both section headers sit on the same baseline. Content
+                             (toggles | tuning mini-card) lives in Row 1. The mini-card mirrors
+                             the "Host wait strategy" pattern from EXECUTION and gets generous
+                             padding so the inputs breathe. -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto" MinWidth="220"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Aligned labels -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="EVASION"
+                                       FontFamily="{StaticResource FontMono}" FontSize="10"
+                                       FontWeight="Medium" Foreground="{StaticResource Blue}"
+                                       Margin="0,0,0,10" VerticalAlignment="Bottom"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="TUNING"
+                                       FontFamily="{StaticResource FontMono}" FontSize="10"
+                                       FontWeight="Medium" Foreground="{StaticResource Blue}"
+                                       Margin="20,0,0,10" VerticalAlignment="Bottom"/>
+
+                            <!-- Aligned content -->
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,0">
+                                <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,5"/>
+                                <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,5"/>
+                                <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,5"/>
+                            </StackPanel>
+                            <Border Grid.Row="1" Grid.Column="1" Margin="20,0,0,0"
+                                    Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                                    BorderThickness="1" CornerRadius="6" Padding="14,12"
+                                    VerticalAlignment="Top">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="100"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Delay (ms)"
+                                               Foreground="{StaticResource Subtext}" FontSize="11"
+                                               VerticalAlignment="Center" Margin="0,0,12,8"/>
+                                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="DelayBox" Text="0"
+                                             Margin="0,0,0,8" Padding="8,5"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="XOR key"
+                                               Foreground="{StaticResource Subtext}" FontSize="11"
+                                               VerticalAlignment="Center" Margin="0,8,12,0"/>
+                                    <ComboBox Grid.Row="1" Grid.Column="1" x:Name="XorKeyCombo" Margin="0,8,0,0"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
                     </Border>
 
                     <Border Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
