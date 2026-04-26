@@ -254,12 +254,6 @@
                         <Border Style="{StaticResource NavSectionBand}">
                             <TextBlock Text="GENERATE" Style="{StaticResource NavGroup}"/>
                         </Border>
-                        <Button Style="{StaticResource NavButton}" Click="NavTracer_Click" ToolTip="Export Tracer — wrap every export to log which ones the host actually calls">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x1F4DD;" Style="{StaticResource NavIcon}"/>
-                                <TextBlock Text="Export Tracer" Style="{StaticResource NavLabel}"/>
-                            </StackPanel>
-                        </Button>
                         <Button Style="{StaticResource NavButton}" Click="NavProxy_Click" ToolTip="DLL Proxy — forward exports to _orig.dll, fire payload on chosen export">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x26A1;" Style="{StaticResource NavIcon}"/>

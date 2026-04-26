@@ -218,7 +218,6 @@ public partial class MainWindow : Window
     private void NavScan_Click(object sender, RoutedEventArgs e) => NavigateTo(new ScanPage(this));
     private void NavProcmon_Click(object sender, RoutedEventArgs e) => NavigateTo(new ProcmonPage(this));
     private void NavInstaller_Click(object sender, RoutedEventArgs e) => NavigateTo(new InstallerPage(this));
-    private void NavTracer_Click(object sender, RoutedEventArgs e) => NavigateTo(new GeneratePage(this, GenerationMode.Tracer));
     private void NavProxy_Click(object sender, RoutedEventArgs e) => NavigateTo(new GeneratePage(this, GenerationMode.Proxy));
     private void NavSideload_Click(object sender, RoutedEventArgs e) => NavigateTo(new GeneratePage(this, GenerationMode.Sideload));
     private void NavBuild_Click(object sender, RoutedEventArgs e) { ToolsPopup.IsOpen = false; NavigateTo(new BuildPage(this)); }
