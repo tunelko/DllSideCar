@@ -508,6 +508,10 @@
                         Content="Correlate with Runtime Trace" Style="{StaticResource SecondaryButton}"
                         Margin="6,0,0,0" Click="CorrelateEtw_Click" IsEnabled="False"
                         ToolTip="Cross-reference static candidates with the last Runtime Trace session"/>
+                <Button x:Name="PromoteToWizardBtn" VerticalAlignment="Center"
+                        Content="&#x2197;  Promote to Wizard" Style="{StaticResource AccentButton}"
+                        Margin="6,0,0,0" Click="PromoteToWizard_Click" IsEnabled="False"
+                        ToolTip="Hand the current scan results to the Research Wizard and resume at the Survey stage"/>
             </StackPanel>
         </Grid>
     </Grid>
