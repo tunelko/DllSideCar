@@ -61,44 +61,31 @@
                 </StackPanel>
             </Border>
 
-            <!-- Mode tiles -->
-            <Grid Margin="0,0,0,14">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <Button Grid.Column="0" x:Name="TileTracer" Style="{StaticResource ActionTile}"
-                        Margin="0,0,4,0" Padding="16,16" Click="TileTracer_Click">
+            <!-- Mode tiles — Tracer suppressed in the wizard; reconnaissance lives on
+                 the standalone GENERATE → Export Tracer page. Two compact left-aligned
+                 tiles (Proxy / Sideload), the rest of the row is breathing room. -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,14" HorizontalAlignment="Left">
+                <Button x:Name="TileProxy" Style="{StaticResource ActionTile}"
+                        Width="180" Margin="0,0,8,0" Padding="14,12" Click="TileProxy_Click">
                     <StackPanel>
-                        <TextBlock Text="&#x1F4DD;" FontSize="22" TextAlignment="Center"/>
-                        <TextBlock Text="Tracer" FontSize="13" FontWeight="SemiBold" TextAlignment="Center"
-                                   Foreground="{StaticResource Text}" Margin="0,6,0,2"/>
-                        <TextBlock Text="log every export call" FontSize="10" TextAlignment="Center"
-                                   Foreground="{StaticResource Overlay}"/>
-                    </StackPanel>
-                </Button>
-                <Button Grid.Column="1" x:Name="TileProxy" Style="{StaticResource ActionTile}"
-                        Margin="2,0" Padding="16,16" Click="TileProxy_Click">
-                    <StackPanel>
-                        <TextBlock Text="&#x26A1;" FontSize="22" TextAlignment="Center"/>
+                        <TextBlock Text="&#x26A1;" FontSize="20" TextAlignment="Center"/>
                         <TextBlock Text="Proxy" FontSize="13" FontWeight="SemiBold" TextAlignment="Center"
-                                   Foreground="{StaticResource Text}" Margin="0,6,0,2"/>
+                                   Foreground="{StaticResource Text}" Margin="0,4,0,2"/>
                         <TextBlock Text="forward + fire" FontSize="10" TextAlignment="Center"
                                    Foreground="{StaticResource Overlay}"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="2" x:Name="TileSideload" Style="{StaticResource ActionTile}"
-                        Margin="4,0,0,0" Padding="16,16" Click="TileSideload_Click">
+                <Button x:Name="TileSideload" Style="{StaticResource ActionTile}"
+                        Width="180" Padding="14,12" Click="TileSideload_Click">
                     <StackPanel>
-                        <TextBlock Text="&#x1F4E6;" FontSize="22" TextAlignment="Center"/>
+                        <TextBlock Text="&#x1F4E6;" FontSize="20" TextAlignment="Center"/>
                         <TextBlock Text="Sideload" FontSize="13" FontWeight="SemiBold" TextAlignment="Center"
-                                   Foreground="{StaticResource Text}" Margin="0,6,0,2"/>
+                                   Foreground="{StaticResource Text}" Margin="0,4,0,2"/>
                         <TextBlock Text="drop + run DllMain" FontSize="10" TextAlignment="Center"
                                    Foreground="{StaticResource Overlay}"/>
                     </StackPanel>
                 </Button>
-            </Grid>
+            </StackPanel>
 
             <!-- Config: 2 columns mirror GeneratePage (payload/export/thread | evasion/execution/options) -->
             <Grid>
@@ -165,22 +152,44 @@
                         <StackPanel>
                             <TextBlock Text="EVASION" FontFamily="{StaticResource FontMono}" FontSize="10"
                                        FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
-                            <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,4"/>
-                            <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,4"/>
-                            <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,4"/>
-                            <Grid Margin="0,10,0,0">
+                            <!-- Two columns inside EVASION: left = the boolean toggles, right = a
+                                 labeled mini-card with the numeric tuning knobs. Mirrors the
+                                 "Host wait strategy" mini-card in EXECUTION. -->
+                            <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="80"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="100"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Delay (ms):" Foreground="{StaticResource Subtext}"
-                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBox Grid.Column="1" x:Name="DelayBox" Text="0"/>
-                                <TextBlock Grid.Column="2" Text="XOR:" Foreground="{StaticResource Subtext}"
-                                           VerticalAlignment="Center" Margin="12,0,8,0"/>
-                                <ComboBox Grid.Column="3" x:Name="XorKeyCombo"/>
+                                <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                    <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,4"/>
+                                    <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,4"/>
+                                    <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,4"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Top">
+                                    <TextBlock Text="Tuning" Foreground="{StaticResource Subtext}"
+                                               FontSize="11" Margin="0,2,0,4"/>
+                                    <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                                            BorderThickness="1" CornerRadius="6" Padding="10,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="80"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Delay (ms):"
+                                                       Foreground="{StaticResource Subtext}"
+                                                       VerticalAlignment="Center" Margin="0,0,8,4"/>
+                                            <TextBox Grid.Row="0" Grid.Column="1" x:Name="DelayBox" Text="0" Margin="0,0,0,4"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="XOR key:"
+                                                       Foreground="{StaticResource Subtext}"
+                                                       VerticalAlignment="Center" Margin="0,4,8,0"/>
+                                            <ComboBox Grid.Row="1" Grid.Column="1" x:Name="XorKeyCombo" Margin="0,4,0,0"/>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
                             </Grid>
                         </StackPanel>
                     </Border>

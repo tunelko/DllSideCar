@@ -526,10 +526,10 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
-                            <TextBlock Text="CONSOLE" FontFamily="{StaticResource FontMono}" FontSize="10"
+                            <TextBlock Text="CONSOLE" FontFamily="{StaticResource FontConsole}" FontSize="10"
                                        FontWeight="Medium" Foreground="{StaticResource Subtext}"/>
                             <TextBlock Text="—" Foreground="{StaticResource Overlay}" Margin="8,0" FontSize="10"/>
-                            <TextBlock x:Name="LogLineCount" Text="0 lines" FontFamily="{StaticResource FontMono}"
+                            <TextBlock x:Name="LogLineCount" Text="0 lines" FontFamily="{StaticResource FontConsole}"
                                        FontSize="10" Foreground="{StaticResource Overlay}"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0">
@@ -546,8 +546,8 @@
 
                     <ScrollViewer x:Name="LogScroller" VerticalScrollBarVisibility="Auto">
                         <TextBox x:Name="LogBox" IsReadOnly="True" Background="Transparent"
-                                 Foreground="{StaticResource Subtext}" FontFamily="{StaticResource FontMono}"
-                                 FontSize="11" BorderThickness="0" Padding="14,8"
+                                 Foreground="{StaticResource Subtext}" FontFamily="{StaticResource FontConsole}"
+                                 FontSize="12" BorderThickness="0" Padding="14,8"
                                  TextWrapping="Wrap" AcceptsReturn="True"/>
                     </ScrollViewer>
                 </DockPanel>

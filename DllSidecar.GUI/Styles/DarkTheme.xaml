@@ -83,11 +83,15 @@
                       Wants the same identity feel as FontDisplay but at small caps,
                       so the fallback is the FontMono chain rather than FontSans, to
                       preserve the tabular look in dense rows.
+        FontConsole : the live log panel. DinaMasterII first to give the console its own
+                      retro-terminal identity; if absent, falls through the FontMono
+                      chain so column alignment is still preserved.
     -->
     <FontFamily x:Key="FontSans">Geist, Geist Variable, Segoe UI Variable Text, Segoe UI, -apple-system, sans-serif</FontFamily>
     <FontFamily x:Key="FontMono">Geist Mono, Cascadia Mono, Consolas, ui-monospace, monospace</FontFamily>
     <FontFamily x:Key="FontDisplay">DinaMasterII, Geist, Geist Variable, Segoe UI Variable Text, Segoe UI, sans-serif</FontFamily>
     <FontFamily x:Key="FontBadge">DinaMasterII, Cascadia Mono, Consolas, ui-monospace, monospace</FontFamily>
+    <FontFamily x:Key="FontConsole">DinaMasterII, Geist Mono, Cascadia Mono, Consolas, ui-monospace, monospace</FontFamily>
 
     <!-- ================================================================ -->
     <!-- Focus visual style — 2px solid blue outline, no dashed rect      -->
