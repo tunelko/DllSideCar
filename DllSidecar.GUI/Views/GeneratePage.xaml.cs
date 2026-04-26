@@ -16,8 +16,11 @@ public partial class GeneratePage : Page
     // initial pick auto-flips to Sideload if the loaded analysis has no named exports.
     private GenerationMode _mode = GenerationMode.Proxy;
     private PeAnalysis? _analysis;
-    // Suppresses the mode-switch handler during initial XAML hydration.
-    private bool _suppressModeChange;
+    // Suppresses the mode-switch handler during initial XAML hydration. Starts true:
+    // ModeProxy has IsChecked="True" in XAML, which fires Checked DURING
+    // InitializeComponent before ExportPanel/ThreadPanel exist. The ctor flips it
+    // back to false after wiring.
+    private bool _suppressModeChange = true;
 
     // Deploy context, page-local so HostExeBox edits persist until Generate.
     // Seeded from _main.PendingDeployContext (drained on ctor) or null when the
@@ -103,18 +106,24 @@ public partial class GeneratePage : Page
     /// </summary>
     private void ApplyMode()
     {
+        // Defensive — XAML hydration order can fire RadioButton.Checked before the
+        // dependent panels are instantiated. The ctor's _suppressModeChange flag is
+        // the primary guard; this is a second line of defense.
+        if (ModeSideload == null || ModeProxy == null) return;
+
         _mode = ModeSideload.IsChecked == true ? GenerationMode.Sideload : GenerationMode.Proxy;
 
-        PageSubtitle.Text = _mode switch
-        {
-            GenerationMode.Proxy    => "Forward every export to the renamed original (_orig.dll) and fire your payload from one chosen export. Classic sideload form — host keeps working.",
-            GenerationMode.Sideload => "Stub DLL with no forwarding and no _orig.dll dependency. One-shot payload fires from DllMain. Smallest footprint.",
-            _ => ""
-        };
+        if (PageSubtitle != null)
+            PageSubtitle.Text = _mode switch
+            {
+                GenerationMode.Proxy    => "Forward every export to the renamed original (_orig.dll) and fire your payload from one chosen export. Classic sideload form — host keeps working.",
+                GenerationMode.Sideload => "Stub DLL with no forwarding and no _orig.dll dependency. One-shot payload fires from DllMain. Smallest footprint.",
+                _ => ""
+            };
 
         bool isProxy = _mode == GenerationMode.Proxy;
-        ExportPanel.Visibility = isProxy ? Visibility.Visible : Visibility.Collapsed;
-        ThreadPanel.Visibility = Visibility.Visible; // both modes use a thread mode
+        if (ExportPanel != null) ExportPanel.Visibility = isProxy ? Visibility.Visible : Visibility.Collapsed;
+        if (ThreadPanel != null) ThreadPanel.Visibility = Visibility.Visible;
     }
 
     private void RestoreUiState()
