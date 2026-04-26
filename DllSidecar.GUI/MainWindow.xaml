@@ -254,16 +254,10 @@
                         <Border Style="{StaticResource NavSectionBand}">
                             <TextBlock Text="GENERATE" Style="{StaticResource NavGroup}"/>
                         </Border>
-                        <Button Style="{StaticResource NavButton}" Click="NavProxy_Click" ToolTip="DLL Proxy — forward exports to _orig.dll, fire payload on chosen export">
+                        <Button Style="{StaticResource NavButton}" Click="NavDllTechniques_Click" ToolTip="DLL Techniques — switch between Proxy (forward + fire) and Sideload (DllMain stub)">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x26A1;" Style="{StaticResource NavIcon}"/>
-                                <TextBlock Text="DLL Proxy" Style="{StaticResource NavLabel}"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavSideload_Click" ToolTip="DLL Sideload — one-shot stub, no forwarding, payload in DllMain">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x1F4E6;" Style="{StaticResource NavIcon}"/>
-                                <TextBlock Text="DLL Sideload" Style="{StaticResource NavLabel}"/>
+                                <TextBlock Text="DLL Techniques" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource NavButton}" Click="NavAdvisory_Click" ToolTip="Advisory — draft a markdown report, preview live, export to PDF">

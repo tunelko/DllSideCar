@@ -26,7 +26,6 @@ public partial class AnalyzePage : Page
 
     private void SetActionsEnabled(bool enabled)
     {
-        ActTracer.IsEnabled = enabled;
         ActProxy.IsEnabled = enabled;
         ActSideload.IsEnabled = enabled;
         ActScanParent.IsEnabled = enabled;
@@ -126,11 +125,10 @@ public partial class AnalyzePage : Page
     /// </summary>
     private void ApplyGenerationAvailability(PeAnalysis a, bool isKnown)
     {
-        // KnownDLL veto — neither proxy nor sideload nor tracer works, the loader
-        // never consults the search path for these.
+        // KnownDLL veto — neither proxy nor sideload works, the loader never
+        // consults the search path for these.
         if (isKnown)
         {
-            DisableTile(ActTracer,   "KnownDLL — loader resolves this from System32, never from install dir. Sideloading is not applicable.");
             DisableTile(ActProxy,    "KnownDLL — cannot be replaced in an install dir.");
             DisableTile(ActSideload, "KnownDLL — cannot be sideloaded.");
             return;
@@ -139,17 +137,10 @@ public partial class AnalyzePage : Page
         // Not a DLL → the generation modes assume a DLL target (we're crafting a DLL replacement).
         if (!a.IsDll)
         {
-            DisableTile(ActTracer,   "Target is an EXE, not a DLL. Tracer/Proxy/Sideload all craft a DLL to replace a DLL dependency.");
             DisableTile(ActProxy,    "Target is an EXE. Pick one of its imported DLLs instead.");
             DisableTile(ActSideload, "Target is an EXE. Pick one of its imported DLLs instead.");
             return;
         }
-
-        // Tracer: needs exports to wrap
-        if (a.Exports.Count == 0)
-            DisableTile(ActTracer, "No exports to trace — Tracer wraps each named export to log calls. With 0 exports there is nothing to wrap.");
-        else
-            EnableTile(ActTracer, $"Wrap all {a.NamedExports} named export(s) + forward to _orig. Logs every call at runtime.");
 
         // Proxy: requires NAMED exports (forwarding .def needs names)
         if (a.NamedExports == 0)
@@ -175,9 +166,6 @@ public partial class AnalyzePage : Page
         b.IsEnabled = false;
         b.ToolTip = "Disabled: " + reason;
     }
-
-    private void ActTracer_Click(object sender, RoutedEventArgs e) =>
-        _main.NavigateTo(new GeneratePage(_main, GenerationMode.Tracer));
 
     private void ActProxy_Click(object sender, RoutedEventArgs e) =>
         _main.NavigateTo(new GeneratePage(_main, GenerationMode.Proxy));

@@ -13,12 +13,40 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,14">
-            <TextBlock x:Name="PageTitle" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Text}"/>
-            <TextBlock x:Name="PageSubtitle" FontSize="12" Foreground="{StaticResource Overlay}"
-                       Margin="0,4,0,0" TextWrapping="Wrap"/>
-        </StackPanel>
+        <!-- Header: title + subtitle on the left, technique switch on the right.
+             The switch is the single source of truth for which technique we generate;
+             the rest of the form (TARGET EXPORT panel visibility, page title/subtitle)
+             reacts to it. -->
+        <Grid Grid.Row="0" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock x:Name="PageTitle" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+                <TextBlock x:Name="PageSubtitle" FontSize="12" Foreground="{StaticResource Overlay}"
+                           Margin="0,4,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Technique" Foreground="{StaticResource Subtext}" FontSize="11"
+                           VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                        BorderThickness="1" CornerRadius="6">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="ModeProxy" GroupName="DllTechnique"
+                                     Style="{StaticResource SegmentedRadio}"
+                                     Content="Proxy" IsChecked="True"
+                                     Checked="ModeSwitch_Changed"
+                                     ToolTip="Forward all exports to _orig.dll, fire payload from a chosen export"/>
+                        <RadioButton x:Name="ModeSideload" GroupName="DllTechnique"
+                                     Style="{StaticResource SegmentedRadio}"
+                                     Content="Sideload"
+                                     Checked="ModeSwitch_Changed"
+                                     ToolTip="Stub DLL with no forwarding — payload fires from DllMain"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
 
         <!-- DLL picker -->
         <Grid Grid.Row="1" Margin="0,0,0,14">
@@ -108,13 +136,16 @@
         <!-- Configuration columns + output -->
         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
             <StackPanel>
+                <!-- 3 columns: PAYLOAD/EXPORT/THREAD on the left, EVASION (with TUNING)
+                     in the wider middle, EXECUTION + POST-PROCESSING on the right. -->
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="1*"/>
+                        <ColumnDefinition Width="1.5*"/>
+                        <ColumnDefinition Width="1*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Left column -->
+                    <!-- Col 1: target/payload selection -->
                     <StackPanel Grid.Column="0" Margin="0,0,8,0">
                         <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
                             <StackPanel>
@@ -158,8 +189,8 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- Right column -->
-                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                    <!-- Col 2: evasion (largest, internal 2-col with TUNING mini-card) -->
+                    <StackPanel Grid.Column="1" Margin="8,0,8,0">
                         <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
                             <!-- 2x2 grid mirrors the wizard's CraftStage:
                                  Row 0 = EVASION + TUNING labels on the same baseline
@@ -212,7 +243,10 @@
                                 </Border>
                             </Grid>
                         </Border>
+                    </StackPanel>
 
+                    <!-- Col 3: post-processing + execution -->
+                    <StackPanel Grid.Column="2" Margin="8,0,0,0">
                         <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
                             <StackPanel>
                                 <TextBlock Text="POST-PROCESSING" Style="{StaticResource SectionHeader}"/>

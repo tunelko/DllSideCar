@@ -140,27 +140,17 @@
                 <StackPanel>
                     <TextBlock Text="QUICK ACTIONS" Style="{StaticResource SectionHeader}"/>
 
-                    <!-- Primary: 3 tiles Tracer/Proxy/Sideload -->
+                    <!-- Primary: Proxy / Sideload tiles. Tracer is no longer reachable
+                         from the UI; both remaining techniques converge into the unified
+                         "DLL Techniques" page where the user can flip between them. -->
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <Button Grid.Column="0" x:Name="ActTracer" Style="{StaticResource ActionTile}"
-                                Margin="0,0,4,0" Click="ActTracer_Click">
-                            <StackPanel>
-                                <TextBlock Text="&#x1F4DD;" FontSize="22" TextAlignment="Center"/>
-                                <TextBlock Text="Tracer" FontSize="12" FontWeight="SemiBold" TextAlignment="Center"
-                                           Foreground="{StaticResource Text}" Margin="0,6,0,0"/>
-                                <TextBlock Text="log calls" FontSize="10" TextAlignment="Center"
-                                           Foreground="{StaticResource Overlay}" Margin="0,2,0,0"/>
-                            </StackPanel>
-                        </Button>
-
-                        <Button Grid.Column="1" x:Name="ActProxy" Style="{StaticResource ActionTile}"
-                                Margin="2,0,2,0" Click="ActProxy_Click">
+                        <Button Grid.Column="0" x:Name="ActProxy" Style="{StaticResource ActionTile}"
+                                Margin="0,0,4,0" Click="ActProxy_Click">
                             <StackPanel>
                                 <TextBlock Text="&#x26A1;" FontSize="22" TextAlignment="Center"/>
                                 <TextBlock Text="Proxy" FontSize="12" FontWeight="SemiBold" TextAlignment="Center"
@@ -170,7 +160,7 @@
                             </StackPanel>
                         </Button>
 
-                        <Button Grid.Column="2" x:Name="ActSideload" Style="{StaticResource ActionTile}"
+                        <Button Grid.Column="1" x:Name="ActSideload" Style="{StaticResource ActionTile}"
                                 Margin="4,0,0,0" Click="ActSideload_Click">
                             <StackPanel>
                                 <TextBlock Text="&#x1F4E6;" FontSize="22" TextAlignment="Center"/>
