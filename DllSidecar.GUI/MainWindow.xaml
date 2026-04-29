@@ -44,7 +44,10 @@
             <GradientStop Color="#00000000" Offset="1"/>
         </LinearGradientBrush>
 
-        <!-- Nav button: Grid content with icon (fixed 28px) + label (Visibility bound to sidebar state) -->
+        <!-- Nav button: Grid content with icon (fixed 28px) + label (Visibility bound to sidebar state).
+             Active state driven by Tag="active" — code-behind toggles it on the
+             button matching the current page so the user can see at a glance
+             where they are. -->
         <Style x:Key="NavButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
@@ -65,6 +68,10 @@
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="border" Property="Background" Value="{StaticResource Surface0}"/>
                                 <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="active">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource Surface1}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Phosphor}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

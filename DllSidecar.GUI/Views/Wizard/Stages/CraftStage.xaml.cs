@@ -561,6 +561,13 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         if (!string.IsNullOrWhiteSpace(sandboxTargets))
             config.SandboxTargets = sandboxTargets;
 
+        // Pick up MessageBox title/body from Config → Payload Defaults so the
+        // wizard-generated PoCs use the user's customised popup text, not
+        // TemplateConfig's hardcoded fallback.
+        var payloadCfg = ConfigManager.Current.Payload;
+        config.MessageBoxTitle = payloadCfg.MessageBoxTitle;
+        config.MessageBoxBody = payloadCfg.MessageBoxBody;
+
         var baseName = Path.GetFileNameWithoutExtension(_target.Filename);
         var modeLabel = _session.CraftMode.ToString().ToLowerInvariant();
         var outputDir = Path.Combine(ProjectRoot, "output", $"{baseName}_{modeLabel}");
