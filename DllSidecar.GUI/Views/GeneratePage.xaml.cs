@@ -452,6 +452,88 @@ public partial class GeneratePage : Page
         if (SandboxTargetsPanel != null)
             SandboxTargetsPanel.Visibility = PayloadCombo.SelectedIndex == 3
                 ? Visibility.Visible : Visibility.Collapsed;
+        // Shellcode mode (index 2) gets the msfvenom shortcut; other payloads
+        // either don't take hex (Command/Sandbox) or have their own UI.
+        if (MsfvenomBtn != null)
+            MsfvenomBtn.Visibility = PayloadCombo.SelectedIndex == 2
+                ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Run msfvenom and drop the hex shellcode into PayloadDataBox. Tries
+    /// 'msfvenom' on PATH first (typical Linux/WSL native), then 'wsl msfvenom'
+    /// as a fallback (most common Windows-host setup). Arch follows the
+    /// loaded analysis: x64 → windows/x64/exec, x86 → windows/exec.
+    /// EXITFUNC=thread so the spawned thread terminates cleanly without taking
+    /// the host process down.
+    /// </summary>
+    private async void GenerateMsfvenom_Click(object sender, RoutedEventArgs e)
+    {
+        var arch = _analysis?.Arch ?? "x64";
+        var payloadName = arch == "x86" ? "windows/exec" : "windows/x64/exec";
+        var args = $"-p {payloadName} CMD=cmd.exe EXITFUNC=thread -f hex";
+
+        var oldContent = MsfvenomBtn.Content;
+        MsfvenomBtn.Content = "Generating...";
+        MsfvenomBtn.IsEnabled = false;
+        try
+        {
+            string? hex;
+            try { hex = await TryRunMsfvenom("msfvenom", args); }
+            catch
+            {
+                _main.Log("msfvenom not in PATH — trying WSL");
+                hex = await TryRunMsfvenom("wsl", $"msfvenom {args}");
+            }
+
+            if (string.IsNullOrWhiteSpace(hex))
+            {
+                MessageBox.Show("msfvenom returned empty output", "msfvenom",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            PayloadDataBox.Text = hex.Trim();
+            _main.Log($"msfvenom: {hex.Length / 2} bytes of {payloadName} shellcode");
+        }
+        catch (Exception ex)
+        {
+            _main.Log($"msfvenom failed: {ex.Message}");
+            MessageBox.Show(
+                $"msfvenom failed: {ex.Message}\n\n" +
+                "Install: 'sudo apt install metasploit-framework' (Linux/WSL Kali) " +
+                "or download: https://www.metasploit.com/download",
+                "msfvenom", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            MsfvenomBtn.Content = oldContent;
+            MsfvenomBtn.IsEnabled = true;
+        }
+    }
+
+    private static async Task<string> TryRunMsfvenom(string exe, string args)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = exe,
+            Arguments = args,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        using var proc = System.Diagnostics.Process.Start(psi)
+            ?? throw new InvalidOperationException($"Could not start {exe}");
+        var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+        var stderrTask = proc.StandardError.ReadToEndAsync();
+        await proc.WaitForExitAsync();
+        if (proc.ExitCode != 0)
+        {
+            var err = (await stderrTask).Trim();
+            throw new InvalidOperationException(
+                $"{exe} exit {proc.ExitCode}{(string.IsNullOrEmpty(err) ? "" : " — " + err)}");
+        }
+        return await stdoutTask;
     }
 
     private async void Generate_Click(object sender, RoutedEventArgs e)

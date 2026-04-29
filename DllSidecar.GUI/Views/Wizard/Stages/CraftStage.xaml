@@ -120,6 +120,12 @@
                             <TextBox x:Name="PayloadDataBox" Margin="0,8,0,0"
                                      FontFamily="{StaticResource FontMono}" Visibility="Collapsed"
                                      ToolTip="Command to execute. calc.exe / cmd.exe / cmd.exe /k whoami / full path etc."/>
+                            <!-- Shellcode-only msfvenom shortcut. Same wiring as GeneratePage. -->
+                            <Button x:Name="MsfvenomBtn" Content="🪄  Generate via msfvenom (cmd.exe)"
+                                    Style="{StaticResource SecondaryButton}" Margin="0,6,0,0"
+                                    HorizontalAlignment="Left" Visibility="Collapsed"
+                                    Click="GenerateMsfvenom_Click"
+                                    ToolTip="Run msfvenom -p windows/&lt;arch&gt;/exec CMD=cmd.exe EXITFUNC=thread -f hex and paste the result into the textbox above. Tries 'msfvenom' in PATH first, then 'wsl msfvenom'."/>
                             <StackPanel x:Name="SandboxTargetsPanel" Visibility="Collapsed" Margin="0,8,0,0">
                                 <TextBlock Text="Inject targets (CSV)" Foreground="{StaticResource Subtext}" FontSize="10"/>
                                 <TextBox x:Name="SandboxTargetsBox" FontFamily="{StaticResource FontMono}"
