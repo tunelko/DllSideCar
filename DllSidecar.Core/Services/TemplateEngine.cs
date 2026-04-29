@@ -1251,21 +1251,14 @@ public static class TemplateEngine
         //   /O2      — optimize for speed (fine for evasion lib + small payload)
         //   /Fe:     — output filename (no space after the colon)
         //   /link /DEF: — feed the .def to the linker for export table
-        //
-        // Import libs: cl only auto-links kernel32, NOT user32. MinGW gcc auto-
-        // links both, so the gcc path doesn't need them explicit. We need:
-        //   user32.lib   — MessageBoxA + wsprintfA (proof file write)
-        //   advapi32.lib — token/SID APIs from payload variants (Command, etc.)
-        //   kernel32.lib — explicit to be safe; usually picked via /defaultlib
+        //   advapi32.lib — extra import lib (token/SID APIs from payload variants)
         var cl = new List<string> { "cl", "/nologo", "/LD", "/O2",
             $"{srcName}.c" };
         foreach (var src in EvasionExtraSources(config, isX64)) cl.Add(src);
         cl.Add($"/Fe:{analysis.Filename}");
         cl.Add("/link");
         cl.Add($"/DEF:{srcName}.def");
-        cl.Add("user32.lib");
         cl.Add("advapi32.lib");
-        cl.Add("kernel32.lib");
         sb.Append(string.Join(" ", cl) + "\r\n");
     }
 }
