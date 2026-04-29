@@ -59,10 +59,10 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <!-- EXE · ATTACH — stretches to fill up to the IL/FILTERS column -->
+            <!-- TARGET — stretches to fill up to the IL/FILTERS column -->
             <Border Grid.Column="0" Style="{StaticResource GroupCard}" Margin="0,0,10,0">
                 <StackPanel>
-                    <TextBlock Text="EXE · ATTACH" Style="{StaticResource GroupLabel}" Margin="0,0,0,6"/>
+                    <TextBlock Text="TARGET" Style="{StaticResource GroupLabel}" Margin="0,0,0,6"/>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                         <RadioButton x:Name="ModeLaunch" Style="{StaticResource ModeRadio}"
                                      Content="Launch EXE" IsChecked="True"
@@ -70,6 +70,10 @@
                         <RadioButton x:Name="ModeAttach" Style="{StaticResource ModeRadio}"
                                      Content="Attach to PID"
                                      Checked="Mode_Changed"/>
+                        <RadioButton x:Name="ModeWatch" Style="{StaticResource ModeRadio}"
+                                     Content="Watch by Name"
+                                     Checked="Mode_Changed"
+                                     ToolTip="Adopt every new process whose name matches. Survives service restarts (PID changes)."/>
                     </StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -78,7 +82,7 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <!-- Target picker swaps per mode (launch path vs PID chip) -->
+                        <!-- Target picker swaps per mode (launch path / PID chip / watch panel) -->
                         <Grid Grid.Column="0">
                             <TextBox x:Name="TargetBox" FontFamily="{StaticResource FontMono}"
                                      ToolTip="Path to EXE to launch. Quoted paths with args are parsed automatically."/>
@@ -98,6 +102,10 @@
                                     </StackPanel>
                                 </Border>
                             </Grid>
+                            <!-- Watch panel: process name on top, command line below -->
+                            <TextBox x:Name="WatchNameBox" Visibility="Collapsed"
+                                     FontFamily="{StaticResource FontMono}"
+                                     ToolTip="Process name to adopt (e.g. splunkd.exe). Matched case-insensitively, with or without .exe."/>
                         </Grid>
                         <!-- Action icons: Browse (folder), Pick (list) — visibility per mode -->
                         <Button x:Name="BrowseBtn" Grid.Column="1" Content="&#x1F5C1;"
@@ -111,6 +119,18 @@
                         <Button x:Name="TraceBtn" Grid.Column="3" Content="&#x25B6;"
                                 Style="{StaticResource IconButton}" Margin="6,0,0,0"
                                 Click="Trace_Click" ToolTip="Start trace"/>
+                    </Grid>
+                    <!-- Watch mode: command-line trigger, only visible in Watch mode -->
+                    <Grid x:Name="WatchCmdRow" Visibility="Collapsed" Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="CMD" Foreground="{StaticResource Phosphor}"
+                                   FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="WatchCmdBox" Grid.Column="1" FontFamily="{StaticResource FontMono}"
+                                 ToolTip="Command line to fire after the ETW session starts. Runs through cmd.exe /c so chaining (sc stop x &amp;&amp; sc start x), pipes, and redirects all work. Leave empty to trigger the target manually."/>
                     </Grid>
                     <TextBlock x:Name="ElapsedText" Foreground="{StaticResource Overlay}"
                                FontFamily="{StaticResource FontMono}" FontSize="11"
@@ -365,7 +385,7 @@
         <Grid Grid.Row="5" Margin="0,10,0,0">
             <TextBlock x:Name="Status" HorizontalAlignment="Left" VerticalAlignment="Center"
                        Foreground="{StaticResource Overlay}" FontSize="12"
-                       Text="Ready. Choose Launch EXE or Attach to PID."/>
+                       Text="Ready. Choose Launch EXE, Attach to PID, or Watch by Name."/>
             <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                 <Button x:Name="ResumeWizardBtn" Content="← Back to Wizard"
                         Style="{StaticResource AccentButton}" Visibility="Collapsed"

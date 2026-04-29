@@ -1,6 +1,6 @@
 namespace DllSidecar.Core.Models;
 
-public enum TraceMode { LaunchExe, AttachPid }
+public enum TraceMode { LaunchExe, AttachPid, WatchByName }
 
 public class EtwTraceFilter
 {
@@ -8,6 +8,11 @@ public class EtwTraceFilter
     public bool IncludeChildren { get; set; } = true;
     public bool NameNotFoundOnly { get; set; } = true;
     public bool DllOnly { get; set; } = true;
+
+    // When set, EtwDllTracer.StartWatchByName picks up every ProcessStart whose
+    // image basename matches (case-insensitive, with or without .exe). Used to
+    // capture services that restart and change PID (splunkd, sshd, etc.).
+    public string? WatchProcessName { get; set; }
 }
 
 public class EtwTraceResult

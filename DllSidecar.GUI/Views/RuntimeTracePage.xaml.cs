@@ -85,11 +85,18 @@ public partial class RuntimeTracePage : Page
     {
         if (TargetBox == null) return; // called during InitializeComponent before controls exist
         var isLaunch = ModeLaunch.IsChecked == true;
-        // Launch mode: show path TextBox + folder (📁) action. Attach mode: show PID chip + picker (⋮).
-        TargetBox.Visibility = isLaunch ? Visibility.Visible : Visibility.Collapsed;
-        AttachPicker.Visibility = isLaunch ? Visibility.Collapsed : Visibility.Visible;
-        BrowseBtn.Visibility = isLaunch ? Visibility.Visible : Visibility.Collapsed;
-        PickProcBtn.Visibility = isLaunch ? Visibility.Collapsed : Visibility.Visible;
+        var isAttach = ModeAttach.IsChecked == true;
+        var isWatch  = ModeWatch.IsChecked == true;
+
+        // Three swappable target editors, only one visible at a time.
+        TargetBox.Visibility    = isLaunch ? Visibility.Visible : Visibility.Collapsed;
+        AttachPicker.Visibility = isAttach ? Visibility.Visible : Visibility.Collapsed;
+        WatchNameBox.Visibility = isWatch  ? Visibility.Visible : Visibility.Collapsed;
+        WatchCmdRow.Visibility  = isWatch  ? Visibility.Visible : Visibility.Collapsed;
+
+        // Action buttons: Browse for Launch, Picker for Attach, none for Watch.
+        BrowseBtn.Visibility   = isLaunch ? Visibility.Visible : Visibility.Collapsed;
+        PickProcBtn.Visibility = isAttach ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void Browse_Click(object sender, RoutedEventArgs e)
@@ -196,8 +203,12 @@ public partial class RuntimeTracePage : Page
         _tracer.StatusChanged += OnStatusChanged;
 
         var isLaunch = ModeLaunch.IsChecked == true;
+        var isAttach = ModeAttach.IsChecked == true;
+        var isWatch  = ModeWatch.IsChecked == true;
         Overlay.Show("Starting trace",
-            isLaunch ? "Launching ETW session and target process..." : "Attaching to process...");
+            isLaunch ? "Launching ETW session and target process..."
+            : isAttach ? "Attaching to process..."
+            : "Starting ETW session and firing trigger command...");
 
         try
         {
@@ -224,7 +235,7 @@ public partial class RuntimeTracePage : Page
                 var launchMode = ParseLaunchMode();
                 _tracer.StartWithExe(exePath, string.IsNullOrEmpty(args) ? null : args, launchMode, _cts.Token);
             }
-            else
+            else if (isAttach)
             {
                 if (!_attachPid.HasValue)
                 {
@@ -242,6 +253,19 @@ public partial class RuntimeTracePage : Page
                     return;
                 }
                 _tracer.AttachToPid(_attachPid.Value, _cts.Token);
+            }
+            else // isWatch
+            {
+                var procName = WatchNameBox.Text?.Trim() ?? "";
+                if (string.IsNullOrEmpty(procName))
+                {
+                    SetStatus("Enter a process name to watch (e.g. splunkd.exe)", StatusKind.Err);
+                    _tracer.Dispose();
+                    _tracer = null;
+                    return;
+                }
+                var cmd = WatchCmdBox.Text?.Trim();
+                _tracer.StartWatchByName(procName, string.IsNullOrEmpty(cmd) ? null : cmd, _cts.Token);
             }
         }
         catch (Exception ex)
@@ -267,6 +291,8 @@ public partial class RuntimeTracePage : Page
         TraceBtn.ToolTip = "Stop trace";
         TargetBox.IsEnabled = false;
         ArgsBox.IsEnabled = false;
+        WatchNameBox.IsEnabled = false;
+        WatchCmdBox.IsEnabled = false;
         IlAuto.IsEnabled = false;
         IlMedium.IsEnabled = false;
         IlSame.IsEnabled = false;
@@ -274,6 +300,7 @@ public partial class RuntimeTracePage : Page
         PickProcBtn.IsEnabled = false;
         ModeLaunch.IsEnabled = false;
         ModeAttach.IsEnabled = false;
+        ModeWatch.IsEnabled = false;
         PromoteBtn.IsEnabled = false;
         CorrelateBtn.IsEnabled = false;
 
@@ -286,8 +313,12 @@ public partial class RuntimeTracePage : Page
         };
         _elapsedTimer.Start();
 
-        var mode = ModeLaunch.IsChecked == true ? "Launch" : "Attach";
-        SetStatus($"[{mode}] Tracing... interact with the target, then click STOP.", StatusKind.Info);
+        var mode = isLaunch ? "Launch" : isAttach ? "Attach" : "Watch";
+        SetStatus(
+            isWatch
+                ? "[Watch] Capturing... trigger the target (or wait for restart cycles), then click STOP."
+                : $"[{mode}] Tracing... interact with the target, then click STOP.",
+            StatusKind.Info);
         _main.Log($"Runtime trace started ({mode})");
 
         if (isLaunch)
@@ -321,6 +352,8 @@ public partial class RuntimeTracePage : Page
         TraceBtn.ToolTip = "Start trace";
         TargetBox.IsEnabled = true;
         ArgsBox.IsEnabled = true;
+        WatchNameBox.IsEnabled = true;
+        WatchCmdBox.IsEnabled = true;
         IlAuto.IsEnabled = true;
         IlMedium.IsEnabled = true;
         IlSame.IsEnabled = true;
@@ -328,6 +361,7 @@ public partial class RuntimeTracePage : Page
         PickProcBtn.IsEnabled = true;
         ModeLaunch.IsEnabled = true;
         ModeAttach.IsEnabled = true;
+        ModeWatch.IsEnabled = true;
 
         PopulateResults(_lastResult);
 

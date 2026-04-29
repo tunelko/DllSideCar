@@ -46,6 +46,9 @@ public class EtwDllTracer : IDisposable
     private bool _disposed;
     private string? _pendingProcessName;
     private string? _pendingExePath;
+    // When set, OnProcessStart adopts every new process whose name matches.
+    // Survives multiple PID generations (e.g. service stop+start cycles).
+    private string? _watchProcessName;
 
     public event Action<EtwTraceEvent>? EventCaptured;
     public event Action<TracedProcess>? ProcessDetected;
@@ -217,6 +220,89 @@ public class EtwDllTracer : IDisposable
     }
 
     /// <summary>
+    /// Watch-by-name mode: start the ETW session with no PID and adopt every
+    /// future process whose image name matches <paramref name="processName"/>.
+    /// Then optionally fire a CLI command to trigger the lookup (sc start svc,
+    /// regsvr32 evil.dll, splunk restart, etc.).
+    ///
+    /// Designed for services that change PID across restarts: the session stays
+    /// up across multiple stop/start cycles and aggregates events from every PID
+    /// that matched the name.
+    /// </summary>
+    public void StartWatchByName(string processName, string? runCommand, CancellationToken ct)
+    {
+        if (IsRunning)
+            throw new InvalidOperationException("Trace session already running");
+        if (string.IsNullOrWhiteSpace(processName))
+            throw new ArgumentException("Process name is required", nameof(processName));
+
+        var preflight = Preflight();
+        if (preflight.Status != PreflightStatus.Ready)
+            throw new InvalidOperationException(preflight.Message);
+
+        // Strip .exe so we match TraceEvent's ProcessName field (basename, no ext).
+        var bareName = Path.GetFileNameWithoutExtension(processName.Trim());
+        if (string.IsNullOrEmpty(bareName))
+            throw new ArgumentException($"Could not derive a process name from '{processName}'", nameof(processName));
+
+        _watchProcessName = bareName;
+        Log.Info("etw", $"Watch-by-name mode: target='{bareName}', children={_filter.IncludeChildren}");
+        StatusChanged?.Invoke($"Starting ETW session — watching for '{bareName}'...");
+
+        StartEtwSession(ct);
+
+        // Optionally fire a CLI command to trigger whatever loads the target DLL.
+        // Spawned via cmd.exe /c so users can chain (sc stop x && sc start x),
+        // pipe, redirect — any normal shell construct.
+        if (!string.IsNullOrWhiteSpace(runCommand))
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/c {runCommand}",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                };
+                var proc = Process.Start(psi);
+                if (proc != null)
+                {
+                    Log.Info("etw", $"Launched watcher command (PID {proc.Id}): {runCommand}");
+                    // Drain output asynchronously so the command can complete; we
+                    // don't block the caller — the ETW session is the long-running part.
+                    Task.Run(() =>
+                    {
+                        try
+                        {
+                            var stdout = proc.StandardOutput.ReadToEnd();
+                            var stderr = proc.StandardError.ReadToEnd();
+                            proc.WaitForExit(30_000);
+                            if (!string.IsNullOrWhiteSpace(stdout))
+                                Log.Info("etw", $"cmd stdout: {stdout.Trim()}");
+                            if (!string.IsNullOrWhiteSpace(stderr))
+                                Log.Warn("etw", $"cmd stderr: {stderr.Trim()}");
+                            Log.Info("etw", $"Watcher command exited with code {proc.ExitCode}");
+                        }
+                        catch (Exception ex) { Log.Warn("etw", $"Watcher command drain failed: {ex.Message}"); }
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("etw", $"Failed to launch watcher command '{runCommand}'", ex);
+                // Don't tear down the session — the user may still trigger the target
+                // manually from another shell, and the ETW session is already capturing.
+            }
+        }
+
+        StatusChanged?.Invoke(
+            $"Watching for '{bareName}' — trigger the target now (or any restart cycle), then STOP.");
+    }
+
+    /// <summary>
     /// Walks the live process tree and adds every descendant of <paramref name="rootPid"/>
     /// to <see cref="_trackedPids"/>. Uses CreateToolhelp32Snapshot for parent-PID lookup
     /// (not exposed by System.Diagnostics.Process directly).
@@ -295,7 +381,11 @@ public class EtwDllTracer : IDisposable
         try { _processingTask?.Wait(TimeSpan.FromSeconds(3)); } catch { }
         try { _session?.Stop(); } catch { }
 
-        KillTrackedProcesses();
+        // Watch-by-name targets are typically services (splunkd, sshd, etc.) the
+        // user does NOT want killed on stop. Only kill processes we launched
+        // ourselves via StartWithExe.
+        if (_watchProcessName == null)
+            KillTrackedProcesses();
 
         var result = BuildResult();
 
@@ -417,6 +507,28 @@ public class EtwDllTracer : IDisposable
             _pendingExePath = null;
             Log.Info("etw", $"Auto-detected {rName} (PID {data.ProcessID})");
             StatusChanged?.Invoke($"Tracing {rName} (PID {data.ProcessID}) — interact with the application, then STOP.");
+            NotifyProcessDetected(data.ProcessID, 0, rName, rPath, true);
+            return;
+        }
+
+        // Watch-by-name mode: every new process whose name matches becomes a
+        // tracked root. Allows multiple PID generations (service restarts) to
+        // accumulate into the same trace result.
+        if (_watchProcessName != null
+            && string.Equals(data.ProcessName, _watchProcessName, StringComparison.OrdinalIgnoreCase)
+            && !_trackedPids.ContainsKey(data.ProcessID))
+        {
+            var rName = data.ProcessName + ".exe";
+            var rPath = data.ImageFileName ?? "";
+            // First match becomes the "root" for tree-building purposes;
+            // subsequent matches are tagged as roots too so they all show up
+            // at the top level of the process tree.
+            var isFirst = _rootPid == 0;
+            if (isFirst) _rootPid = data.ProcessID;
+            _trackedPids[data.ProcessID] = new ProcessInfo(rName, rPath, 0, true);
+            _processEvents.Add(new ProcessLifecycle(data.ProcessID, 0, rName, rPath, data.TimeStamp, true));
+            Log.Info("etw", $"Watch-by-name matched: {rName} (PID {data.ProcessID})");
+            StatusChanged?.Invoke($"Adopted {rName} (PID {data.ProcessID})");
             NotifyProcessDetected(data.ProcessID, 0, rName, rPath, true);
             return;
         }
