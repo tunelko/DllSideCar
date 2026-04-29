@@ -539,6 +539,26 @@
     </Style>
 
     <!-- ================================================================ -->
+    <!-- Axis cell text styles — one accent colour per axis so the eye    -->
+    <!-- can parse Exploit/Impact/Confidence (and similar columns in     -->
+    <!-- modal grids) at a glance without reading the header. Originally  -->
+    <!-- defined locally in ScanPage; promoted to global so Window-       -->
+    <!-- hosted modals (CallsitesWindow, ServiceAuditWindow) can reuse.   -->
+    <!-- ================================================================ -->
+    <Style x:Key="AxisExploitCell" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource Phosphor}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style x:Key="AxisImpactCell" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource Red}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style x:Key="AxisConfCell" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource Blue}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- ================================================================ -->
     <!-- TerminalButton — phosphor-green, identity button for the tool    -->
     <!-- Use for "do the dangerous thing": Scan, Generate, Build, Extract -->
     <!-- Mono font + uppercase content gives it hacker-console identity   -->
