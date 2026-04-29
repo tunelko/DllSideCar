@@ -36,9 +36,6 @@
                         <ctrl:ToolPathRow x:Name="MsysRow"    Label="MSYS2 usr/bin"
                                           Purpose="Optional fallback (windres lives here on some setups)"/>
 
-                        <ctrl:ToolPathRow x:Name="MsvcVcvarsRow" Label="MSVC vcvarsall.bat"
-                                          Purpose="Optional. Required only for MSVC-only evasion techniques (AMSI HW BP). Standard: ...\Microsoft Visual Studio\2022\&lt;edition&gt;\VC\Auxiliary\Build\vcvarsall.bat"/>
-
                         <Grid Margin="0,12,0,0">
                             <StackPanel HorizontalAlignment="Left" Orientation="Horizontal">
                                 <Button Content="Auto-detect" Style="{StaticResource SecondaryButton}" Click="AutoDetect_Click"

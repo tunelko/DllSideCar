@@ -1,5 +1,4 @@
 using System.Text;
-using DllSidecar.Core.Configuration;
 using DllSidecar.Core.Models;
 using DllSidecar.Core.Helpers;
 
@@ -877,37 +876,36 @@ public static class TemplateEngine
         return sb.ToString();
     }
 
-    /// <summary>
-    /// True when the active evasion mix uses MSVC-only constructs and the .bat
-    /// must drive cl.exe instead of MinGW gcc. Currently: AMSI HW BP (lib uses
-    /// #pragma section + __declspec(allocate) + lvalue C-casts).
-    /// </summary>
-    private static bool RequiresMsvc(TemplateConfig config, bool isX64) =>
-        config.AmsiHookHwBp && isX64;
-
     private static string GenerateBuildBat(PeAnalysis analysis, TemplateConfig config, string srcName, string mode)
     {
         bool isX64 = analysis.Arch == "x64";
-        bool useMsvc = RequiresMsvc(config, isX64);
+        var gccPrefix = isX64 ? "x86_64-w64-mingw32" : "i686-w64-mingw32";
+        var mingwPath = isX64 ? @"C:\msys64\mingw64\bin" : @"C:\msys64\mingw32\bin";
+        var needsHeaders = config.DInvoke || config.EncryptStrings || config.DirectSyscalls;
+        var incFlag = needsHeaders ? "-I../../templates" : "";
 
         var sb = new StringBuilder();
         sb.Append("@echo off\r\nsetlocal\r\n");
-        if (!useMsvc)
-        {
-            var mingwPath = isX64 ? @"C:\msys64\mingw64\bin" : @"C:\msys64\mingw32\bin";
-            sb.Append($"set \"PATH={mingwPath};%PATH%\"\r\n\r\n");
-        }
+        sb.Append($"set \"PATH={mingwPath};%PATH%\"\r\n\r\n");
         sb.Append($"echo === DllSidecar {mode} Build ===\r\n");
-        sb.Append($"echo Target: {analysis.Filename} ({analysis.Arch}){(useMsvc ? " [MSVC]" : "")}\r\n\r\n");
-
-        if (useMsvc)
-        {
-            EmitMsvcCompile(sb, analysis, config, srcName, isX64);
-        }
-        else
-        {
-            EmitGccCompile(sb, analysis, config, srcName, isX64);
-        }
+        sb.Append($"echo Target: {analysis.Filename} ({analysis.Arch})\r\n\r\n");
+        // Minimal flags — closer to a hand-written PoC, less signature surface for AV:
+        //   · -O0 (no opt) instead of -Os -s -w: keeps symbols, looks like a debug build
+        //   · no -static: dynamic link to msvcrt (always present), smaller DLL
+        //   · no -luser32 -lkernel32: MinGW default spec auto-links both
+        //   · -ladvapi32 kept: needed for token/SID APIs used by some payload variants
+        var parts = new List<string> { $"{gccPrefix}-gcc", "-shared", "-O0",
+            "-o", analysis.Filename, $"{srcName}.c", $"{srcName}.def" };
+        // Extra evasion sources (HardwareBreakPointLib.c etc.) compiled in the
+        // same gcc invocation so the bundled VEH handler + Dr0-3 wiring linkers
+        // up alongside the proxy.
+        foreach (var src in EvasionExtraSources(config, isX64)) parts.Add(src);
+        if (!string.IsNullOrEmpty(incFlag)) parts.Add(incFlag);
+        parts.Add("-ladvapi32");
+        // -Wl,--kill-at strips the stdcall "@N" suffix from stub_ord_N exports so MinGW's
+        // linker stops warning about resolving "foo by linking to foo@0". No runtime effect.
+        parts.Add("-Wl,--kill-at");
+        sb.Append(string.Join(" ", parts) + "\r\n");
         sb.Append("if errorlevel 1 (\r\n");
         sb.Append("    echo [!] Compilation failed\r\n");
         sb.Append("    exit /b 1\r\n)\r\n\r\n");
@@ -1180,85 +1178,5 @@ public static class TemplateEngine
         if (config.AmsiHookHwBp && isX64)
             srcs.Add("HardwareBreakPointLib.c");
         return srcs;
-    }
-
-    // ──────────────────────────────────────────────────────────────────
-    // Compile-section emitters
-    //
-    // Picked by GenerateBuildBat based on RequiresMsvc(config). Both write
-    // a compile invocation that produces analysis.Filename in the cwd. The
-    // surrounding .bat shell (header + deploy/run tail) stays compiler-agnostic.
-    // ──────────────────────────────────────────────────────────────────
-
-    private static void EmitGccCompile(StringBuilder sb, PeAnalysis analysis, TemplateConfig config, string srcName, bool isX64)
-    {
-        var gccPrefix = isX64 ? "x86_64-w64-mingw32" : "i686-w64-mingw32";
-        var needsHeaders = config.DInvoke || config.EncryptStrings || config.DirectSyscalls;
-        var incFlag = needsHeaders ? "-I../../templates" : "";
-
-        // Minimal flags — closer to a hand-written PoC, less signature surface for AV:
-        //   · -O0 (no opt) instead of -Os -s -w: keeps symbols, looks like a debug build
-        //   · no -static: dynamic link to msvcrt (always present), smaller DLL
-        //   · no -luser32 -lkernel32: MinGW default spec auto-links both
-        //   · -ladvapi32 kept: needed for token/SID APIs used by some payload variants
-        var parts = new List<string> { $"{gccPrefix}-gcc", "-shared", "-O0",
-            "-o", analysis.Filename, $"{srcName}.c", $"{srcName}.def" };
-        foreach (var src in EvasionExtraSources(config, isX64)) parts.Add(src);
-        if (!string.IsNullOrEmpty(incFlag)) parts.Add(incFlag);
-        parts.Add("-ladvapi32");
-        // -Wl,--kill-at strips the stdcall "@N" suffix from stub_ord_N exports so MinGW's
-        // linker stops warning about resolving "foo by linking to foo@0". No runtime effect.
-        parts.Add("-Wl,--kill-at");
-        sb.Append(string.Join(" ", parts) + "\r\n");
-    }
-
-    /// <summary>
-    /// Emit cl.exe-based compile prologue. Probes for vcvarsall.bat in the
-    /// configured path first, then in standard VS2022/2019 install layouts so
-    /// the .bat is portable across researcher boxes. After vcvarsall sets up
-    /// PATH/LIB/INCLUDE, a single cl invocation builds the DLL using the
-    /// generated .def for exports.
-    /// </summary>
-    private static void EmitMsvcCompile(StringBuilder sb, PeAnalysis analysis, TemplateConfig config, string srcName, bool isX64)
-    {
-        var arch = isX64 ? "x64" : "x86";
-        var configuredVcvars = ConfigManager.Current.Tools.MsvcVcvarsAllPath;
-
-        sb.Append("rem === Probe for vcvarsall.bat ===\r\n");
-        sb.Append("set \"VCVARS=\"\r\n");
-        if (!string.IsNullOrWhiteSpace(configuredVcvars))
-            sb.Append($"if exist \"{configuredVcvars}\" set \"VCVARS={configuredVcvars}\"\r\n");
-        // Probe standard install paths in priority order. First match wins.
-        sb.Append("for %%E in (BuildTools Community Professional Enterprise) do (\r\n");
-        sb.Append("    if not defined VCVARS if exist \"%ProgramFiles%\\Microsoft Visual Studio\\2022\\%%E\\VC\\Auxiliary\\Build\\vcvarsall.bat\" set \"VCVARS=%ProgramFiles%\\Microsoft Visual Studio\\2022\\%%E\\VC\\Auxiliary\\Build\\vcvarsall.bat\"\r\n");
-        sb.Append(")\r\n");
-        sb.Append("for %%E in (BuildTools Community Professional Enterprise) do (\r\n");
-        sb.Append("    if not defined VCVARS if exist \"%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\%%E\\VC\\Auxiliary\\Build\\vcvarsall.bat\" set \"VCVARS=%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\%%E\\VC\\Auxiliary\\Build\\vcvarsall.bat\"\r\n");
-        sb.Append(")\r\n");
-        sb.Append("if not defined VCVARS (\r\n");
-        sb.Append("    echo [!] vcvarsall.bat not found. Configure MsvcVcvarsAllPath in DllSidecar Configuration.\r\n");
-        sb.Append("    exit /b 2\r\n");
-        sb.Append(")\r\n");
-        sb.Append($"call \"%VCVARS%\" {arch} >nul\r\n");
-        sb.Append("if errorlevel 1 (\r\n");
-        sb.Append("    echo [!] vcvarsall.bat failed to set up the environment\r\n");
-        sb.Append("    exit /b 1\r\n");
-        sb.Append(")\r\n\r\n");
-
-        // cl args:
-        //   /nologo  — quiet banner
-        //   /LD      — build DLL (defines _DLL, links msvcrt-style, no entry conflict)
-        //   /O2      — optimize for speed (fine for evasion lib + small payload)
-        //   /Fe:     — output filename (no space after the colon)
-        //   /link /DEF: — feed the .def to the linker for export table
-        //   advapi32.lib — extra import lib (token/SID APIs from payload variants)
-        var cl = new List<string> { "cl", "/nologo", "/LD", "/O2",
-            $"{srcName}.c" };
-        foreach (var src in EvasionExtraSources(config, isX64)) cl.Add(src);
-        cl.Add($"/Fe:{analysis.Filename}");
-        cl.Add("/link");
-        cl.Add($"/DEF:{srcName}.def");
-        cl.Add("advapi32.lib");
-        sb.Append(string.Join(" ", cl) + "\r\n");
     }
 }

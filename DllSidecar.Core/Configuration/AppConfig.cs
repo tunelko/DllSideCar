@@ -169,12 +169,6 @@ public class ToolsConfig
     public string? SevenZipPath { get; set; }            // 7z.exe — installer extraction
     public string? InnoUnpPath { get; set; }             // innounp.exe — Inno Setup extraction
 
-    // MSVC vcvarsall.bat — required when an evasion technique uses MSVC-only
-    // constructs (HardwareBreakPointLib's #pragma section + __declspec etc.).
-    // Standard location: <VS install>\VC\Auxiliary\Build\vcvarsall.bat. The
-    // generated .bat calls "vcvarsall x64" so x86 and x64 targets share one path.
-    public string? MsvcVcvarsAllPath { get; set; }
-
     public string SysinternalsDownloadUrl { get; set; } = "https://download.sysinternals.com/files/SysinternalsSuite.zip";
     public string DependenciesDownloadUrl { get; set; } = "https://github.com/lucasg/Dependencies/releases";
     public string X64DbgDownloadUrl { get; set; } = "https://x64dbg.com/";
