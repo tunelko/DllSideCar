@@ -210,7 +210,7 @@
                         <Border Style="{StaticResource NavSectionBand}" Margin="6,4,6,4">
                             <TextBlock Text="WIZARD" Style="{StaticResource NavGroup}"/>
                         </Border>
-                        <Button Style="{StaticResource NavButton}" Click="NavWizard_Click"
+                        <Button x:Name="NavBtnWizard" Style="{StaticResource NavButton}" Click="NavWizard_Click"
                                 ToolTip="Research Wizard — guided end-to-end pipeline from input to advisory (Guided or Express)">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x2728;" Style="{StaticResource NavIcon}"/>
@@ -221,37 +221,37 @@
                         <Border Style="{StaticResource NavSectionBand}">
                             <TextBlock Text="ANALYSIS" Style="{StaticResource NavGroup}"/>
                         </Border>
-                        <Button Style="{StaticResource NavButton}" Click="NavAnalyze_Click" ToolTip="Analyze PE — inspect a single DLL/EXE (exports, signature, flags)">
+                        <Button x:Name="NavBtnAnalyze" Style="{StaticResource NavButton}" Click="NavAnalyze_Click" ToolTip="Analyze PE — inspect a single DLL/EXE (exports, signature, flags)">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F50D;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Analyze PE" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavScan_Click" ToolTip="Scan Directory — find sideload candidates ranked by exploitability">
+                        <Button x:Name="NavBtnScan" Style="{StaticResource NavButton}" Click="NavScan_Click" ToolTip="Scan Directory — find sideload candidates ranked by exploitability">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F4C1;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Scan Directory" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavProcmon_Click" ToolTip="ProcMon CSV — ingest Process Monitor export, correlate with scan">
+                        <Button x:Name="NavBtnProcmon" Style="{StaticResource NavButton}" Click="NavProcmon_Click" ToolTip="ProcMon CSV — ingest Process Monitor export, correlate with scan">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F4CA;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="ProcMon CSV" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavRuntimeTrace_Click" ToolTip="Runtime Trace — live ETW monitoring of DLL load failures (requires admin)">
+                        <Button x:Name="NavBtnRuntime" Style="{StaticResource NavButton}" Click="NavRuntimeTrace_Click" ToolTip="Runtime Trace — live ETW monitoring of DLL load failures (requires admin)">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x23F1;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Runtime Trace" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavInstaller_Click" ToolTip="Installer Extract — statically unpack .msi/.exe without running it">
+                        <Button x:Name="NavBtnInstaller" Style="{StaticResource NavButton}" Click="NavInstaller_Click" ToolTip="Installer Extract — statically unpack .msi/.exe without running it">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F4E5;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Installer Extract" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavPrivesc_Click" ToolTip="Privesc Surface — map SYSTEM services, tasks, autoElevate manifests">
+                        <Button x:Name="NavBtnPrivesc" Style="{StaticResource NavButton}" Click="NavPrivesc_Click" ToolTip="Privesc Surface — map SYSTEM services, tasks, autoElevate manifests">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F510;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Privesc Surface" Style="{StaticResource NavLabel}"/>
@@ -261,19 +261,19 @@
                         <Border Style="{StaticResource NavSectionBand}">
                             <TextBlock Text="GENERATE" Style="{StaticResource NavGroup}"/>
                         </Border>
-                        <Button Style="{StaticResource NavButton}" Click="NavDllTechniques_Click" ToolTip="DLL Techniques — switch between Proxy (forward + fire) and Sideload (DllMain stub)">
+                        <Button x:Name="NavBtnDllTechniques" Style="{StaticResource NavButton}" Click="NavDllTechniques_Click" ToolTip="DLL Techniques — switch between Proxy (forward + fire) and Sideload (DllMain stub)">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x26A1;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="DLL Techniques" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavAdvisory_Click" ToolTip="Advisory — draft a markdown report, preview live, export to PDF">
+                        <Button x:Name="NavBtnAdvisory" Style="{StaticResource NavButton}" Click="NavAdvisory_Click" ToolTip="Advisory — draft a markdown report, preview live, export to PDF">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F4C4;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Advisory" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavAdvisoryLibrary_Click" ToolTip="Advisory Library — persisted case archive with disclosure timeline and status tracking">
+                        <Button x:Name="NavBtnAdvisoryLibrary" Style="{StaticResource NavButton}" Click="NavAdvisoryLibrary_Click" ToolTip="Advisory Library — persisted case archive with disclosure timeline and status tracking">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F5C2;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Library" Style="{StaticResource NavLabel}"/>

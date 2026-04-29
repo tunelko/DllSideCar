@@ -99,7 +99,10 @@ public partial class MainWindow : Window
             Key.B, ModifierKeys.Control);
         InputBindings.Add(toggleBinding);
 
-        NavigateTo(new AnalyzePage(this));
+        // Wizard is the recommended starting point — guided pipeline that hands
+        // off to Analyze/Scan/Runtime as needed. Power users with a specific
+        // tool in mind navigate directly via the sidebar.
+        NavigateTo(new Views.Wizard.WizardPage(this));
     }
 
     private void OnLogEmitted(LogEntry entry)
@@ -155,7 +158,43 @@ public partial class MainWindow : Window
         catch { /* best-effort persist; never block close */ }
     }
 
-    public void NavigateTo(System.Windows.Controls.Page page) => ContentFrame.Navigate(page);
+    public void NavigateTo(System.Windows.Controls.Page page)
+    {
+        ContentFrame.Navigate(page);
+        SetActiveNavForPage(page);
+    }
+
+    /// <summary>
+    /// Light up the sidebar entry that corresponds to the navigated page.
+    /// Pages reachable only from the Tools popup (Build, Config) intentionally
+    /// fall through to "no match" — they're not part of the main rail and
+    /// shouldn't activate any sidebar item.
+    /// </summary>
+    private void SetActiveNavForPage(System.Windows.Controls.Page page)
+    {
+        // FQN on Button — UseWindowsForms=true makes the bare 'Button' type
+        // ambiguous between WPF and WinForms in this project.
+        System.Windows.Controls.Button? active = page switch
+        {
+            Views.Wizard.WizardPage    => NavBtnWizard,
+            AnalyzePage                => NavBtnAnalyze,
+            ScanPage                   => NavBtnScan,
+            ProcmonPage                => NavBtnProcmon,
+            RuntimeTracePage           => NavBtnRuntime,
+            InstallerPage              => NavBtnInstaller,
+            PrivescPage                => NavBtnPrivesc,
+            GeneratePage               => NavBtnDllTechniques,
+            AdvisoryPage               => NavBtnAdvisory,
+            AdvisoryLibraryPage        => NavBtnAdvisoryLibrary,
+            _                          => null,
+        };
+        System.Windows.Controls.Button[] all =
+        [
+            NavBtnWizard, NavBtnAnalyze, NavBtnScan, NavBtnProcmon, NavBtnRuntime,
+            NavBtnInstaller, NavBtnPrivesc, NavBtnDllTechniques, NavBtnAdvisory, NavBtnAdvisoryLibrary
+        ];
+        foreach (var b in all) b.Tag = ReferenceEquals(b, active) ? "active" : null;
+    }
 
     public void Log(string message)
     {
