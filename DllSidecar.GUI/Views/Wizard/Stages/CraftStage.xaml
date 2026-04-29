@@ -173,6 +173,8 @@
                                 <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,5"/>
                                 <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,5"/>
                                 <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,5"/>
+                                <CheckBox x:Name="ChkAmsiHwBp" Content="AMSI bypass — HW BP hook on AmsiScanBuffer (x64 only)" Margin="0,5"
+                                          ToolTip="Patchless AMSI evasion: installs Dr0 hardware breakpoint on AmsiScanBuffer + VEH handler that forces AMSI_RESULT_CLEAN. Adds ~30KB compiled. x64 only — the bundled lib uses x64 register layout for arg parsing."/>
                             </StackPanel>
                             <Border Grid.Row="1" Grid.Column="1" Margin="20,0,0,0"
                                     Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"

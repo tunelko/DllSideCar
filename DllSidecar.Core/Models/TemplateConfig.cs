@@ -57,6 +57,14 @@ public class TemplateConfig
     // Newlines and quotes are escaped for C string literal embedding.
     public string MessageBoxTitle { get; set; } = "DllSidecar PoC {Researcher}";
     public string MessageBoxBody { get; set; } = "DLL Sideloading PoC\nResearcher: {Researcher}\nDllSidecar — BugAInters 2026";
+
+    // ── Evasion techniques (extra opt-ins on top of DInvoke/syscalls/encrypt) ──
+    // AMSI Evasion via Hardware Breakpoint Hooks — installs a patchless hook
+    // on AmsiScanBuffer using Dr0-3 registers + a VEH handler. All AmsiScanBuffer
+    // calls in-process return AMSI_RESULT_CLEAN. Source: BigPolarBear1's
+    // HardwareBreakPointLib bundled under Resources/Evasion/AmsiHwBp.
+    // x64 only (uses GETPARM_6 macros). Adds ~30KB compiled to the DLL.
+    public bool AmsiHookHwBp { get; set; }
 }
 
 public enum PayloadType

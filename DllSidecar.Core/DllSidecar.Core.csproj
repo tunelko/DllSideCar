@@ -14,4 +14,12 @@
     <PackageReference Include="PeNet" Version="5.0.0" />
   </ItemGroup>
 
+  <!-- Evasion technique source bundles. Each subdir under Resources/Evasion is
+       a self-contained C library that TemplateEngine extracts next to the
+       generated proxy.c when its toggle is enabled. EmbeddedResource so the
+       sources ship inside the published single-file binary. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Evasion\**\*" />
+  </ItemGroup>
+
 </Project>

@@ -186,6 +186,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         bool dinvoke = ChkDInvoke.IsChecked == true;
         bool syscalls = ChkSyscalls.IsChecked == true;
         bool encrypt = ChkEncrypt.IsChecked == true;
+        bool amsiHwBp = ChkAmsiHwBp.IsChecked == true;
         bool writeProof = ChkWriteProof.IsChecked == true;
         bool waitBlock = WaitBlock.IsChecked == true;
         int.TryParse(DelayBox.Text, out int delayMs);
@@ -213,7 +214,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         {
             await Task.Run(() => GenerateAndBuild(
                 payloadIdx, payloadData, threadIdx, autoBuild, cloneMeta, stomp,
-                dinvoke, syscalls, encrypt, writeProof, waitBlock,
+                dinvoke, syscalls, encrypt, amsiHwBp, writeProof, waitBlock,
                 delayMs, preDelay, fireTimeout, xorKey, targetExport, hostExe,
                 sandboxTargets));
             StatusLine.Text = _session.BuiltDllPath != null
@@ -527,7 +528,8 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
     private void GenerateAndBuild(
         int payloadIdx, string payloadData, int threadIdx,
         bool autoBuild, bool cloneMeta, bool stomp,
-        bool dinvoke, bool syscalls, bool encrypt, bool writeProof, bool waitBlock,
+        bool dinvoke, bool syscalls, bool encrypt, bool amsiHwBp,
+        bool writeProof, bool waitBlock,
         int delayMs, int preDelay, int fireTimeout, byte xorKey,
         string? targetExport, string hostExe, string sandboxTargets)
     {
@@ -544,6 +546,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             DInvoke = dinvoke,
             DirectSyscalls = syscalls,
             EncryptStrings = encrypt,
+            AmsiHookHwBp = amsiHwBp,
             DelayMs = delayMs,
             XorKey = xorKey,
             TargetExport = targetExport,

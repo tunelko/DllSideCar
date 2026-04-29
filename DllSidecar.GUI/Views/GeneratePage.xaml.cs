@@ -508,6 +508,7 @@ public partial class GeneratePage : Page
             DInvoke = ChkDInvoke.IsChecked == true,
             DirectSyscalls = ChkSyscalls.IsChecked == true,
             EncryptStrings = ChkEncrypt.IsChecked == true,
+            AmsiHookHwBp = ChkAmsiHwBp.IsChecked == true,
             CloneMetadata = ChkCloneMeta.IsChecked == true,
             StompTimestamps = ChkStomp.IsChecked == true,
             Payload = (PayloadType)PayloadCombo.SelectedIndex,
