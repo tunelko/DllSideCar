@@ -63,6 +63,11 @@
                     <DataGridTextColumn Header="Op"      Binding="{Binding Mnemonic}"    Width="55"/>
                     <DataGridTextColumn Header="Module"  Binding="{Binding TargetModule}" Width="130"/>
                     <DataGridTextColumn Header="API"     Binding="{Binding TargetApi}"   Width="160"/>
+                    <DataGridTextColumn Header="Loaded"  Binding="{Binding LoadedNameText}" Width="180"
+                                        ElementStyle="{StaticResource AxisExploitCell}"
+                                        ToolTipService.ToolTip="First-arg string resolved from the call setup. Bare names (foo.dll) are sideload candidates; absolute paths and '?' (computed) are not."/>
+                    <DataGridTextColumn Header="Flags"   Binding="{Binding LoadFlagsText}" Width="180"
+                                        ToolTipService.ToolTip="LoadLibraryEx dwFlags. 0 / unset = classic search-order (sideloadable). LOAD_WITH_ALTERED_SEARCH_PATH or LOAD_LIBRARY_SEARCH_* limit the search."/>
                     <DataGridTextColumn Header="Caller"  Binding="{Binding CallerHint}"  Width="220"/>
                     <DataGridTextColumn Header="Disassembly" Binding="{Binding Disasm}"  Width="*"/>
                 </DataGrid.Columns>

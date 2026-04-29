@@ -15,7 +15,13 @@ public record Callsite(
     string TargetModule,   // e.g. "kernel32.dll"
     string TargetApi,      // e.g. "LoadLibraryExW"
     string CallerHint,     // nearest exported symbol + offset, or "<no export nearby>"
-    string Disasm);        // formatted instruction (NASM syntax) for display
+    string Disasm,         // formatted instruction (NASM syntax) for display
+    // Extracted by walking backward from the call. Both null when the args were
+    // computed (built on the stack, GetProcAddress, register chain we don't
+    // follow, etc.) — that's still useful info: "static-resolvable" callsites
+    // are the actionable ones for sideloading.
+    string? LoadedName,    // first-arg string, e.g. "amfrt64.dll" or "C:\\...\\foo.dll"
+    uint? LoadFlags);      // LoadLibraryEx flags (LOAD_WITH_ALTERED_SEARCH_PATH, etc.)
 
 /// <summary>
 /// Wraps a scan run so the caller can distinguish "no callsites because the

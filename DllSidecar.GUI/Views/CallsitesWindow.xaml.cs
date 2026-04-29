@@ -85,9 +85,13 @@ public partial class CallsitesWindow : Window
         {
             var byApi = _all.GroupBy(r => r.TargetApi).OrderByDescending(g => g.Count())
                 .Select(g => $"{g.Key}={g.Count()}");
+            // Resolved-name count is the actionable signal: how many callsites
+            // we can hand to a sideload audit without the user opening x64dbg.
+            var resolved = _all.Count(r => r.Source.LoadedName != null);
+            var resolvedHint = resolved > 0 ? $" · {resolved} with resolved name" : "";
             return visibleCount == _all.Count
-                ? $"{_all.Count} callsites · {string.Join(" ", byApi)}"
-                : $"{visibleCount} of {_all.Count} callsites match · {string.Join(" ", byApi)}";
+                ? $"{_all.Count} callsites · {string.Join(" ", byApi)}{resolvedHint}"
+                : $"{visibleCount} of {_all.Count} callsites match · {string.Join(" ", byApi)}{resolvedHint}";
         }
 
         if (_trackedImports.Count == 0)
@@ -105,9 +109,9 @@ public partial class CallsitesWindow : Window
     {
         if (Grid.ItemsSource is not IEnumerable<Row> rows) return;
         var sb = new StringBuilder();
-        sb.AppendLine("RVA\tOp\tModule\tAPI\tCaller\tDisassembly");
+        sb.AppendLine("RVA\tOp\tModule\tAPI\tLoaded\tFlags\tCaller\tDisassembly");
         foreach (var r in rows)
-            sb.AppendLine($"{r.RvaText}\t{r.Mnemonic}\t{r.TargetModule}\t{r.TargetApi}\t{r.CallerHint}\t{r.Disasm}");
+            sb.AppendLine($"{r.RvaText}\t{r.Mnemonic}\t{r.TargetModule}\t{r.TargetApi}\t{r.LoadedNameText}\t{r.LoadFlagsText}\t{r.CallerHint}\t{r.Disasm}");
         try
         {
             System.Windows.Clipboard.SetText(sb.ToString());
@@ -130,6 +134,41 @@ public partial class CallsitesWindow : Window
         public string TargetApi => Source.TargetApi;
         public string CallerHint => Source.CallerHint;
         public string Disasm => Source.Disasm;
+        // "?" tells the user "we couldn't statically resolve this" — different
+        // from "" because a blank cell reads like "no value", and there always
+        // IS a string here at runtime; we just couldn't see it without sim.
+        public string LoadedNameText => Source.LoadedName ?? "?";
+        public string LoadFlagsText => FormatLoadFlags(Source.LoadFlags);
         public Row(Callsite c) { Source = c; }
+    }
+
+    /// <summary>
+    /// Render a LoadLibraryEx dwFlags value as a human-readable mask, e.g.
+    /// "0x8 LOAD_WITH_ALTERED_SEARCH_PATH". Caller cares mostly about
+    /// "is this a sideload candidate" which boils down to "no SEARCH_*
+    /// restriction = yes". Bit names from MSDN.
+    /// </summary>
+    private static string FormatLoadFlags(uint? flags)
+    {
+        if (flags == null) return "";
+        var v = flags.Value;
+        if (v == 0) return "0 (search-order)";
+
+        var bits = new List<string>();
+        void Take(uint mask, string name) { if ((v & mask) != 0) { bits.Add(name); v &= ~mask; } }
+        Take(0x00000001, "DONT_RESOLVE_DLL_REFERENCES");
+        Take(0x00000010, "LOAD_IGNORE_CODE_AUTHZ_LEVEL");
+        Take(0x00000002, "LOAD_LIBRARY_AS_DATAFILE");
+        Take(0x00000040, "LOAD_LIBRARY_AS_DATAFILE_EXCLUSIVE");
+        Take(0x00000020, "LOAD_LIBRARY_AS_IMAGE_RESOURCE");
+        Take(0x00001000, "LOAD_LIBRARY_SEARCH_DEFAULT_DIRS");
+        Take(0x00000200, "LOAD_LIBRARY_SEARCH_APPLICATION_DIR");
+        Take(0x00000400, "LOAD_LIBRARY_SEARCH_USER_DIRS");
+        Take(0x00000800, "LOAD_LIBRARY_SEARCH_SYSTEM32");
+        Take(0x00000100, "LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR");
+        Take(0x00000080, "LOAD_LIBRARY_REQUIRE_SIGNED_TARGET");
+        Take(0x00000008, "LOAD_WITH_ALTERED_SEARCH_PATH");
+        var unknown = v != 0 ? $" +0x{v:X}" : "";
+        return $"0x{flags.Value:X} {string.Join("|", bits)}{unknown}";
     }
 }
