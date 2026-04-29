@@ -160,21 +160,6 @@
                                 <TextBox x:Name="PayloadDataBox" Margin="0,8,0,0"
                                          FontFamily="{StaticResource FontMono}" Visibility="Collapsed"
                                          ToolTip="Command to execute. calc.exe / cmd.exe / cmd.exe /k whoami / full path etc."/>
-                                <!-- MessageBox payload only: editable title + body. {Researcher}
-                                     placeholder is substituted at template time. -->
-                                <StackPanel x:Name="MessageBoxPanel" Margin="0,8,0,0">
-                                    <TextBlock Text="Title" Foreground="{StaticResource Subtext}" FontSize="10"/>
-                                    <TextBox x:Name="MessageBoxTitleBox" FontFamily="{StaticResource FontMono}"
-                                             Text="DllSidecar PoC {Researcher}"
-                                             ToolTip="Title of the MessageBox popup. Use {Researcher} as a placeholder for your handle (filled at generate time from the Researcher field)."/>
-                                    <TextBlock Text="Body" Foreground="{StaticResource Subtext}" FontSize="10" Margin="0,8,0,0"/>
-                                    <TextBox x:Name="MessageBoxBodyBox" FontFamily="{StaticResource FontMono}"
-                                             AcceptsReturn="True" TextWrapping="Wrap"
-                                             MinHeight="60" MaxHeight="120"
-                                             VerticalScrollBarVisibility="Auto"
-                                             Text="DLL Sideloading PoC&#x0a;Researcher: {Researcher}&#x0a;DllSidecar — BugAInters 2026"
-                                             ToolTip="Body text. Newlines are emitted as \n in the generated C. {Researcher} placeholder substituted at generate time."/>
-                                </StackPanel>
                                 <StackPanel x:Name="SandboxTargetsPanel" Visibility="Collapsed" Margin="0,8,0,0">
                                     <TextBlock Text="Inject targets (CSV)" Foreground="{StaticResource Subtext}" FontSize="10"/>
                                     <TextBox x:Name="SandboxTargetsBox" FontFamily="{StaticResource FontMono}"

@@ -8,10 +8,24 @@ public class AppConfig
     public ToolsConfig Tools { get; set; } = new();
     public UiStateConfig UiState { get; set; } = new();
     public ResearcherConfig Researcher { get; set; } = new();
+    public PayloadConfig Payload { get; set; } = new();
 
     // When true, ScanPage automatically runs CVE dedup against NVD after each scan.
     // Off by default — researcher may want to avoid traffic on repeat local scans.
     public bool AutoCveLookup { get; set; }
+}
+
+/// <summary>
+/// Default payload knobs that don't change per PoC: the MessageBox popup
+/// title and body, ready to be reused across every Generate run. Setting
+/// these once in Configuration keeps GeneratePage focused on the per-PoC
+/// decisions (target, evasion, deploy) instead of stable preferences.
+/// {Researcher} placeholder substituted at template time.
+/// </summary>
+public class PayloadConfig
+{
+    public string MessageBoxTitle { get; set; } = "DllSidecar PoC {Researcher}";
+    public string MessageBoxBody { get; set; } = "DLL Sideloading PoC\nResearcher: {Researcher}\nDllSidecar — BugAInters 2026";
 }
 
 /// <summary>
@@ -61,9 +75,6 @@ public class GeneratePageState
     public int PayloadIndex { get; set; }                 // 0=MessageBox 1=Command 2=Shellcode 3=SandboxEscape
     public string? PayloadData { get; set; }
     public string SandboxTargets { get; set; } = "AcroCEF.exe,AdobeCollabSync.exe";
-    // MessageBox-only — null means "use TemplateConfig defaults".
-    public string? MessageBoxTitle { get; set; }
-    public string? MessageBoxBody { get; set; }
 
     // Proxy-specific
     public string? TargetExport { get; set; }

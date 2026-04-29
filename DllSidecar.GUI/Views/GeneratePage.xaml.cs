@@ -140,8 +140,6 @@ public partial class GeneratePage : Page
                 PayloadCombo.SelectedIndex = s.PayloadIndex;
             if (!string.IsNullOrEmpty(s.PayloadData)) PayloadDataBox.Text = s.PayloadData;
             if (!string.IsNullOrEmpty(s.SandboxTargets)) SandboxTargetsBox.Text = s.SandboxTargets;
-            if (!string.IsNullOrEmpty(s.MessageBoxTitle)) MessageBoxTitleBox.Text = s.MessageBoxTitle;
-            if (!string.IsNullOrEmpty(s.MessageBoxBody)) MessageBoxBodyBox.Text = s.MessageBoxBody;
 
             if (s.ThreadModeIndex >= 0 && s.ThreadModeIndex < ThreadCombo.Items.Count)
                 ThreadCombo.SelectedIndex = s.ThreadModeIndex;
@@ -176,8 +174,6 @@ public partial class GeneratePage : Page
         s.PayloadIndex = PayloadCombo.SelectedIndex;
         s.PayloadData = PayloadDataBox.Text;
         s.SandboxTargets = SandboxTargetsBox.Text;
-        s.MessageBoxTitle = MessageBoxTitleBox.Text;
-        s.MessageBoxBody = MessageBoxBodyBox.Text;
         s.ThreadModeIndex = ThreadCombo.SelectedIndex;
         s.DInvoke = ChkDInvoke.IsChecked == true;
         s.Syscalls = ChkSyscalls.IsChecked == true;
@@ -456,10 +452,6 @@ public partial class GeneratePage : Page
         if (SandboxTargetsPanel != null)
             SandboxTargetsPanel.Visibility = PayloadCombo.SelectedIndex == 3
                 ? Visibility.Visible : Visibility.Collapsed;
-        // MessageBox panel only relevant for index 0 (MessageBox PoC).
-        if (MessageBoxPanel != null)
-            MessageBoxPanel.Visibility = PayloadCombo.SelectedIndex == 0
-                ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private async void Generate_Click(object sender, RoutedEventArgs e)
@@ -536,16 +528,12 @@ public partial class GeneratePage : Page
         if (PayloadCombo.SelectedIndex == 3 && !string.IsNullOrWhiteSpace(SandboxTargetsBox.Text))
             config.SandboxTargets = SandboxTargetsBox.Text.Trim();
 
-        // MessageBox-only title/body. Templating engine substitutes {Researcher}
-        // and C-string-escapes the result. Falls back to the model defaults
-        // when blank so we never emit empty literals.
-        if (PayloadCombo.SelectedIndex == 0)
-        {
-            if (!string.IsNullOrWhiteSpace(MessageBoxTitleBox.Text))
-                config.MessageBoxTitle = MessageBoxTitleBox.Text;
-            if (!string.IsNullOrWhiteSpace(MessageBoxBodyBox.Text))
-                config.MessageBoxBody = MessageBoxBodyBox.Text;
-        }
+        // MessageBox title/body come from global Config → Payload Defaults so
+        // the same stamp is reused across PoCs. {Researcher} substitution and
+        // C-string escaping happen inside TemplateEngine.
+        var payloadCfg = ConfigManager.Current.Payload;
+        config.MessageBoxTitle = payloadCfg.MessageBoxTitle;
+        config.MessageBoxBody = payloadCfg.MessageBoxBody;
 
         // Runtime / deploy options — drive the .bat tail's probe/delay/wait logic
         // and the payload's proof file write. All three have safe defaults in XAML.

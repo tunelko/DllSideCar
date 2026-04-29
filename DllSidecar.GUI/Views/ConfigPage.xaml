@@ -163,6 +163,24 @@
                     </StackPanel>
                 </Border>
 
+                <!-- PAYLOAD DEFAULTS -->
+                <Border Style="{StaticResource SectionCard}" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="PAYLOAD DEFAULTS" Style="{StaticResource SectionHeader}"/>
+                        <TextBlock Text="MessageBox PoC popup text reused across every Generate run. Use {Researcher} as a placeholder — it's substituted at template time. Newlines are emitted as \n in the generated C; quotes are escaped automatically."
+                                   FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                        <TextBlock Text="MessageBox title" Style="{StaticResource FieldLabel}"/>
+                        <TextBox x:Name="MsgBoxTitleBox" FontFamily="{StaticResource FontMono}"
+                                 ToolTip="Title bar text. Default: 'DllSidecar PoC {Researcher}'"/>
+                        <TextBlock Text="MessageBox body" Style="{StaticResource FieldLabel}" Margin="0,10,0,0"/>
+                        <TextBox x:Name="MsgBoxBodyBox" FontFamily="{StaticResource FontMono}"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 MinHeight="70" MaxHeight="140"
+                                 VerticalScrollBarVisibility="Auto"
+                                 ToolTip="Body text. Multi-line is fine — every newline becomes \n in the generated C source."/>
+                    </StackPanel>
+                </Border>
+
             </StackPanel>
         </ScrollViewer>
 
