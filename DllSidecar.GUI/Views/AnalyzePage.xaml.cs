@@ -31,6 +31,7 @@ public partial class AnalyzePage : Page
         ActScanParent.IsEnabled = enabled;
         ActCopyPath.IsEnabled = enabled;
         ActCheckCves.IsEnabled = enabled;
+        ActCallsites.IsEnabled = enabled;
     }
 
     private void Browse_Click(object sender, RoutedEventArgs e)
@@ -202,6 +203,28 @@ public partial class AnalyzePage : Page
             return;
         }
         var dlg = new CveResultsWindow(_main.CurrentAnalysis) { Owner = Window.GetWindow(this) };
+        dlg.ShowDialog();
+    }
+
+    private void ActCallsites_Click(object sender, RoutedEventArgs e)
+    {
+        if (_main.CurrentAnalysis == null || string.IsNullOrEmpty(_main.CurrentDllPath))
+        {
+            MessageBox.Show("Analyze a PE first.", "Callsites", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        // arm64 binaries fail in the scanner (Iced is x86/x64 only). Surface
+        // it up-front rather than opening an empty modal.
+        if (_main.CurrentAnalysis.Arch is not ("x86" or "x64"))
+        {
+            MessageBox.Show($"Callsite disassembly currently supports x86 and x64 only ({_main.CurrentAnalysis.Arch} not supported).",
+                "Callsites", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var dlg = new CallsitesWindow(_main.CurrentDllPath, _main.CurrentAnalysis.Arch)
+        {
+            Owner = Window.GetWindow(this)
+        };
         dlg.ShowDialog();
     }
 }
