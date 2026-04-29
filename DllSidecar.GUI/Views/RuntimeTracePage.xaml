@@ -87,6 +87,7 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <!-- Target picker swaps per mode (launch path / PID chip / watch panel) -->
                         <Grid Grid.Column="0">
@@ -125,8 +126,29 @@
                                 Style="{StaticResource IconButton}" Margin="6,0,0,0"
                                 Click="PickSvc_Click" ToolTip="Pick service — fills name + sc stop/start command"
                                 Visibility="Collapsed"/>
+                        <!-- REC badge — visible while ETW session is active. Red dot
+                             pulses 1 → 0.3 → 1 (1s loop, autoreverse) so the user
+                             always sees a clear "we're capturing" cue next to Stop. -->
+                        <StackPanel x:Name="RecBadge" Grid.Column="4" Orientation="Horizontal"
+                                    VerticalAlignment="Center" Margin="10,0,4,0"
+                                    Visibility="Collapsed">
+                            <StackPanel.Resources>
+                                <Storyboard x:Key="RecPulse">
+                                    <DoubleAnimation
+                                        Storyboard.TargetName="RecDot"
+                                        Storyboard.TargetProperty="Opacity"
+                                        From="1.0" To="0.25" Duration="0:0:0.6"
+                                        AutoReverse="True" RepeatBehavior="Forever"/>
+                                </Storyboard>
+                            </StackPanel.Resources>
+                            <Ellipse x:Name="RecDot" Width="10" Height="10" Fill="#FF5B4F"
+                                     VerticalAlignment="Center"/>
+                            <TextBlock Text="REC" Foreground="#FF5B4F"
+                                       FontFamily="{StaticResource FontMono}" FontSize="11" FontWeight="Bold"
+                                       VerticalAlignment="Center" Margin="6,0,0,0"/>
+                        </StackPanel>
                         <!-- Start/Stop — swaps content and tooltip between ▶ and ■ at runtime -->
-                        <Button x:Name="TraceBtn" Grid.Column="4" Content="&#x25B6;"
+                        <Button x:Name="TraceBtn" Grid.Column="5" Content="&#x25B6;"
                                 Style="{StaticResource IconButton}" Margin="6,0,0,0"
                                 Click="Trace_Click" ToolTip="Start trace"/>
                     </Grid>

@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using DllSidecar.Core.Configuration;
@@ -331,6 +332,9 @@ public partial class RuntimeTracePage : Page
         // Stop icon (■) in IconButton chrome; color cue via ToolTip since style stays neutral.
         TraceBtn.Content = "■";
         TraceBtn.ToolTip = "Stop trace";
+        // Show + start the REC pulse so the user has a clear visual that ETW is live.
+        RecBadge.Visibility = Visibility.Visible;
+        StartRecPulse();
         TargetBox.IsEnabled = false;
         ArgsBox.IsEnabled = false;
         WatchNameBox.IsEnabled = false;
@@ -394,6 +398,10 @@ public partial class RuntimeTracePage : Page
 
         TraceBtn.Content = "▶";
         TraceBtn.ToolTip = "Start trace";
+        // Hide + stop the REC pulse — leaving the storyboard running on a hidden
+        // element burns CPU on the compositor for nothing.
+        StopRecPulse();
+        RecBadge.Visibility = Visibility.Collapsed;
         TargetBox.IsEnabled = true;
         ArgsBox.IsEnabled = true;
         WatchNameBox.IsEnabled = true;
@@ -668,6 +676,27 @@ public partial class RuntimeTracePage : Page
         StatProcs.Text = "0";
         StatWritable.Text = "0";
         ElapsedText.Text = "";
+    }
+
+    /// <summary>
+    /// Looks up the RecPulse storyboard from RecBadge.Resources and begins it.
+    /// Targets the RecDot ellipse's Opacity (1 → 0.25, AutoReverse, Forever).
+    /// Resource lookup is delayed to runtime so a missing key fails soft.
+    /// </summary>
+    private void StartRecPulse()
+    {
+        if (RecBadge.Resources["RecPulse"] is Storyboard sb)
+            sb.Begin(RecBadge, isControllable: true);
+    }
+
+    private void StopRecPulse()
+    {
+        if (RecBadge.Resources["RecPulse"] is Storyboard sb)
+        {
+            try { sb.Stop(RecBadge); } catch { /* never started — fine */ }
+        }
+        // Reset the dot to fully opaque so a new Start picks it up clean.
+        RecDot.Opacity = 1.0;
     }
 
     private enum StatusKind { Info, Ok, Warn, Err }
