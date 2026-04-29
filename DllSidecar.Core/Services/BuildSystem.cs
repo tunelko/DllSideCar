@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text;
 using DllSidecar.Core.Configuration;
 using DllSidecar.Core.Logging;
 using DllSidecar.Core.Models;
@@ -148,98 +147,6 @@ public static class BuildSystem
         }
 
         return result;
-    }
-
-    /// <summary>
-    /// Build the DLL via MSVC (cl.exe) instead of MinGW. Required for evasion
-    /// techniques whose embedded C source uses MSVC-only constructs
-    /// (HardwareBreakPointLib's #pragma section + __declspec(allocate),
-    /// lvalue C-casts). Drives vcvarsall.bat to set up the env, then a single
-    /// cl invocation. Does NOT run the generated build_X.bat — that would
-    /// also fire the deploy/launch tail; this is compile-only on demand.
-    /// </summary>
-    public static async Task<BuildResult> CompileDllMsvcAsync(
-        string sourceFile, string defFile, string outputFile, string arch,
-        IEnumerable<string>? extraSources = null,
-        IProgress<string>? progress = null)
-    {
-        var vcvars = FindMsvcVcvarsAll();
-        if (vcvars == null)
-            return new BuildResult { Errors = "MSVC vcvarsall.bat not found — set 'MSVC vcvarsall.bat' in Configuration → MinGW Toolchain" };
-
-        var archArg = arch == "x86" ? "x86" : "x64";
-        var workDir = Path.GetDirectoryName(sourceFile)!;
-        var srcName = Path.GetFileName(sourceFile);
-        var defName = Path.GetFileName(defFile);
-        var outName = Path.GetFileName(outputFile);
-
-        var clArgs = new List<string> { "/nologo", "/LD", "/O2", srcName };
-        if (extraSources != null) clArgs.AddRange(extraSources);
-        clArgs.Add($"/Fe:{outName}");
-        clArgs.Add("/link");
-        clArgs.Add($"/DEF:{defName}");
-        clArgs.Add("advapi32.lib");
-
-        // Temp .bat avoids the cmd.exe /c quoting tar-pit when the vcvars path
-        // contains spaces (it usually does — Program Files). Cleaned up in the
-        // finally block regardless of build outcome.
-        var tempBat = Path.Combine(workDir, $"_dllsidecar_msvc_{Guid.NewGuid():N}.bat");
-        var batContent = new StringBuilder();
-        batContent.AppendLine("@echo off");
-        batContent.AppendLine("setlocal");
-        batContent.AppendLine($"call \"{vcvars}\" {archArg} >nul");
-        batContent.AppendLine("if errorlevel 1 exit /b 1");
-        batContent.AppendLine("cl " + string.Join(" ", clArgs));
-        batContent.AppendLine("exit /b %errorlevel%");
-        File.WriteAllText(tempBat, batContent.ToString());
-
-        progress?.Report($"Compiling (MSVC): {srcName} -> {outName} ({arch})");
-
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = "cmd.exe",
-                Arguments = $"/c \"{tempBat}\"",
-                WorkingDirectory = workDir,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-            };
-            using var proc = Process.Start(psi)!;
-            var stdoutTask = proc.StandardOutput.ReadToEndAsync();
-            var stderrTask = proc.StandardError.ReadToEndAsync();
-            await proc.WaitForExitAsync();
-            var stdout = await stdoutTask;
-            var stderr = await stderrTask;
-
-            var result = new BuildResult { Success = proc.ExitCode == 0 };
-            if (!result.Success)
-            {
-                result.Errors = $"cl exited {proc.ExitCode}\n{(string.IsNullOrWhiteSpace(stderr) ? stdout : stderr)}";
-                progress?.Report($"Compilation failed (cl exit {proc.ExitCode})");
-                return result;
-            }
-
-            if (File.Exists(outputFile))
-            {
-                result.OutputPath = outputFile;
-                result.OutputSize = new FileInfo(outputFile).Length;
-                try
-                {
-                    var pe = new PeNet.PeFile(outputFile);
-                    result.ExportCount = pe.ExportedFunctions?.Length ?? 0;
-                }
-                catch (Exception ex) { Log.Warn("build", $"Re-parse failed: {outputFile}", ex); }
-                progress?.Report($"Success: {outName} ({result.OutputSize:N0} bytes, {result.ExportCount} exports)");
-            }
-            return result;
-        }
-        finally
-        {
-            try { File.Delete(tempBat); } catch { /* best-effort cleanup */ }
-        }
     }
 
     public static async Task<bool> CompileResourceAsync(string rcFile, string outputObj, string arch,

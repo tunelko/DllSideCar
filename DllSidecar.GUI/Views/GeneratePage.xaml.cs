@@ -633,26 +633,14 @@ public partial class GeneratePage : Page
             }
 
             var buildProgress = new Progress<string>(msg => _main.Log($"  {msg}"));
-            // MSVC-only evasion (AMSI HW BP) → drive cl.exe via vcvarsall.bat,
-            // since the bundled lib uses MSVC-only constructs (#pragma section,
-            // __declspec(allocate), lvalue C-casts) that MinGW gcc rejects.
-            var useMsvc = config.AmsiHookHwBp && _analysis.Arch == "x64";
-            var result = useMsvc
-                ? await BuildSystem.CompileDllMsvcAsync(
-                    Path.Combine(outputDir, cFile),
-                    Path.Combine(outputDir, defFile),
-                    dllOutput,
-                    _analysis.Arch,
-                    extraSources: ["HardwareBreakPointLib.c"],
-                    progress: buildProgress)
-                : await BuildSystem.CompileDllAsync(
-                    Path.Combine(outputDir, cFile),
-                    Path.Combine(outputDir, defFile),
-                    dllOutput,
-                    _analysis.Arch,
-                    includeDirs: [templatesDir, outputDir],
-                    extraObjects: extraObjects.Count > 0 ? extraObjects : null,
-                    progress: buildProgress);
+            var result = await BuildSystem.CompileDllAsync(
+                Path.Combine(outputDir, cFile),
+                Path.Combine(outputDir, defFile),
+                dllOutput,
+                _analysis.Arch,
+                includeDirs: [templatesDir, outputDir],
+                extraObjects: extraObjects.Count > 0 ? extraObjects : null,
+                progress: buildProgress);
 
             if (result.Success)
             {
