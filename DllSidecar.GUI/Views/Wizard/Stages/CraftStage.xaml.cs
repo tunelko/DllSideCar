@@ -626,14 +626,26 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
                 extraObjects.Add(resObj);
         }
 
-        var result = BuildSystem.CompileDllAsync(
-            Path.Combine(outputDir, cFile),
-            Path.Combine(outputDir, defFile),
-            dllOutput,
-            _target.Arch,
-            includeDirs: [templatesDir, outputDir],
-            extraObjects: extraObjects.Count > 0 ? extraObjects : null,
-            progress: null).GetAwaiter().GetResult();
+        // MSVC-only evasion (AMSI HW BP) → cl.exe via vcvarsall.bat. Same
+        // branch logic as GeneratePage so wizard- and standalone-generated
+        // PoCs build identically.
+        var useMsvc = config.AmsiHookHwBp && _target.Arch == "x64";
+        var result = useMsvc
+            ? BuildSystem.CompileDllMsvcAsync(
+                Path.Combine(outputDir, cFile),
+                Path.Combine(outputDir, defFile),
+                dllOutput,
+                _target.Arch,
+                extraSources: ["HardwareBreakPointLib.c"],
+                progress: null).GetAwaiter().GetResult()
+            : BuildSystem.CompileDllAsync(
+                Path.Combine(outputDir, cFile),
+                Path.Combine(outputDir, defFile),
+                dllOutput,
+                _target.Arch,
+                includeDirs: [templatesDir, outputDir],
+                extraObjects: extraObjects.Count > 0 ? extraObjects : null,
+                progress: null).GetAwaiter().GetResult();
 
         if (!result.Success)
             throw new InvalidOperationException($"Build failed: {result.Errors}");
