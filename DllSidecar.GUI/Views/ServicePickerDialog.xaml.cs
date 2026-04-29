@@ -17,6 +17,12 @@ public partial class ServicePickerDialog : Window
 
     public string? SelectedServiceName { get; private set; }
     public string? SelectedImageFile { get; private set; }
+    /// <summary>
+    /// Cmd-line substring the watcher should require. Non-empty only for
+    /// shared-image services (svchost) where the bare image name would
+    /// match unrelated PIDs. Format: "-s ServiceName".
+    /// </summary>
+    public string? SelectedCmdLineFilter { get; private set; }
 
     public ServicePickerDialog()
     {
@@ -83,15 +89,30 @@ public partial class ServicePickerDialog : Window
         {
             SelectedServiceName = r.Name;
             SelectedImageFile = r.ImageFile;
+            // svchost (and a few other shared hosts) run multiple services per
+            // PID, all with the same image. Without a cmd-line filter the
+            // watcher would adopt every svchost that happens to spawn — see
+            // BITS test where an unrelated svchost was caught alongside the
+            // BITS-hosting one. The runtime cmd line of svchost includes
+            // "-s ServiceName" for every hosted service, so that's our anchor.
+            SelectedCmdLineFilter = IsSharedHost(r.ImageFile)
+                ? $"-s {r.Name}"
+                : null;
             OkBtn.IsEnabled = !string.IsNullOrEmpty(r.ImageFile);
         }
         else
         {
             SelectedServiceName = null;
             SelectedImageFile = null;
+            SelectedCmdLineFilter = null;
             OkBtn.IsEnabled = false;
         }
     }
+
+    private static bool IsSharedHost(string imageFile) =>
+        imageFile.Equals("svchost.exe", StringComparison.OrdinalIgnoreCase)
+        || imageFile.Equals("dllhost.exe", StringComparison.OrdinalIgnoreCase)
+        || imageFile.Equals("rundll32.exe", StringComparison.OrdinalIgnoreCase);
 
     private void Grid_DoubleClick(object sender, MouseButtonEventArgs e)
     {

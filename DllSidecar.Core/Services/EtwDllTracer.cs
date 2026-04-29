@@ -49,6 +49,12 @@ public class EtwDllTracer : IDisposable
     // When set, OnProcessStart adopts every new process whose name matches.
     // Survives multiple PID generations (e.g. service stop+start cycles).
     private string? _watchProcessName;
+    // Optional command-line substring required for the watch to adopt a match.
+    // Use case: svchost-hosted services. The image basename (svchost.exe) is
+    // shared by hundreds of unrelated svchost groups, so name-only watching
+    // floods with noise. Setting this to "-s BITS" (or whatever -s arg the
+    // service uses) restricts adoption to the right svchost instance.
+    private string? _watchCmdLineFilter;
 
     public event Action<EtwTraceEvent>? EventCaptured;
     public event Action<TracedProcess>? ProcessDetected;
@@ -225,11 +231,16 @@ public class EtwDllTracer : IDisposable
     /// Then optionally fire a CLI command to trigger the lookup (sc start svc,
     /// regsvr32 evil.dll, splunk restart, etc.).
     ///
+    /// <paramref name="cmdLineFilter"/> is an optional case-insensitive substring
+    /// the new process's command line must contain to be adopted. Use this when
+    /// the image name is shared (svchost.exe) — pass "-s BITS" to capture only
+    /// the BITS-hosting svchost group. Empty/null = name-only matching.
+    ///
     /// Designed for services that change PID across restarts: the session stays
     /// up across multiple stop/start cycles and aggregates events from every PID
-    /// that matched the name.
+    /// that matched the name (and the optional cmd-line filter).
     /// </summary>
-    public void StartWatchByName(string processName, string? runCommand, CancellationToken ct)
+    public void StartWatchByName(string processName, string? runCommand, CancellationToken ct, string? cmdLineFilter = null)
     {
         if (IsRunning)
             throw new InvalidOperationException("Trace session already running");
@@ -246,7 +257,9 @@ public class EtwDllTracer : IDisposable
             throw new ArgumentException($"Could not derive a process name from '{processName}'", nameof(processName));
 
         _watchProcessName = bareName;
-        Log.Info("etw", $"Watch-by-name mode: target='{bareName}', children={_filter.IncludeChildren}");
+        _watchCmdLineFilter = string.IsNullOrWhiteSpace(cmdLineFilter) ? null : cmdLineFilter.Trim();
+        var filterLog = _watchCmdLineFilter == null ? "" : $", cmdline~='{_watchCmdLineFilter}'";
+        Log.Info("etw", $"Watch-by-name mode: target='{bareName}'{filterLog}, children={_filter.IncludeChildren}");
         StatusChanged?.Invoke($"Starting ETW session — watching for '{bareName}'...");
 
         StartEtwSession(ct);
@@ -518,6 +531,17 @@ public class EtwDllTracer : IDisposable
             && string.Equals(data.ProcessName, _watchProcessName, StringComparison.OrdinalIgnoreCase)
             && !_trackedPids.ContainsKey(data.ProcessID))
         {
+            // Optional cmd-line filter: required for svchost-style shared hosts
+            // where many unrelated PIDs share the same image name.
+            if (_watchCmdLineFilter != null)
+            {
+                var cmd = data.CommandLine ?? "";
+                if (!cmd.Contains(_watchCmdLineFilter, StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Debug("etw", $"Watch-by-name skipped {data.ProcessName} PID {data.ProcessID}: cmdline does not contain '{_watchCmdLineFilter}'");
+                    return;
+                }
+            }
             var rName = data.ProcessName + ".exe";
             var rPath = data.ImageFileName ?? "";
             // First match becomes the "root" for tree-building purposes;

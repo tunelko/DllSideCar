@@ -93,6 +93,7 @@ public partial class RuntimeTracePage : Page
         AttachPicker.Visibility = isAttach ? Visibility.Visible : Visibility.Collapsed;
         WatchNameBox.Visibility = isWatch  ? Visibility.Visible : Visibility.Collapsed;
         WatchCmdRow.Visibility  = isWatch  ? Visibility.Visible : Visibility.Collapsed;
+        WatchMatchRow.Visibility = isWatch ? Visibility.Visible : Visibility.Collapsed;
 
         // Action buttons: Browse for Launch, PID picker for Attach, Service picker for Watch.
         BrowseBtn.Visibility   = isLaunch ? Visibility.Visible : Visibility.Collapsed;
@@ -197,6 +198,11 @@ public partial class RuntimeTracePage : Page
             // because the service was already stopped. Users can edit either.
             WatchNameBox.Text = dlg.SelectedImageFile;
             WatchCmdBox.Text = $"net stop {dlg.SelectedServiceName} & net start {dlg.SelectedServiceName}";
+            // Cmd-line filter: non-empty for svchost-style shared hosts, blank
+            // otherwise. Picker computes "-s ServiceName" for svchost; blank
+            // means "match by image name only" which is correct for splunkd,
+            // sshd, and any service with its own dedicated process.
+            WatchMatchBox.Text = dlg.SelectedCmdLineFilter ?? "";
         }
         catch (Exception ex)
         {
@@ -290,7 +296,12 @@ public partial class RuntimeTracePage : Page
                     return;
                 }
                 var cmd = WatchCmdBox.Text?.Trim();
-                _tracer.StartWatchByName(procName, string.IsNullOrEmpty(cmd) ? null : cmd, _cts.Token);
+                var match = WatchMatchBox.Text?.Trim();
+                _tracer.StartWatchByName(
+                    procName,
+                    string.IsNullOrEmpty(cmd) ? null : cmd,
+                    _cts.Token,
+                    string.IsNullOrEmpty(match) ? null : match);
             }
         }
         catch (Exception ex)
@@ -318,6 +329,7 @@ public partial class RuntimeTracePage : Page
         ArgsBox.IsEnabled = false;
         WatchNameBox.IsEnabled = false;
         WatchCmdBox.IsEnabled = false;
+        WatchMatchBox.IsEnabled = false;
         IlAuto.IsEnabled = false;
         IlMedium.IsEnabled = false;
         IlSame.IsEnabled = false;
@@ -380,6 +392,7 @@ public partial class RuntimeTracePage : Page
         ArgsBox.IsEnabled = true;
         WatchNameBox.IsEnabled = true;
         WatchCmdBox.IsEnabled = true;
+        WatchMatchBox.IsEnabled = true;
         IlAuto.IsEnabled = true;
         IlMedium.IsEnabled = true;
         IlSame.IsEnabled = true;
