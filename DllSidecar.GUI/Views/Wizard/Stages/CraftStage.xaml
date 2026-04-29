@@ -92,161 +92,171 @@
                 </StackPanel>
             </Border>
 
-            <!-- Config: 3 columns x 2 rows.
-                 Row 1: PAYLOAD | TARGET EXPORT | THREAD MODE   (single dropdown each)
-                 Row 2: EVASION | EXECUTION    | POST-PROCESSING (heavier cards)
-                 Mode tiles live in the page header so the body has more breathing room. -->
+            <!-- Config: 3 stacked columns mirroring DLL Techniques (GeneratePage).
+                 Col 1: PAYLOAD → TARGET EXPORT (proxy only) → THREAD MODE (proxy only)
+                 Col 2: EVASION (wider; internal TUNING mini-card to its right)
+                 Col 3: POST-PROCESSING → EXECUTION
+                 EVASION column is the growth area — new techniques (AMSI hooks,
+                 ETW patch, hellgate, etc.) plug in as more checkboxes here. -->
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="1*"/>
+                    <ColumnDefinition Width="1.5*"/>
+                    <ColumnDefinition Width="1*"/>
                 </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
 
-                <!-- Row 0 — selectors line -->
-                <Border Grid.Row="0" Grid.Column="0" Margin="0,0,4,10"
-                        Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
-                        BorderThickness="1" CornerRadius="8" Padding="16,12">
-                    <StackPanel>
-                        <TextBlock Text="PAYLOAD" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                   FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
-                        <ComboBox x:Name="PayloadCombo" SelectedIndex="0" SelectionChanged="PayloadCombo_Changed">
-                            <ComboBoxItem Content="MessageBox PoC (safe, visual proof)"/>
-                            <ComboBoxItem Content="Execute command"/>
-                            <ComboBoxItem Content="Shellcode injection"/>
-                            <ComboBoxItem Content="Sandbox escape (AppContainer — Acrobat/Office/Chromium)"
-                                          ToolTip="Cross-process inject into a less-restricted sibling + CreateProcessA on WinSta0\Default. Use for AppContainer hosts where WinExec is blocked."/>
-                        </ComboBox>
-                        <TextBox x:Name="PayloadDataBox" Margin="0,8,0,0"
-                                 FontFamily="{StaticResource FontMono}" Visibility="Collapsed"
-                                 ToolTip="Command to execute. calc.exe / cmd.exe / cmd.exe /k whoami / full path etc."/>
-                        <StackPanel x:Name="SandboxTargetsPanel" Visibility="Collapsed" Margin="0,8,0,0">
-                            <TextBlock Text="Inject targets (CSV)" Foreground="{StaticResource Subtext}" FontSize="10"/>
-                            <TextBox x:Name="SandboxTargetsBox" FontFamily="{StaticResource FontMono}"
-                                     Text="AcroCEF.exe,AdobeCollabSync.exe"
-                                     ToolTip="Sibling processes to try inject-escape into. Adobe default. Office: MsoSync.exe,msoxmlmf.exe. Edge: msedgewebview2.exe."/>
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-
-                <Border Grid.Row="0" Grid.Column="1" Margin="4,0,4,10"
-                        x:Name="ExportPanel" Visibility="Collapsed"
-                        Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
-                        BorderThickness="1" CornerRadius="8" Padding="16,12">
-                    <StackPanel>
-                        <TextBlock Text="TARGET EXPORT" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                   FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
-                        <ComboBox x:Name="ExportCombo" MaxDropDownHeight="240"/>
-                    </StackPanel>
-                </Border>
-
-                <Border Grid.Row="0" Grid.Column="2" Margin="4,0,0,10"
-                        x:Name="ThreadPanel" Visibility="Collapsed"
-                        Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
-                        BorderThickness="1" CornerRadius="8" Padding="16,12">
-                    <StackPanel>
-                        <TextBlock Text="THREAD MODE" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                   FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
-                        <ComboBox x:Name="ThreadCombo" SelectedIndex="0">
-                            <ComboBoxItem Content="Calling thread (hijack, most reliable)"/>
-                            <ComboBoxItem Content="New thread (CreateThread)"/>
-                            <ComboBoxItem Content="Native thread (NtCreateThreadEx)"/>
-                        </ComboBox>
-                    </StackPanel>
-                </Border>
-
-                <!-- Row 1 — heavier cards. EVASION drops the side-by-side TUNING mini-card
-                     (no room in 1/3 width) and stacks Delay+XOR underneath the toggles. -->
-                <Border Grid.Row="1" Grid.Column="0" Margin="0,0,4,0"
-                        Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
-                        BorderThickness="1" CornerRadius="8" Padding="16,12">
-                    <StackPanel>
-                        <TextBlock Text="EVASION" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                   FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
-                        <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,5"/>
-                        <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,5"/>
-                        <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,5"/>
-                        <Grid Margin="0,12,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="80"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Delay (ms)"
-                                       Foreground="{StaticResource Subtext}" FontSize="11"
-                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBox Grid.Column="1" x:Name="DelayBox" Text="0" Padding="6,4"/>
-                            <TextBlock Grid.Column="2" Text="XOR"
-                                       Foreground="{StaticResource Subtext}" FontSize="11"
-                                       VerticalAlignment="Center" Margin="14,0,8,0"/>
-                            <ComboBox Grid.Column="3" x:Name="XorKeyCombo"/>
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
-                <Border Grid.Row="1" Grid.Column="1" Margin="4,0,4,0"
-                        Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
-                        BorderThickness="1" CornerRadius="8" Padding="16,12">
-                    <StackPanel>
-                        <TextBlock Text="EXECUTION" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                   FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
-                        <CheckBox x:Name="ChkWriteProof" Content="Write proof file to %TEMP%"
-                                  IsChecked="True" Margin="0,4"
-                                  ToolTip="Payload writes dllsidecar_proof_&lt;PID&gt;.txt to %TEMP%. Reliable when MessageBox is invisible."/>
-                        <Grid Margin="0,8,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="70"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Pre-launch delay (s):"
-                                       Foreground="{StaticResource Subtext}"
-                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBox Grid.Column="1" x:Name="PreLaunchDelayBox" Text="0"/>
-                        </Grid>
-                        <TextBlock Text="Host wait strategy" Foreground="{StaticResource Subtext}"
-                                   FontSize="11" Margin="0,8,0,4"/>
-                        <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
-                                BorderThickness="1" CornerRadius="6" HorizontalAlignment="Left">
-                            <StackPanel Orientation="Horizontal">
-                                <RadioButton x:Name="WaitBlock" GroupName="WaitStrategy"
-                                             Style="{StaticResource SegmentedRadio}"
-                                             Content="Block until exit" IsChecked="True"
-                                             Checked="WaitStrategy_Changed"/>
-                                <RadioButton x:Name="WaitFire" GroupName="WaitStrategy"
-                                             Style="{StaticResource SegmentedRadio}"
-                                             Content="Fire-and-forget"
-                                             Checked="WaitStrategy_Changed"/>
+                <!-- Col 1: payload → target → thread mode -->
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                    <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="PAYLOAD" Style="{StaticResource SectionHeader}"/>
+                            <ComboBox x:Name="PayloadCombo" SelectedIndex="0" SelectionChanged="PayloadCombo_Changed">
+                                <ComboBoxItem Content="MessageBox PoC (safe, visual proof)"/>
+                                <ComboBoxItem Content="Execute command"/>
+                                <ComboBoxItem Content="Shellcode injection"/>
+                                <ComboBoxItem Content="Sandbox escape (AppContainer — Acrobat/Office/Chromium)"
+                                              ToolTip="Cross-process inject into a less-restricted sibling + CreateProcessA on WinSta0\Default. Use for AppContainer hosts where WinExec is blocked."/>
+                            </ComboBox>
+                            <TextBox x:Name="PayloadDataBox" Margin="0,8,0,0"
+                                     FontFamily="{StaticResource FontMono}" Visibility="Collapsed"
+                                     ToolTip="Command to execute. calc.exe / cmd.exe / cmd.exe /k whoami / full path etc."/>
+                            <StackPanel x:Name="SandboxTargetsPanel" Visibility="Collapsed" Margin="0,8,0,0">
+                                <TextBlock Text="Inject targets (CSV)" Foreground="{StaticResource Subtext}" FontSize="10"/>
+                                <TextBox x:Name="SandboxTargetsBox" FontFamily="{StaticResource FontMono}"
+                                         Text="AcroCEF.exe,AdobeCollabSync.exe"
+                                         ToolTip="Sibling processes to try inject-escape into. Adobe default. Office: MsoSync.exe,msoxmlmf.exe. Edge: msedgewebview2.exe."/>
                             </StackPanel>
-                        </Border>
-                        <Grid Margin="0,6,0,0" x:Name="FireTimeoutRow" Visibility="Collapsed">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="70"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Fire timeout (s):"
-                                       Foreground="{StaticResource Subtext}"
-                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBox Grid.Column="1" x:Name="FireTimeoutBox" Text="15"/>
-                        </Grid>
-                    </StackPanel>
-                </Border>
+                        </StackPanel>
+                    </Border>
 
-                <Border Grid.Row="1" Grid.Column="2" Margin="4,0,0,0"
-                        Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
-                        BorderThickness="1" CornerRadius="8" Padding="16,12">
-                    <StackPanel>
-                        <TextBlock Text="POST-PROCESSING" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                   FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
-                        <CheckBox x:Name="ChkCloneMeta" Content="Clone version info (metadata)" Margin="0,4"/>
-                        <CheckBox x:Name="ChkStomp" Content="Timestamp stomping" Margin="0,4"/>
-                        <CheckBox x:Name="ChkAutoBuild" Content="Compile DLL with MinGW" Margin="0,4" IsChecked="True"/>
-                    </StackPanel>
-                </Border>
+                    <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10"
+                            x:Name="ExportPanel" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="TARGET EXPORT" Style="{StaticResource SectionHeader}"/>
+                            <ComboBox x:Name="ExportCombo" MaxDropDownHeight="240"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SectionCard}" x:Name="ThreadPanel" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="THREAD MODE" Style="{StaticResource SectionHeader}"/>
+                            <ComboBox x:Name="ThreadCombo" SelectedIndex="0">
+                                <ComboBoxItem Content="Calling thread (hijack, most reliable)"/>
+                                <ComboBoxItem Content="New thread (CreateThread)"/>
+                                <ComboBoxItem Content="Native thread (NtCreateThreadEx)"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Col 2: EVASION (wider, internal TUNING mini-card on the right) -->
+                <StackPanel Grid.Column="1" Margin="8,0,8,0">
+                    <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto" MinWidth="180"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="EVASION"
+                                       Style="{StaticResource SectionHeader}"
+                                       VerticalAlignment="Bottom"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="TUNING"
+                                       Style="{StaticResource SectionHeader}"
+                                       Margin="20,0,0,8" VerticalAlignment="Bottom"/>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,0">
+                                <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,5"/>
+                                <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,5"/>
+                                <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,5"/>
+                            </StackPanel>
+                            <Border Grid.Row="1" Grid.Column="1" Margin="20,0,0,0"
+                                    Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                                    BorderThickness="1" CornerRadius="6" Padding="14,12"
+                                    VerticalAlignment="Top">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="100"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Delay (ms)"
+                                               Foreground="{StaticResource Subtext}" FontSize="11"
+                                               VerticalAlignment="Center" Margin="0,0,12,8"/>
+                                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="DelayBox" Text="0"
+                                             Margin="0,0,0,8" Padding="8,5"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="XOR key"
+                                               Foreground="{StaticResource Subtext}" FontSize="11"
+                                               VerticalAlignment="Center" Margin="0,8,12,0"/>
+                                    <ComboBox Grid.Row="1" Grid.Column="1" x:Name="XorKeyCombo" Margin="0,8,0,0"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!-- Col 3: post-processing + execution -->
+                <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                    <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="POST-PROCESSING" Style="{StaticResource SectionHeader}"/>
+                            <CheckBox x:Name="ChkCloneMeta" Content="Clone version info (metadata)" Margin="0,4"/>
+                            <CheckBox x:Name="ChkStomp" Content="Timestamp stomping" Margin="0,4"/>
+                            <CheckBox x:Name="ChkAutoBuild" Content="Compile DLL with MinGW" Margin="0,4" IsChecked="True"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SectionCard}">
+                        <StackPanel>
+                            <TextBlock Text="EXECUTION" Style="{StaticResource SectionHeader}"/>
+                            <CheckBox x:Name="ChkWriteProof" Content="Write proof file to %TEMP%"
+                                      IsChecked="True" Margin="0,4"
+                                      ToolTip="Payload writes dllsidecar_proof_&lt;PID&gt;.txt to %TEMP%. Reliable when MessageBox is invisible."/>
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="80"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Pre-launch delay (s):"
+                                           Foreground="{StaticResource Subtext}"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBox Grid.Column="1" x:Name="PreLaunchDelayBox" Text="0"/>
+                            </Grid>
+                            <TextBlock Text="Host wait strategy" Foreground="{StaticResource Subtext}"
+                                       FontSize="11" Margin="0,10,0,4"/>
+                            <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                                    BorderThickness="1" CornerRadius="6" HorizontalAlignment="Left">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton x:Name="WaitBlock" GroupName="WaitStrategy"
+                                                 Style="{StaticResource SegmentedRadio}"
+                                                 Content="Block until exit" IsChecked="True"
+                                                 Checked="WaitStrategy_Changed"/>
+                                    <RadioButton x:Name="WaitFire" GroupName="WaitStrategy"
+                                                 Style="{StaticResource SegmentedRadio}"
+                                                 Content="Fire-and-forget"
+                                                 Checked="WaitStrategy_Changed"/>
+                                </StackPanel>
+                            </Border>
+                            <Grid Margin="0,6,0,0" x:Name="FireTimeoutRow" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="80"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Fire timeout (s):"
+                                           Foreground="{StaticResource Subtext}"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBox Grid.Column="1" x:Name="FireTimeoutBox" Text="15"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
             </Grid>
 
             <TextBlock x:Name="StatusLine" Foreground="{StaticResource Overlay}" FontSize="11"
