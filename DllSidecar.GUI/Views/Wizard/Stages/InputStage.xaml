@@ -118,7 +118,7 @@
                 <TextBlock Text="RUNTIME TRACE" Foreground="{StaticResource Phosphor}"
                            FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"/>
                 <TextBlock Foreground="{StaticResource Text}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"
-                           Text="Runtime trace lives outside the wizard. Press Continue to jump to the Runtime Trace page. There, launch or attach to your target, then use 'Promote to Scan' to bring the discovered phantoms back into the wizard via the Scan a folder entry."/>
+                           Text="This module runs outside the wizard context. Press Continue to jump to the Runtime Trace page; capture events there, then click 'Promote to Wizard' to bring the discovered phantoms back into this wizard via the Scan stage."/>
             </StackPanel>
         </Border>
 

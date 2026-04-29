@@ -62,6 +62,11 @@ public partial class RuntimeTracePage : Page
             // Runtime Trace entry point. Otherwise this is a standalone visit.
             ResumeWizardBtn.Visibility = _main.CurrentWizardSession != null
                 ? Visibility.Visible : Visibility.Collapsed;
+            // Same gate flips Promote's label: 'Promote to Wizard' when a wizard
+            // session is alive (the action conceptually returns the user to it),
+            // 'Promote to Scan' otherwise (the destination is just the Scan page).
+            PromoteBtn.Content = _main.CurrentWizardSession != null
+                ? "Promote to Wizard" : "Promote to Scan";
 
             if (_main.LastEtwResult != null)
             {
