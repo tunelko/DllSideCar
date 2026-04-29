@@ -455,8 +455,59 @@ public partial class GeneratePage : Page
         // Shellcode mode (index 2) gets the msfvenom shortcut; other payloads
         // either don't take hex (Command/Sandbox) or have their own UI.
         if (MsfvenomBtn != null)
+        {
             MsfvenomBtn.Visibility = PayloadCombo.SelectedIndex == 2
                 ? Visibility.Visible : Visibility.Collapsed;
+            // Lazy probe — first time the button becomes visible, check whether
+            // msfvenom is reachable (PATH or WSL). Cached after first run.
+            if (PayloadCombo.SelectedIndex == 2 && _msfvenomProbed == false)
+            {
+                _msfvenomProbed = true;
+                _ = ProbeMsfvenomAsync();
+            }
+        }
+    }
+
+    // Cached probe result so we don't re-spawn a child process every time the
+    // user toggles back to shellcode mode. Lifetime = current GeneratePage instance.
+    private bool _msfvenomProbed;
+    private string? _msfvenomLauncher;  // "msfvenom" or "wsl"; null = unavailable
+
+    private async Task ProbeMsfvenomAsync()
+    {
+        // Show "Probing..." while the child process answers. msfvenom --help
+        // is fast (~200ms) on PATH; WSL fallback adds boot overhead but typically
+        // <2s. Button stays disabled until we know.
+        Dispatcher.Invoke(() =>
+        {
+            MsfvenomBtn.IsEnabled = false;
+            MsfvenomBtn.Content = "🪄  Probing msfvenom...";
+        });
+
+        string? launcher = null;
+        try { _ = await TryRunMsfvenom("msfvenom", "--help"); launcher = "msfvenom"; }
+        catch
+        {
+            try { _ = await TryRunMsfvenom("wsl", "msfvenom --help"); launcher = "wsl"; }
+            catch { /* both unavailable */ }
+        }
+
+        _msfvenomLauncher = launcher;
+        Dispatcher.Invoke(() =>
+        {
+            if (launcher != null)
+            {
+                MsfvenomBtn.IsEnabled = true;
+                MsfvenomBtn.Content = "🪄  Generate via msfvenom (cmd.exe)";
+                MsfvenomBtn.ToolTip = $"Run via '{launcher}'. Output: windows/<arch>/exec CMD=cmd.exe EXITFUNC=thread -f hex.";
+            }
+            else
+            {
+                MsfvenomBtn.IsEnabled = false;
+                MsfvenomBtn.Content = "🪄  msfvenom not found";
+                MsfvenomBtn.ToolTip = "Neither 'msfvenom' (PATH) nor 'wsl msfvenom' resolved.\n\nInstall options:\n  · WSL Kali: sudo apt install metasploit-framework\n  · Native Windows: https://www.metasploit.com/download\n\nAfter install, reopen this page to re-probe.";
+            }
+        });
     }
 
     /// <summary>
@@ -469,23 +520,25 @@ public partial class GeneratePage : Page
     /// </summary>
     private async void GenerateMsfvenom_Click(object sender, RoutedEventArgs e)
     {
+        if (_msfvenomLauncher == null) return; // shouldn't happen — button is disabled
+
         var arch = _analysis?.Arch ?? "x64";
         var payloadName = arch == "x86" ? "windows/exec" : "windows/x64/exec";
-        var args = $"-p {payloadName} CMD=cmd.exe EXITFUNC=thread -f hex";
+        var coreArgs = $"-p {payloadName} CMD=cmd.exe EXITFUNC=thread -f hex";
+
+        // The probe set _msfvenomLauncher to either 'msfvenom' or 'wsl'. For wsl
+        // we pass the full msfvenom invocation as a single argv. For direct
+        // launch the args are core only.
+        var (exe, args) = _msfvenomLauncher == "wsl"
+            ? ("wsl", "msfvenom " + coreArgs)
+            : ("msfvenom", coreArgs);
 
         var oldContent = MsfvenomBtn.Content;
         MsfvenomBtn.Content = "Generating...";
         MsfvenomBtn.IsEnabled = false;
         try
         {
-            string? hex;
-            try { hex = await TryRunMsfvenom("msfvenom", args); }
-            catch
-            {
-                _main.Log("msfvenom not in PATH — trying WSL");
-                hex = await TryRunMsfvenom("wsl", $"msfvenom {args}");
-            }
-
+            var hex = await TryRunMsfvenom(exe, args);
             if (string.IsNullOrWhiteSpace(hex))
             {
                 MessageBox.Show("msfvenom returned empty output", "msfvenom",
@@ -498,11 +551,8 @@ public partial class GeneratePage : Page
         catch (Exception ex)
         {
             _main.Log($"msfvenom failed: {ex.Message}");
-            MessageBox.Show(
-                $"msfvenom failed: {ex.Message}\n\n" +
-                "Install: 'sudo apt install metasploit-framework' (Linux/WSL Kali) " +
-                "or download: https://www.metasploit.com/download",
-                "msfvenom", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"msfvenom failed: {ex.Message}", "msfvenom",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
