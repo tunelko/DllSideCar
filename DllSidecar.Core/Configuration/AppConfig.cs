@@ -61,6 +61,9 @@ public class GeneratePageState
     public int PayloadIndex { get; set; }                 // 0=MessageBox 1=Command 2=Shellcode 3=SandboxEscape
     public string? PayloadData { get; set; }
     public string SandboxTargets { get; set; } = "AcroCEF.exe,AdobeCollabSync.exe";
+    // MessageBox-only — null means "use TemplateConfig defaults".
+    public string? MessageBoxTitle { get; set; }
+    public string? MessageBoxBody { get; set; }
 
     // Proxy-specific
     public string? TargetExport { get; set; }

@@ -574,6 +574,17 @@ public static class TemplateEngine
                  + "    }\n"
                  + "}\n";
 
+        // MessageBox payload — body and title come from TemplateConfig so the
+        // researcher can stamp the popup with case identifiers without hand-
+        // editing generated C. {Researcher} placeholder substituted, then the
+        // result is C-string-escaped (\\, \", \n) before embedding.
+        var msgBody = CEscapeForLiteral(
+            (config.MessageBoxBody ?? "").Replace("{Researcher}", r));
+        var msgTitle = CEscapeForLiteral(
+            (config.MessageBoxTitle ?? "").Replace("{Researcher}", r));
+        if (string.IsNullOrEmpty(msgBody)) msgBody = "DLL Sideloading PoC";
+        if (string.IsNullOrEmpty(msgTitle)) msgTitle = "DllSidecar PoC";
+
         if (config.Payload == PayloadType.MessageBox && config.DInvoke)
             return "static void do_payload(void) {\n"
                  + proof
@@ -583,17 +594,29 @@ public static class TemplateEngine
                  + "    if (!hUser32) return;\n"
                  + "    fn_MessageBoxA pMB = (fn_MessageBoxA)dinvoke_get_proc(hUser32, H_MESSAGEBOXA);\n"
                  + "    if (!pMB) return;\n"
-                 + $"    pMB(NULL, \"DLL Sideloading PoC\\nResearcher: {r}\\nDllSidecar — BugAInters 2026\",\n"
-                 + $"        \"DllSidecar PoC {r}\", MB_ICONWARNING | MB_OK);\n"
+                 + $"    pMB(NULL, \"{msgBody}\",\n"
+                 + $"        \"{msgTitle}\", MB_ICONWARNING | MB_OK);\n"
                  + "}\n";
 
         // MessageBox without DInvoke
         return "static void do_payload(void) {\n"
              + proof
-             + $"    MessageBoxA(NULL, \"DLL Sideloading PoC\\nResearcher: {r}\\nDllSidecar — BugAInters 2026\",\n"
-             + $"        \"DllSidecar PoC {r}\", MB_ICONWARNING | MB_OK);\n"
+             + $"    MessageBoxA(NULL, \"{msgBody}\",\n"
+             + $"        \"{msgTitle}\", MB_ICONWARNING | MB_OK);\n"
              + "}\n";
     }
+
+    /// <summary>
+    /// Escape a runtime string for embedding inside a C double-quoted literal:
+    /// backslash → \\, double-quote → \", any newline (CR/LF/CRLF) → \n. Order
+    /// matters — backslash first so we don't double-escape later sequences.
+    /// </summary>
+    private static string CEscapeForLiteral(string s) => s
+        .Replace("\\", "\\\\")
+        .Replace("\"", "\\\"")
+        .Replace("\r\n", "\\n")
+        .Replace("\n", "\\n")
+        .Replace("\r", "\\n");
 
     /// <summary>
     /// C snippet that writes a proof-of-execution file to %TEMP%\dllsidecar_proof_&lt;pid&gt;.txt.
