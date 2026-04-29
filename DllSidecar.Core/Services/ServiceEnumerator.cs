@@ -15,7 +15,13 @@ public record ServiceInfo(
     string Account,        // ObjectName ("" → LocalSystem)
     ServiceState State,
     ServiceStartType StartType,
-    bool IsDriver);
+    bool IsDriver,
+    // For svchost-hosted services, this is the DLL that actually implements
+    // the service (HKLM\...\Parameters\ServiceDll). The principal target for
+    // sideload research per SandboxEscaper's workflow — that's the binary
+    // whose CreateFile / LoadLibrary callsites you actually want to scan.
+    // Empty string for self-contained (non-shared) services.
+    string ServiceDll);
 
 /// <summary>
 /// Enumerates Windows services by walking HKLM\SYSTEM\CurrentControlSet\Services
@@ -48,6 +54,7 @@ public static class ServiceEnumerator
             var displayName = ResolveDisplayName(key, name);
             var account = (key.GetValue("ObjectName") as string) ?? "";
             var startRaw = (key.GetValue("Start") as int?) ?? 3;
+            var serviceDll = ResolveServiceDll(key);
 
             stateByName.TryGetValue(name, out var state);
             result.Add(new ServiceInfo(
@@ -58,7 +65,8 @@ public static class ServiceEnumerator
                 Account: account,
                 State: state,
                 StartType: MapStartType(startRaw),
-                IsDriver: isDriver));
+                IsDriver: isDriver,
+                ServiceDll: serviceDll));
         }
 
         return result;
@@ -71,6 +79,25 @@ public static class ServiceEnumerator
     public static bool IsLocalSystem(ServiceInfo s) =>
         string.IsNullOrEmpty(s.Account)
         || s.Account.Equals("LocalSystem", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Reads HKLM\...\Services\&lt;name&gt;\Parameters\ServiceDll, expands env
+    /// vars, and strips the optional REG_EXPAND_SZ %SystemRoot% prefix.
+    /// Empty string when no Parameters subkey or no ServiceDll value (the
+    /// service is not svchost-hosted, e.g. splunkd, sshd, MsMpEng).
+    /// </summary>
+    private static string ResolveServiceDll(RegistryKey serviceKey)
+    {
+        try
+        {
+            using var paramsKey = serviceKey.OpenSubKey("Parameters");
+            if (paramsKey == null) return "";
+            var raw = paramsKey.GetValue("ServiceDll") as string;
+            if (string.IsNullOrEmpty(raw)) return "";
+            return Environment.ExpandEnvironmentVariables(raw);
+        }
+        catch { return ""; }
+    }
 
     /// <summary>
     /// DisplayName is sometimes a "@dll,-resId" indirect string. We strip those
