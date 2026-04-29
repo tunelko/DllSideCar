@@ -178,7 +178,11 @@ public static class BuildSystem
         clArgs.Add($"/Fe:{outName}");
         clArgs.Add("/link");
         clArgs.Add($"/DEF:{defName}");
+        // cl auto-links kernel32 only; user32 (MessageBoxA, wsprintfA) and
+        // advapi32 (token/SID) must be explicit. kernel32 redundant but safe.
+        clArgs.Add("user32.lib");
         clArgs.Add("advapi32.lib");
+        clArgs.Add("kernel32.lib");
 
         // Temp .bat avoids the cmd.exe /c quoting tar-pit when the vcvars path
         // contains spaces (it usually does — Program Files). Cleaned up in the
