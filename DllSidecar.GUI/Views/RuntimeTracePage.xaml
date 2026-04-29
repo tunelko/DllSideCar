@@ -57,34 +57,28 @@
             <Border Grid.Column="0" Style="{StaticResource GroupCard}" Margin="0,0,10,0">
                 <StackPanel>
                     <TextBlock Text="TARGET" Style="{StaticResource GroupLabel}" Margin="0,0,0,6"/>
-                    <!-- Segmented mode bar — same visual chrome as IL / FILTERS
-                         on the right card. Three equal-width pills, ring border. -->
+                    <!-- Segmented mode bar — pills sized to content, hugged
+                         left. Same visual chrome as IL/FILTERS but compact
+                         instead of stretched, since the labels are short and
+                         a full-width bar wastes the rest of the card. -->
                     <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
-                            BorderThickness="1" CornerRadius="6" HorizontalAlignment="Stretch"
+                            BorderThickness="1" CornerRadius="6" HorizontalAlignment="Left"
                             Margin="0,0,0,8">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <RadioButton Grid.Column="0" x:Name="ModeLaunch" GroupName="TraceMode"
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="ModeLaunch" GroupName="TraceMode"
                                          Style="{StaticResource SegmentedRadio}"
-                                         HorizontalContentAlignment="Center"
-                                         Content="Launch EXE" IsChecked="True"
+                                         Content="Launch" IsChecked="True"
                                          Checked="Mode_Changed"/>
-                            <RadioButton Grid.Column="1" x:Name="ModeAttach" GroupName="TraceMode"
+                            <RadioButton x:Name="ModeAttach" GroupName="TraceMode"
                                          Style="{StaticResource SegmentedRadio}"
-                                         HorizontalContentAlignment="Center"
-                                         Content="Attach to PID"
+                                         Content="Attach"
                                          Checked="Mode_Changed"/>
-                            <RadioButton Grid.Column="2" x:Name="ModeWatch" GroupName="TraceMode"
+                            <RadioButton x:Name="ModeWatch" GroupName="TraceMode"
                                          Style="{StaticResource SegmentedRadio}"
-                                         HorizontalContentAlignment="Center"
-                                         Content="Watch by Name"
+                                         Content="Watch"
                                          Checked="Mode_Changed"
                                          ToolTip="Adopt every new process whose name matches. Survives service restarts (PID changes)."/>
-                        </Grid>
+                        </StackPanel>
                     </Border>
                     <Grid>
                         <Grid.ColumnDefinitions>
