@@ -25,12 +25,6 @@
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
         </Style>
-        <Style x:Key="ModeRadio" TargetType="RadioButton">
-            <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,0,16,0"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
     </Page.Resources>
     <Grid>
     <Grid Margin="28,20,28,16">
@@ -63,18 +57,35 @@
             <Border Grid.Column="0" Style="{StaticResource GroupCard}" Margin="0,0,10,0">
                 <StackPanel>
                     <TextBlock Text="TARGET" Style="{StaticResource GroupLabel}" Margin="0,0,0,6"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <RadioButton x:Name="ModeLaunch" Style="{StaticResource ModeRadio}"
-                                     Content="Launch EXE" IsChecked="True"
-                                     Checked="Mode_Changed"/>
-                        <RadioButton x:Name="ModeAttach" Style="{StaticResource ModeRadio}"
-                                     Content="Attach to PID"
-                                     Checked="Mode_Changed"/>
-                        <RadioButton x:Name="ModeWatch" Style="{StaticResource ModeRadio}"
-                                     Content="Watch by Name"
-                                     Checked="Mode_Changed"
-                                     ToolTip="Adopt every new process whose name matches. Survives service restarts (PID changes)."/>
-                    </StackPanel>
+                    <!-- Segmented mode bar — same visual chrome as IL / FILTERS
+                         on the right card. Three equal-width pills, ring border. -->
+                    <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                            BorderThickness="1" CornerRadius="6" HorizontalAlignment="Stretch"
+                            Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <RadioButton Grid.Column="0" x:Name="ModeLaunch" GroupName="TraceMode"
+                                         Style="{StaticResource SegmentedRadio}"
+                                         HorizontalContentAlignment="Center"
+                                         Content="Launch EXE" IsChecked="True"
+                                         Checked="Mode_Changed"/>
+                            <RadioButton Grid.Column="1" x:Name="ModeAttach" GroupName="TraceMode"
+                                         Style="{StaticResource SegmentedRadio}"
+                                         HorizontalContentAlignment="Center"
+                                         Content="Attach to PID"
+                                         Checked="Mode_Changed"/>
+                            <RadioButton Grid.Column="2" x:Name="ModeWatch" GroupName="TraceMode"
+                                         Style="{StaticResource SegmentedRadio}"
+                                         HorizontalContentAlignment="Center"
+                                         Content="Watch by Name"
+                                         Checked="Mode_Changed"
+                                         ToolTip="Adopt every new process whose name matches. Survives service restarts (PID changes)."/>
+                        </Grid>
+                    </Border>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -125,9 +136,14 @@
                                 Style="{StaticResource IconButton}" Margin="6,0,0,0"
                                 Click="Trace_Click" ToolTip="Start trace"/>
                     </Grid>
-                    <!-- Watch mode: command-line trigger, only visible in Watch mode -->
+                    <!-- Watch mode: trigger CMD + optional MATCH filter on the
+                         same line. CMD gets 2x the width since shell chains
+                         (net stop X & net start X) are usually longer than the
+                         '-s ServiceName' MATCH substring. -->
                     <Grid x:Name="WatchCmdRow" Visibility="Collapsed" Margin="0,6,0,0">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="2*"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
@@ -136,18 +152,11 @@
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="WatchCmdBox" Grid.Column="1" FontFamily="{StaticResource FontMono}"
                                  ToolTip="Command line to fire after the ETW session starts. Runs through cmd.exe /c so chaining (sc stop x &amp;&amp; sc start x), pipes, and redirects all work. Leave empty to trigger the target manually."/>
-                    </Grid>
-                    <!-- Watch mode: optional command-line substring filter — required to disambiguate svchost-hosted services -->
-                    <Grid x:Name="WatchMatchRow" Visibility="Collapsed" Margin="0,6,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="MATCH" Foreground="{StaticResource Phosphor}"
+                        <TextBlock Grid.Column="2" Text="MATCH" Foreground="{StaticResource Phosphor}"
                                    FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"
-                                   VerticalAlignment="Center" Margin="0,0,8,0"
+                                   VerticalAlignment="Center" Margin="14,0,8,0"
                                    ToolTip="Optional: only adopt new processes whose command line contains this substring (case-insensitive). Auto-filled to '-s ServiceName' when picking a svchost-hosted service."/>
-                        <TextBox x:Name="WatchMatchBox" Grid.Column="1" FontFamily="{StaticResource FontMono}"
+                        <TextBox x:Name="WatchMatchBox" Grid.Column="3" FontFamily="{StaticResource FontMono}"
                                  ToolTip="Substring required in the new process's command line for the watch to adopt it. Leave empty to match by name only. Typical use: '-s BITS' for svchost-hosted services."/>
                     </Grid>
                     <TextBlock x:Name="ElapsedText" Foreground="{StaticResource Overlay}"

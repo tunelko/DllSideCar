@@ -89,11 +89,12 @@ public partial class RuntimeTracePage : Page
         var isWatch  = ModeWatch.IsChecked == true;
 
         // Three swappable target editors, only one visible at a time.
+        // WatchCmdRow now hosts both CMD and MATCH on a single line so a
+        // single visibility toggle drives the whole Watch panel.
         TargetBox.Visibility    = isLaunch ? Visibility.Visible : Visibility.Collapsed;
         AttachPicker.Visibility = isAttach ? Visibility.Visible : Visibility.Collapsed;
         WatchNameBox.Visibility = isWatch  ? Visibility.Visible : Visibility.Collapsed;
         WatchCmdRow.Visibility  = isWatch  ? Visibility.Visible : Visibility.Collapsed;
-        WatchMatchRow.Visibility = isWatch ? Visibility.Visible : Visibility.Collapsed;
 
         // Action buttons: Browse for Launch, PID picker for Attach, Service picker for Watch.
         BrowseBtn.Visibility   = isLaunch ? Visibility.Visible : Visibility.Collapsed;
