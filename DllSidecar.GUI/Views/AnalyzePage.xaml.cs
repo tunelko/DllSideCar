@@ -98,6 +98,7 @@ public partial class AnalyzePage : Page
             ActScanParent.IsEnabled = true;
             ActCopyPath.IsEnabled = true;
             ActCheckCves.IsEnabled = true;
+            ActCallsites.IsEnabled = true;
 
             // Primary generation buttons: enable based on what's technically possible.
             // Disabled buttons show a tooltip explaining WHY they're disabled.
