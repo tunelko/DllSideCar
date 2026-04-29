@@ -73,7 +73,7 @@ public static class CallsiteScanner
         // 1) Build a map: IAT slot virtual address (image_base + RVA) → (module, api).
         //    Also populate the diagnostic dict so the caller can render a
         //    "imports tracked: kernel32.dll!LoadLibraryW=1, ..." line.
-        var iatTargets = BuildIatTargetMap(pe, apiNames, imageBase, tracked);
+        var iatTargets = BuildIatTargetMap(pe, apiNames, imageBase, bitness, tracked);
         if (iatTargets.Count == 0) return new CallsiteScanResult(callsites, tracked);
 
         // 2) Build an export map for caller-name resolution. Keyed by RVA;
@@ -98,32 +98,118 @@ public static class CallsiteScanner
 
     // ---------- IAT slot map ----------
 
+    /// <summary>
+    /// Walk the import descriptors directly (instead of trusting PeNet's
+    /// flat <c>ImportedFunctions</c> + <c>IATOffset</c>) so the slot VA we
+    /// store matches what Iced reads from the call instruction's memory
+    /// operand.
+    ///
+    /// Empirical reason: rundll32.exe's IAT was being tracked correctly in
+    /// the diagnostic dict but no callsites matched, because PeNet's
+    /// <c>IATOffset</c> didn't equal <c>FirstThunk + i*thunkSize</c> — at
+    /// least for API-set forwarded imports (api-ms-win-core-libraryloader-…).
+    /// Walking the thunks ourselves removes that guesswork.
+    /// </summary>
     private static Dictionary<ulong, (string Module, string Api)> BuildIatTargetMap(
-        PeFile pe, IReadOnlySet<string> apiNames, ulong imageBase,
+        PeFile pe, IReadOnlySet<string> apiNames, ulong imageBase, int bitness,
         Dictionary<string, int> tracked)
     {
         var map = new Dictionary<ulong, (string, string)>();
-        if (pe.ImportedFunctions == null) return map;
+        var descs = pe.ImageImportDescriptors;
+        if (descs == null || descs.Length == 0) return map;
 
-        foreach (var imp in pe.ImportedFunctions)
+        var thunkSize = (uint)(bitness == 64 ? 8 : 4);
+        var ordinalFlag = bitness == 64 ? 0x8000000000000000UL : 0x80000000UL;
+
+        foreach (var desc in descs)
         {
-            if (string.IsNullOrEmpty(imp.Name) || string.IsNullOrEmpty(imp.DLL)) continue;
-            if (!apiNames.Contains(imp.Name)) continue;
+            if (desc.FirstThunk == 0) continue;
 
-            // PeNet 5: ImportedFunction.IATOffset is the RVA of the IAT slot
-            // within the loaded image. Combined with imageBase this is the VA
-            // the call instruction's memory operand will reference.
-            var slotVa = imageBase + imp.IATOffset;
-            map[slotVa] = (imp.DLL!, imp.Name!);
+            var dllName = ReadAsciiAtRva(pe, desc.Name);
+            if (string.IsNullOrEmpty(dllName)) continue;
 
-            // Populate the diagnostic dict — keyed "module!api" so the same
-            // API imported from two different forwarders (kernel32 + api-ms-...)
-            // shows up as two distinct lines.
-            var key = $"{imp.DLL}!{imp.Name}";
-            tracked.TryGetValue(key, out var n);
-            tracked[key] = n + 1;
+            // Use OriginalFirstThunk (Import Name Table) for names; fall back
+            // to FirstThunk (Import Address Table, pre-bind it holds the same
+            // RVA-to-name pointers as INT) when INT is zero. After the loader
+            // runs, FirstThunk is overwritten with resolved addresses, but
+            // we're reading the on-disk image so it still has name pointers.
+            var nameTableRva = desc.OriginalFirstThunk != 0 ? desc.OriginalFirstThunk : desc.FirstThunk;
+
+            for (uint i = 0; i < 65536; i++)
+            {
+                var thunk = ReadThunkAtRva(pe, nameTableRva + i * thunkSize, bitness);
+                if (thunk == null || thunk.Value == 0) break;
+
+                // Ordinal-only imports have no name to match — skip.
+                if ((thunk.Value & ordinalFlag) != 0) continue;
+
+                // Named import: low 31/63 bits are an RVA to IMAGE_IMPORT_BY_NAME
+                // which is { WORD Hint; char Name[]; }. Skip the 2-byte hint.
+                var fnName = ReadAsciiAtRva(pe, (uint)thunk.Value + 2);
+                if (string.IsNullOrEmpty(fnName)) continue;
+                if (!apiNames.Contains(fnName)) continue;
+
+                var slotVa = imageBase + desc.FirstThunk + i * thunkSize;
+                map[slotVa] = (dllName, fnName);
+
+                var key = $"{dllName}!{fnName}";
+                tracked.TryGetValue(key, out var n);
+                tracked[key] = n + 1;
+            }
         }
         return map;
+    }
+
+    /// <summary>Reads a null-terminated ASCII string at the given RVA. Used
+    /// for DLL names and import names; rejects non-printable bytes.</summary>
+    private static string? ReadAsciiAtRva(PeFile pe, uint rva, int maxLen = 512)
+    {
+        var off = RvaToFileOffsetUnchecked(pe, rva);
+        if (off < 0) return null;
+        try
+        {
+            var available = (int)Math.Min(maxLen, pe.RawFile.Length - off);
+            if (available <= 0) return null;
+            var data = pe.RawFile.AsSpan(off, available).ToArray();
+            var sb = new StringBuilder(32);
+            for (var i = 0; i < data.Length; i++)
+            {
+                var b = data[i];
+                if (b == 0) break;
+                if (b < 0x20 || b > 0x7E) return null;
+                sb.Append((char)b);
+            }
+            return sb.Length > 0 ? sb.ToString() : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Reads one IAT/INT thunk (4 bytes for x86, 8 bytes for x64).
+    /// Returns null on out-of-bounds.</summary>
+    private static ulong? ReadThunkAtRva(PeFile pe, uint rva, int bitness)
+    {
+        var off = RvaToFileOffsetUnchecked(pe, rva);
+        if (off < 0) return null;
+        var size = bitness == 64 ? 8 : 4;
+        try
+        {
+            if (off + size > pe.RawFile.Length) return null;
+            var data = pe.RawFile.AsSpan(off, size).ToArray();
+            return bitness == 64 ? BitConverter.ToUInt64(data, 0) : BitConverter.ToUInt32(data, 0);
+        }
+        catch { return null; }
+    }
+
+    private static long RvaToFileOffsetUnchecked(PeFile pe, uint rva)
+    {
+        if (pe.ImageSectionHeaders == null) return -1;
+        foreach (var s in pe.ImageSectionHeaders)
+        {
+            var virtualEnd = s.VirtualAddress + Math.Max(s.VirtualSize, s.SizeOfRawData);
+            if (rva >= s.VirtualAddress && rva < virtualEnd)
+                return s.PointerToRawData + (rva - s.VirtualAddress);
+        }
+        return -1;
     }
 
     // ---------- Export RVA map ----------
