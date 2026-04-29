@@ -285,7 +285,10 @@
                 <RowDefinition Height="Auto"/>            <!-- 1: menu bar (Tools, status) -->
                 <RowDefinition Height="*" MinHeight="160"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition x:Name="LogRow" Height="160" MinHeight="32"/>
+                <!-- Console panel — starts collapsed (32 = header only). User
+                     drags the splitter to resize; persisted height in UiState.
+                     ConsoleHeight is restored at load and saved on close. -->
+                <RowDefinition x:Name="LogRow" Height="32" MinHeight="32"/>
             </Grid.RowDefinitions>
 
             <!-- Title strip: pure window chrome — drag area + min/max/close. Solid Crust

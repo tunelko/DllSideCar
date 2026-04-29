@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using DllSidecar.Core.Configuration;
 using DllSidecar.Core.Models;
 using DllSidecar.Core.Services;
 using DllSidecar.GUI.Views;
@@ -86,6 +87,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Closing += OnClosing;
         // Route every Core log entry into the UI panel. Warn+ is visible; Debug stays in
         // the event stream only (inspectable if needed for diagnostics).
         CoreLog.Emitted += OnLogEmitted;
@@ -117,6 +119,13 @@ public partial class MainWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        // Restore console panel height from persisted UI state. Default in
+        // AppConfig is 32 (collapsed) so first-run users see the console as
+        // a thin bottom strip, not an oversized sink.
+        var saved = ConfigManager.Current.UiState.ConsoleHeight;
+        if (saved >= 32 && saved < ActualHeight) // sanity bound
+            LogRow.Height = new GridLength(saved);
+
         var gcc64 = BuildSystem.FindGcc("x64");
         var gcc32 = BuildSystem.FindGcc("x86");
         StatusGcc.Text = gcc64 != null ? "GCC X64 — OK" : gcc32 != null ? "GCC X86 — OK" : "GCC — MISSING";
@@ -129,6 +138,21 @@ public partial class MainWindow : Window
             windres != null ? Color.FromRgb(0x00, 0xCA, 0x4E) : Color.FromRgb(0xFF, 0x5B, 0x4F));
 
         Log("DllSidecar GUI started");
+    }
+
+    /// <summary>Persist console panel height so the user's drag-resize choice
+    /// (or the collapsed default) survives across sessions.</summary>
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        try
+        {
+            // GridLength.Value is "*" weight or pixels. We always use absolute
+            // pixels for LogRow so this is the height in DIPs.
+            var h = LogRow.Height.IsAbsolute ? LogRow.Height.Value : LogRow.ActualHeight;
+            if (h >= 32) ConfigManager.Current.UiState.ConsoleHeight = h;
+            ConfigManager.Save();
+        }
+        catch { /* best-effort persist; never block close */ }
     }
 
     public void NavigateTo(System.Windows.Controls.Page page) => ContentFrame.Navigate(page);

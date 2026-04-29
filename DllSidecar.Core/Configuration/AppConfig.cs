@@ -62,6 +62,11 @@ public class UiStateConfig
     public string? LastPrivescDir { get; set; }
     public string? LastRuntimeExePath { get; set; }
     public string? LastRuntimePid { get; set; }
+
+    // Console panel height in pixels. 32 = collapsed (just the CONSOLE
+    // header strip visible), saving the rest for the active page.
+    // Persisted so the user's drag-to-resize choice survives restarts.
+    public double ConsoleHeight { get; set; } = 32;
 }
 
 public class GeneratePageState
