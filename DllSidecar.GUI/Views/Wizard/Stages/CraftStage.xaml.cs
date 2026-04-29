@@ -414,73 +414,29 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             SandboxTargetsPanel.Visibility = PayloadCombo.SelectedIndex == 3
                 ? Visibility.Visible : Visibility.Collapsed;
         if (MsfvenomBtn != null)
-        {
             MsfvenomBtn.Visibility = PayloadCombo.SelectedIndex == 2
                 ? Visibility.Visible : Visibility.Collapsed;
-            if (PayloadCombo.SelectedIndex == 2 && !_msfvenomProbed)
-            {
-                _msfvenomProbed = true;
-                _ = ProbeMsfvenomAsync();
-            }
-        }
     }
 
-    private bool _msfvenomProbed;
-    private string? _msfvenomLauncher;
-
-    private async Task ProbeMsfvenomAsync()
-    {
-        Dispatcher.Invoke(() =>
-        {
-            MsfvenomBtn.IsEnabled = false;
-            MsfvenomBtn.Content = "🪄  Probing msfvenom...";
-        });
-
-        string? launcher = null;
-        try { _ = await TryRunMsfvenom("msfvenom", "--help"); launcher = "msfvenom"; }
-        catch
-        {
-            try { _ = await TryRunMsfvenom("wsl", "msfvenom --help"); launcher = "wsl"; }
-            catch { }
-        }
-
-        _msfvenomLauncher = launcher;
-        Dispatcher.Invoke(() =>
-        {
-            if (launcher != null)
-            {
-                MsfvenomBtn.IsEnabled = true;
-                MsfvenomBtn.Content = "🪄  Generate via msfvenom (cmd.exe)";
-                MsfvenomBtn.ToolTip = $"Run via '{launcher}'. Output: windows/<arch>/exec CMD=cmd.exe EXITFUNC=thread -f hex.";
-            }
-            else
-            {
-                MsfvenomBtn.IsEnabled = false;
-                MsfvenomBtn.Content = "🪄  msfvenom not found";
-                MsfvenomBtn.ToolTip = "Neither 'msfvenom' (PATH) nor 'wsl msfvenom' resolved.\n\nInstall options:\n  · WSL Kali: sudo apt install metasploit-framework\n  · Native Windows: https://www.metasploit.com/download\n\nAfter install, reopen this page to re-probe.";
-            }
-        });
-    }
-
-    /// <summary>Mirror of GeneratePage.GenerateMsfvenom_Click — uses the cached
-    /// launcher from ProbeMsfvenomAsync.</summary>
+    /// <summary>Mirror of GeneratePage.GenerateMsfvenom_Click — runs msfvenom
+    /// (PATH first, then WSL fallback) and pastes the hex into PayloadDataBox.
+    /// Arch follows the resolved target (x64 → windows/x64/exec, x86 →
+    /// windows/exec). EXITFUNC=thread.</summary>
     private async void GenerateMsfvenom_Click(object sender, RoutedEventArgs e)
     {
-        if (_msfvenomLauncher == null) return;
-
         var arch = _target?.Arch ?? "x64";
         var payloadName = arch == "x86" ? "windows/exec" : "windows/x64/exec";
-        var coreArgs = $"-p {payloadName} CMD=cmd.exe EXITFUNC=thread -f hex";
-        var (exe, args) = _msfvenomLauncher == "wsl"
-            ? ("wsl", "msfvenom " + coreArgs)
-            : ("msfvenom", coreArgs);
+        var args = $"-p {payloadName} CMD=cmd.exe EXITFUNC=thread -f hex";
 
         var oldContent = MsfvenomBtn.Content;
         MsfvenomBtn.Content = "Generating...";
         MsfvenomBtn.IsEnabled = false;
         try
         {
-            var hex = await TryRunMsfvenom(exe, args);
+            string? hex;
+            try { hex = await TryRunMsfvenom("msfvenom", args); }
+            catch { hex = await TryRunMsfvenom("wsl", $"msfvenom {args}"); }
+
             if (string.IsNullOrWhiteSpace(hex))
             {
                 System.Windows.MessageBox.Show("msfvenom returned empty output",
@@ -491,7 +447,10 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"msfvenom failed: {ex.Message}",
+            System.Windows.MessageBox.Show(
+                $"msfvenom failed: {ex.Message}\n\n" +
+                "Install: 'sudo apt install metasploit-framework' (Linux/WSL Kali) " +
+                "or download: https://www.metasploit.com/download",
                 "msfvenom", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
