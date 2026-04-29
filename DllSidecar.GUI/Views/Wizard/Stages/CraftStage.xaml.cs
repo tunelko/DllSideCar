@@ -145,13 +145,6 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         ChkDInvoke.Checked += OnChanged; ChkDInvoke.Unchecked += OnChanged;
         ChkSyscalls.Checked += OnChanged; ChkSyscalls.Unchecked += OnChanged;
         ChkEncrypt.Checked += OnChanged; ChkEncrypt.Unchecked += OnChanged;
-        // AMSI HW BP needs MSVC (cl); DInvoke + Syscalls headers use gcc-only
-        // __asm__ inline assembly that MSVC x64 doesn't support. Mutually
-        // exclusive — when AMSI flips on, the gcc-only toggles are disabled
-        // and unchecked, with a tooltip explaining why.
-        ChkAmsiHwBp.Checked += (_, _) => { OnChanged(null!, null!); UpdateEvasionCompat(); };
-        ChkAmsiHwBp.Unchecked += (_, _) => { OnChanged(null!, null!); UpdateEvasionCompat(); };
-        UpdateEvasionCompat();
         DelayBox.TextChanged += OnChanged;
         XorKeyCombo.SelectionChanged += OnChanged;
 
@@ -163,34 +156,6 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         PreLaunchDelayBox.TextChanged += OnChanged;
         WaitBlock.Checked += OnChanged; WaitFire.Checked += OnChanged;
         FireTimeoutBox.TextChanged += OnChanged;
-    }
-
-    /// <summary>
-    /// Reconcile the evasion checkbox set after AMSI HW BP changes state.
-    /// gcc-only techniques (DInvoke, Direct syscalls) become disabled +
-    /// unchecked when AMSI is on (their helper headers use __asm__ inline asm,
-    /// which MSVC x64 can't parse). XOR string encryption is portable C and
-    /// stays available regardless.
-    /// </summary>
-    private void UpdateEvasionCompat()
-    {
-        var amsiOn = ChkAmsiHwBp.IsChecked == true;
-        if (amsiOn)
-        {
-            ChkDInvoke.IsChecked = false;
-            ChkDInvoke.IsEnabled = false;
-            ChkDInvoke.ToolTip = "Disabled: incompatible with AMSI HW BP. DInvoke headers use gcc-only __asm__ inline assembly; AMSI bypass needs MSVC (cl) which doesn't support x64 inline asm.";
-            ChkSyscalls.IsChecked = false;
-            ChkSyscalls.IsEnabled = false;
-            ChkSyscalls.ToolTip = "Disabled: incompatible with AMSI HW BP. Syscall stubs use gcc-only __asm__ inline assembly; AMSI bypass needs MSVC (cl).";
-        }
-        else
-        {
-            ChkDInvoke.IsEnabled = true;
-            ChkDInvoke.ToolTip = null;
-            ChkSyscalls.IsEnabled = true;
-            ChkSyscalls.ToolTip = null;
-        }
     }
 
     public bool CanSkip => false;

@@ -218,34 +218,6 @@ public partial class GeneratePage : Page
         FireTimeoutBox.TextChanged += OnChanged;
 
         ArchX86.Checked += OnChanged; ArchX64.Checked += OnChanged;
-
-        // AMSI HW BP needs MSVC; DInvoke + Syscalls need MinGW (gcc-only
-        // __asm__ inline asm in their headers). Mutually exclusive — when
-        // AMSI flips on, the gcc-only toggles get unchecked and disabled.
-        ChkAmsiHwBp.Checked += (_, _) => { OnChanged(null!, null!); UpdateEvasionCompat(); };
-        ChkAmsiHwBp.Unchecked += (_, _) => { OnChanged(null!, null!); UpdateEvasionCompat(); };
-        UpdateEvasionCompat();
-    }
-
-    private void UpdateEvasionCompat()
-    {
-        var amsiOn = ChkAmsiHwBp.IsChecked == true;
-        if (amsiOn)
-        {
-            ChkDInvoke.IsChecked = false;
-            ChkDInvoke.IsEnabled = false;
-            ChkDInvoke.ToolTip = "Disabled: incompatible with AMSI HW BP. DInvoke headers use gcc-only __asm__ inline assembly; AMSI bypass needs MSVC (cl) which doesn't support x64 inline asm.";
-            ChkSyscalls.IsChecked = false;
-            ChkSyscalls.IsEnabled = false;
-            ChkSyscalls.ToolTip = "Disabled: incompatible with AMSI HW BP. Syscall stubs use gcc-only __asm__ inline assembly; AMSI bypass needs MSVC (cl).";
-        }
-        else
-        {
-            ChkDInvoke.IsEnabled = true;
-            ChkDInvoke.ToolTip = null;
-            ChkSyscalls.IsEnabled = true;
-            ChkSyscalls.ToolTip = null;
-        }
     }
 
     // Sentinel shown as the first item in the Target Export combo. When selected,
