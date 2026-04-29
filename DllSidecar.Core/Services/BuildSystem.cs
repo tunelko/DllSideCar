@@ -40,6 +40,43 @@ public static class BuildSystem
         return FindInPath(gccName);
     }
 
+    /// <summary>
+    /// Locate vcvarsall.bat — the entry point for setting up an MSVC build
+    /// environment. Required when an evasion technique uses MSVC-only constructs
+    /// (HardwareBreakPointLib's #pragma section + __declspec, lvalue casts).
+    /// Resolution order:
+    ///   1. ConfigManager.Current.Tools.MsvcVcvarsAllPath (user override)
+    ///   2. Standard VS 2022/2019 install paths under Program Files
+    /// Returns null when not found — caller surfaces a configurable error.
+    /// </summary>
+    public static string? FindMsvcVcvarsAll()
+    {
+        var configured = ConfigManager.Current.Tools.MsvcVcvarsAllPath;
+        if (!string.IsNullOrWhiteSpace(configured) && File.Exists(configured))
+            return configured;
+
+        var pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        // VS 2017+ standard layout. Editions in priority order: BuildTools is
+        // smallest, then Community → Pro → Enterprise.
+        string[] roots = {
+            Path.Combine(pf,  "Microsoft Visual Studio", "2022", "BuildTools"),
+            Path.Combine(pf,  "Microsoft Visual Studio", "2022", "Community"),
+            Path.Combine(pf,  "Microsoft Visual Studio", "2022", "Professional"),
+            Path.Combine(pf,  "Microsoft Visual Studio", "2022", "Enterprise"),
+            Path.Combine(pf86,"Microsoft Visual Studio", "2019", "BuildTools"),
+            Path.Combine(pf86,"Microsoft Visual Studio", "2019", "Community"),
+            Path.Combine(pf86,"Microsoft Visual Studio", "2019", "Professional"),
+            Path.Combine(pf86,"Microsoft Visual Studio", "2019", "Enterprise"),
+        };
+        foreach (var r in roots)
+        {
+            var p = Path.Combine(r, "VC", "Auxiliary", "Build", "vcvarsall.bat");
+            if (File.Exists(p)) return p;
+        }
+        return null;
+    }
+
     public static string? FindWindres(string arch)
     {
         if (!GccPrefix.TryGetValue(arch, out var prefix)) return null;

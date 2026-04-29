@@ -96,6 +96,7 @@ public partial class ConfigPage : Page
         Mingw64Row.ToolPath = cfg.Mingw.Mingw64BinDir;
         Mingw32Row.ToolPath = cfg.Mingw.Mingw32BinDir;
         MsysRow.ToolPath    = cfg.Mingw.MsysUsrBinDir;
+        MsvcVcvarsRow.ToolPath = cfg.Tools.MsvcVcvarsAllPath ?? "";
 
         // Bundle directories
         SysinternalsRow.ToolPath = cfg.Tools.SysinternalsDir ?? "";
@@ -211,6 +212,9 @@ public partial class ConfigPage : Page
         cfg.Mingw.Mingw64BinDir = Mingw64Row.ToolPath.Trim();
         cfg.Mingw.Mingw32BinDir = Mingw32Row.ToolPath.Trim();
         cfg.Mingw.MsysUsrBinDir = MsysRow.ToolPath.Trim();
+
+        // MSVC (single file path — vcvarsall.bat)
+        cfg.Tools.MsvcVcvarsAllPath = NullIfBlank(MsvcVcvarsRow.ToolPath);
 
         // Bundle directories
         cfg.Tools.SysinternalsDir = NullIfBlank(SysinternalsRow.ToolPath);
