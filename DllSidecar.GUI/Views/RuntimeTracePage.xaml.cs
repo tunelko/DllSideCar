@@ -94,9 +94,10 @@ public partial class RuntimeTracePage : Page
         WatchNameBox.Visibility = isWatch  ? Visibility.Visible : Visibility.Collapsed;
         WatchCmdRow.Visibility  = isWatch  ? Visibility.Visible : Visibility.Collapsed;
 
-        // Action buttons: Browse for Launch, Picker for Attach, none for Watch.
+        // Action buttons: Browse for Launch, PID picker for Attach, Service picker for Watch.
         BrowseBtn.Visibility   = isLaunch ? Visibility.Visible : Visibility.Collapsed;
         PickProcBtn.Visibility = isAttach ? Visibility.Visible : Visibility.Collapsed;
+        PickSvcBtn.Visibility  = isWatch  ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void Browse_Click(object sender, RoutedEventArgs e)
@@ -179,6 +180,30 @@ public partial class RuntimeTracePage : Page
         _attachProcName = null;
         PidChip.Visibility = Visibility.Collapsed;
         PidChipText.Text = "";
+    }
+
+    private void PickSvc_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dlg = new ServicePickerDialog { Owner = Window.GetWindow(this) };
+            if (dlg.ShowDialog() != true) return;
+            if (string.IsNullOrEmpty(dlg.SelectedImageFile) || string.IsNullOrEmpty(dlg.SelectedServiceName))
+                return;
+            // Auto-fill the watch panel: image basename feeds the ETW match,
+            // service name builds an idempotent restart command. Uses 'net'
+            // because it's synchronous (waits for stop to finish before start),
+            // and the '&' (not '&&') chain runs start even if stop failed
+            // because the service was already stopped. Users can edit either.
+            WatchNameBox.Text = dlg.SelectedImageFile;
+            WatchCmdBox.Text = $"net stop {dlg.SelectedServiceName} & net start {dlg.SelectedServiceName}";
+        }
+        catch (Exception ex)
+        {
+            _main.Log($"Service picker failed: {ex.GetType().Name}: {ex.Message}");
+            MessageBox.Show($"{ex.GetType().Name}: {ex.Message}\n\n{ex.StackTrace}",
+                "Service picker error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void Trace_Click(object sender, RoutedEventArgs e)
@@ -298,6 +323,7 @@ public partial class RuntimeTracePage : Page
         IlSame.IsEnabled = false;
         BrowseBtn.IsEnabled = false;
         PickProcBtn.IsEnabled = false;
+        PickSvcBtn.IsEnabled = false;
         ModeLaunch.IsEnabled = false;
         ModeAttach.IsEnabled = false;
         ModeWatch.IsEnabled = false;
@@ -359,6 +385,7 @@ public partial class RuntimeTracePage : Page
         IlSame.IsEnabled = true;
         BrowseBtn.IsEnabled = true;
         PickProcBtn.IsEnabled = true;
+        PickSvcBtn.IsEnabled = true;
         ModeLaunch.IsEnabled = true;
         ModeAttach.IsEnabled = true;
         ModeWatch.IsEnabled = true;

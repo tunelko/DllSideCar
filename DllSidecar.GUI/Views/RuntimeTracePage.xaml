@@ -81,6 +81,7 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <!-- Target picker swaps per mode (launch path / PID chip / watch panel) -->
                         <Grid Grid.Column="0">
@@ -107,7 +108,7 @@
                                      FontFamily="{StaticResource FontMono}"
                                      ToolTip="Process name to adopt (e.g. splunkd.exe). Matched case-insensitively, with or without .exe."/>
                         </Grid>
-                        <!-- Action icons: Browse (folder), Pick (list) — visibility per mode -->
+                        <!-- Action icons: Browse (folder), Pick proc (list), Pick service (gear) — visibility per mode -->
                         <Button x:Name="BrowseBtn" Grid.Column="1" Content="&#x1F5C1;"
                                 Style="{StaticResource IconButton}" Margin="8,0,0,0"
                                 Click="Browse_Click" ToolTip="Browse EXE"/>
@@ -115,8 +116,12 @@
                                 Style="{StaticResource IconButton}" Margin="6,0,0,0"
                                 Click="PickProc_Click" ToolTip="Pick process"
                                 Visibility="Collapsed"/>
+                        <Button x:Name="PickSvcBtn" Grid.Column="3" Content="&#x2699;"
+                                Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                                Click="PickSvc_Click" ToolTip="Pick service — fills name + sc stop/start command"
+                                Visibility="Collapsed"/>
                         <!-- Start/Stop — swaps content and tooltip between ▶ and ■ at runtime -->
-                        <Button x:Name="TraceBtn" Grid.Column="3" Content="&#x25B6;"
+                        <Button x:Name="TraceBtn" Grid.Column="4" Content="&#x25B6;"
                                 Style="{StaticResource IconButton}" Margin="6,0,0,0"
                                 Click="Trace_Click" ToolTip="Start trace"/>
                     </Grid>
