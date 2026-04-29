@@ -6,11 +6,12 @@
     <Grid>
     <Grid Margin="28,20,28,20">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>          <!-- 0: header -->
+            <RowDefinition Height="Auto"/>          <!-- 1: stage indicator -->
+            <RowDefinition Height="Auto"/>          <!-- 2: HUNTING FOR strip -->
+            <RowDefinition Height="*"/>             <!-- 3: stage content -->
+            <RowDefinition Height="Auto"/>          <!-- 4: session summary -->
+            <RowDefinition Height="Auto"/>          <!-- 5: nav footer -->
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -63,8 +64,43 @@
             </ItemsControl>
         </Border>
 
-        <!-- Stage content (UserControls swapped in via code-behind) -->
+        <!-- HUNTING FOR — slim wizard-wide goal selector. Lives between the
+             stage indicator and the stage content so the goal is always
+             visible, doesn't waste vertical space inside any single stage. -->
         <Border Grid.Row="2" Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                BorderThickness="1" CornerRadius="6" Padding="14,8" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="HUNTING FOR" Foreground="{StaticResource Blue}"
+                           FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"
+                           VerticalAlignment="Center" Margin="0,0,14,0"/>
+                <Border Grid.Column="1" Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                        BorderThickness="1" CornerRadius="6" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="GoalCode" GroupName="WizardGoal"
+                                     Style="{StaticResource SegmentedRadio}" IsChecked="True"
+                                     Content="Arbitrary code" Checked="Goal_Changed"/>
+                        <RadioButton x:Name="GoalPrivesc" GroupName="WizardGoal"
+                                     Style="{StaticResource SegmentedRadio}"
+                                     Content="Local privesc (SYSTEM)" Checked="Goal_Changed"/>
+                        <RadioButton x:Name="GoalPersist" GroupName="WizardGoal"
+                                     Style="{StaticResource SegmentedRadio}"
+                                     Content="Persistence" Checked="Goal_Changed"/>
+                    </StackPanel>
+                </Border>
+                <TextBlock Grid.Column="2" x:Name="GoalHint" VerticalAlignment="Center"
+                           Margin="14,0,0,0" FontSize="11" Foreground="{StaticResource Overlay}"
+                           TextTrimming="CharacterEllipsis"
+                           Text="Code execution in the user's context — the common case. Survey ranks by exploitability + writable ACLs."/>
+            </Grid>
+        </Border>
+
+        <!-- Stage content (UserControls swapped in via code-behind) -->
+        <Border Grid.Row="3" Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
                 BorderThickness="1" CornerRadius="8">
             <Grid>
                 <ContentControl x:Name="StageHost" Margin="0"/>
@@ -72,7 +108,7 @@
         </Border>
 
         <!-- Session summary strip -->
-        <Border Grid.Row="3" Background="{StaticResource Crust}" BorderBrush="{StaticResource Ring}"
+        <Border Grid.Row="4" Background="{StaticResource Crust}" BorderBrush="{StaticResource Ring}"
                 BorderThickness="1" CornerRadius="6" Padding="14,8" Margin="0,10,0,0">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="SESSION" FontFamily="{StaticResource FontMono}" FontSize="10"
@@ -86,7 +122,7 @@
         </Border>
 
         <!-- Nav footer -->
-        <Grid Grid.Row="4" Margin="0,10,0,0">
+        <Grid Grid.Row="5" Margin="0,10,0,0">
             <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                 <Button x:Name="DiscardBtn" Content="Discard &amp; restart" Style="{StaticResource GhostButton}"
                         Click="Discard_Click"/>

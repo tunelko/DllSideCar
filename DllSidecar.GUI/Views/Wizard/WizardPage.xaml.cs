@@ -86,7 +86,41 @@ public partial class WizardPage : Page
             resumeStage = WizardStage.Survey;
         }
 
+        // Seed HUNTING FOR radios from the session and wire the change handlers.
+        // GoalCode_Checked etc. write back to _session.HuntingGoal so the value
+        // is always live without each stage having to commit it.
+        switch (_session.HuntingGoal)
+        {
+            case WizardHuntingGoal.LocalPrivesc: GoalPrivesc.IsChecked = true; break;
+            case WizardHuntingGoal.Persistence:  GoalPersist.IsChecked = true; break;
+            default:                             GoalCode.IsChecked = true; break;
+        }
+        UpdateGoalHint();
+
         ShowStage(resumeStage);
+    }
+
+    private void Goal_Changed(object sender, RoutedEventArgs e)
+    {
+        if (GoalHint == null) return; // fires during InitializeComponent
+        _session.HuntingGoal = GoalPrivesc.IsChecked == true ? WizardHuntingGoal.LocalPrivesc
+                             : GoalPersist.IsChecked == true ? WizardHuntingGoal.Persistence
+                             : WizardHuntingGoal.ArbitraryCode;
+        UpdateGoalHint();
+    }
+
+    private void UpdateGoalHint()
+    {
+        if (GoalHint == null) return;
+        GoalHint.Text = _session.HuntingGoal switch
+        {
+            WizardHuntingGoal.LocalPrivesc =>
+                "Looking for user → SYSTEM. Survey ranks SYSTEM services, AutoElevate manifests, scheduled tasks higher.",
+            WizardHuntingGoal.Persistence =>
+                "Reboot-surviving vectors. Survey favours COM hijacks, writable Program Files, startup folder drops.",
+            _ =>
+                "Code execution in the user's context — the common case. Survey ranks by exploitability + writable ACLs.",
+        };
     }
 
     // ---------- Public API (called from MainWindow close handler) ----------
