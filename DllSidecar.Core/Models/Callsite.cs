@@ -16,3 +16,13 @@ public record Callsite(
     string TargetApi,      // e.g. "LoadLibraryExW"
     string CallerHint,     // nearest exported symbol + offset, or "<no export nearby>"
     string Disasm);        // formatted instruction (NASM syntax) for display
+
+/// <summary>
+/// Wraps a scan run so the caller can distinguish "no callsites because the
+/// DLL doesn't import any of the tracked APIs" from "imports them but never
+/// calls through the IAT" (delay-load, GetProcAddress, etc.).
+/// <see cref="TrackedImports"/> is keyed by "module!api" (e.g. "kernel32.dll!LoadLibraryW").
+/// </summary>
+public record CallsiteScanResult(
+    List<Callsite> Callsites,
+    Dictionary<string, int> TrackedImports);

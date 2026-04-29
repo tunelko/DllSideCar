@@ -14,6 +14,7 @@ public partial class CallsitesWindow : Window
 {
     private readonly string _pePath;
     private List<Row> _all = [];
+    private Dictionary<string, int> _trackedImports = new();
 
     public CallsitesWindow(string pePath, string? archHint = null)
     {
@@ -30,8 +31,9 @@ public partial class CallsitesWindow : Window
         try
         {
             Status.Text = "Scanning...";
-            var sites = CallsiteScanner.Scan(_pePath);
-            _all = sites.Select(s => new Row(s)).ToList();
+            var scan = CallsiteScanner.Scan(_pePath);
+            _all = scan.Callsites.Select(s => new Row(s)).ToList();
+            _trackedImports = scan.TrackedImports;
             ApplyFilter();
         }
         catch (NotSupportedException ex)
@@ -63,13 +65,38 @@ public partial class CallsitesWindow : Window
         var visible = rows.OrderBy(r => r.Source.CallRva).ToList();
         Grid.ItemsSource = visible;
 
-        // Per-API counts surface which loader API is called most — useful triage
-        // signal (lots of LoadLibraryW callsites = high dynamic-load surface).
-        var byApi = _all.GroupBy(r => r.TargetApi).OrderByDescending(g => g.Count())
-            .Select(g => $"{g.Key}={g.Count()}");
-        Status.Text = visible.Count == _all.Count
-            ? $"{_all.Count} callsites · {string.Join(" ", byApi)}"
-            : $"{visible.Count} of {_all.Count} callsites match · {string.Join(" ", byApi)}";
+        Status.Text = BuildStatusText(visible.Count);
+    }
+
+    /// <summary>
+    /// Three states the user wants disambiguated:
+    /// 1) callsites > 0 — show count + per-API breakdown.
+    /// 2) callsites == 0 AND tracked imports == 0 — DLL doesn't import any
+    ///    of the tracked loader APIs at all (most service DLLs). Suggest
+    ///    trying a binary that explicitly does dynamic loading.
+    /// 3) callsites == 0 AND tracked imports > 0 — imports exist but are
+    ///    never reached via direct IAT call/jmp. Likely paths: delay-load,
+    ///    GetProcAddress(LoadLibrary), or only referenced from non-executable
+    ///    sections. Surface the tracked imports so the user can confirm.
+    /// </summary>
+    private string BuildStatusText(int visibleCount)
+    {
+        if (_all.Count > 0)
+        {
+            var byApi = _all.GroupBy(r => r.TargetApi).OrderByDescending(g => g.Count())
+                .Select(g => $"{g.Key}={g.Count()}");
+            return visibleCount == _all.Count
+                ? $"{_all.Count} callsites · {string.Join(" ", byApi)}"
+                : $"{visibleCount} of {_all.Count} callsites match · {string.Join(" ", byApi)}";
+        }
+
+        if (_trackedImports.Count == 0)
+            return "0 callsites · no LoadLibrary*/LdrLoadDll/GetModuleHandle* in IAT — this PE doesn't directly import any loader API (try a binary that loads DLLs at runtime)";
+
+        var importsLine = string.Join(" ", _trackedImports
+            .OrderByDescending(kv => kv.Value)
+            .Select(kv => $"{kv.Key}={kv.Value}"));
+        return $"0 callsites · imports tracked: {importsLine} (no direct IAT calls — likely delay-load or GetProcAddress)";
     }
 
     private void Filter_Changed(object sender, TextChangedEventArgs e) => ApplyFilter();

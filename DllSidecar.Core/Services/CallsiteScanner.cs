@@ -38,22 +38,25 @@ public static class CallsiteScanner
 
     /// <summary>
     /// Scan <paramref name="pePath"/> and return every callsite to one of
-    /// <paramref name="apiNames"/> (defaults to <see cref="DefaultLoaderApis"/>).
+    /// <paramref name="apiNames"/> (defaults to <see cref="DefaultLoaderApis"/>),
+    /// plus the imports we tracked so callers can tell apart "no relevant
+    /// imports" from "imports exist but no callsite found".
     ///
     /// arm64 returns empty (Iced is x86/x64 only). Caller should check
     /// PeAnalysis.Arch first if it wants to surface a friendly message.
     /// </summary>
-    public static List<Callsite> Scan(string pePath, IReadOnlySet<string>? apiNames = null)
+    public static CallsiteScanResult Scan(string pePath, IReadOnlySet<string>? apiNames = null)
     {
         apiNames ??= DefaultLoaderApis;
         var pe = new PeFile(pePath);
         return Scan(pe, apiNames);
     }
 
-    public static List<Callsite> Scan(PeFile pe, IReadOnlySet<string> apiNames)
+    public static CallsiteScanResult Scan(PeFile pe, IReadOnlySet<string> apiNames)
     {
-        var result = new List<Callsite>();
-        if (pe.ImageNtHeaders == null) return result;
+        var callsites = new List<Callsite>();
+        var tracked = new Dictionary<string, int>();
+        if (pe.ImageNtHeaders == null) return new CallsiteScanResult(callsites, tracked);
 
         var machine = pe.ImageNtHeaders.FileHeader.Machine;
         var bitness = machine switch
@@ -62,13 +65,15 @@ public static class CallsiteScanner
             MachineType.Amd64 => 64,
             _ => 0, // arm64, ia64, etc. — Iced doesn't support them
         };
-        if (bitness == 0) return result;
+        if (bitness == 0) return new CallsiteScanResult(callsites, tracked);
 
         var imageBase = pe.ImageNtHeaders.OptionalHeader.ImageBase;
 
-        // 1) Build a map: IAT slot virtual address (image_base + RVA) → (module, api)
-        var iatTargets = BuildIatTargetMap(pe, apiNames, imageBase);
-        if (iatTargets.Count == 0) return result;
+        // 1) Build a map: IAT slot virtual address (image_base + RVA) → (module, api).
+        //    Also populate the diagnostic dict so the caller can render a
+        //    "imports tracked: kernel32.dll!LoadLibraryW=1, ..." line.
+        var iatTargets = BuildIatTargetMap(pe, apiNames, imageBase, tracked);
+        if (iatTargets.Count == 0) return new CallsiteScanResult(callsites, tracked);
 
         // 2) Build an export map for caller-name resolution. Keyed by RVA;
         //    we use the export whose RVA is the largest <= the call RVA as a
@@ -84,16 +89,17 @@ public static class CallsiteScanner
         foreach (var sec in sections)
         {
             if (!IsExecutable(sec)) continue;
-            ScanSection(pe, sec, bitness, imageBase, iatTargets, exportsByRva, result);
+            ScanSection(pe, sec, bitness, imageBase, iatTargets, exportsByRva, callsites);
         }
 
-        return result;
+        return new CallsiteScanResult(callsites, tracked);
     }
 
     // ---------- IAT slot map ----------
 
     private static Dictionary<ulong, (string Module, string Api)> BuildIatTargetMap(
-        PeFile pe, IReadOnlySet<string> apiNames, ulong imageBase)
+        PeFile pe, IReadOnlySet<string> apiNames, ulong imageBase,
+        Dictionary<string, int> tracked)
     {
         var map = new Dictionary<ulong, (string, string)>();
         if (pe.ImportedFunctions == null) return map;
@@ -108,6 +114,13 @@ public static class CallsiteScanner
             // the call instruction's memory operand will reference.
             var slotVa = imageBase + imp.IATOffset;
             map[slotVa] = (imp.DLL!, imp.Name!);
+
+            // Populate the diagnostic dict — keyed "module!api" so the same
+            // API imported from two different forwarders (kernel32 + api-ms-...)
+            // shows up as two distinct lines.
+            var key = $"{imp.DLL}!{imp.Name}";
+            tracked.TryGetValue(key, out var n);
+            tracked[key] = n + 1;
         }
         return map;
     }
