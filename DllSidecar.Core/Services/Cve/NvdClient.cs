@@ -12,13 +12,19 @@ namespace DllSidecar.Core.Services.Cve;
 ///   - HTTPS enforcement (hard-coded host — we never talk to anyone else)
 ///   - Optional apiKey header (raises rate limit 5/30s → 50/30s)
 ///   - Backoff on 429 Too Many Requests
-///   - 10s per-request timeout
+///   - 45s per-request timeout (NVD is slow under load, especially
+///     without an API key)
 ///   - Response parsing into our CveMatch model (a flat subset of NVD's JSON)
 /// </summary>
 public class NvdClient : IDisposable
 {
     private const string BaseUrl = "https://services.nvd.nist.gov/rest/json/cves/2.0";
-    private const int TimeoutSeconds = 15;
+    // NVD without an API key throttles to 5 req/30s and individual responses
+    // can take 20-30s on cold cache. 15s was too tight and caused frequent
+    // user-visible timeouts; 45s is generous enough that a single slow
+    // response doesn't kill the search but short enough to bail on a
+    // genuinely unreachable endpoint.
+    private const int TimeoutSeconds = 45;
 
     private readonly HttpClient _http;
 
@@ -73,7 +79,12 @@ public class NvdClient : IDisposable
         }
         catch (TaskCanceledException)
         {
-            result.Error = $"Timeout after {TimeoutSeconds}s";
+            // Hint about API key when the user is hitting timeouts — NVD
+            // without one is throttled and noticeably slower under load.
+            var keyHint = string.IsNullOrWhiteSpace(ConfigManager.Current.Tools.NvdApiKey)
+                ? " (no NVD API key configured — Config → Tools → NVD API Key for higher rate limits)"
+                : "";
+            result.Error = $"Timeout after {TimeoutSeconds}s{keyHint}";
             Log.Warn("cve.nvd", $"Timeout querying NVD for '{keywords}'");
         }
         catch (HttpRequestException ex)

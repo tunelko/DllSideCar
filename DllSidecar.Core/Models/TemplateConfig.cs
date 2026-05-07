@@ -50,6 +50,13 @@ public class TemplateConfig
     // + VirtualAllocEx RWX smoke test wins. Host-specific — Adobe default ships
     // the Acrobat helper names, but Office/Edge/Chrome/Teams need their own.
     public string SandboxTargets { get; set; } = "AcroCEF.exe,AdobeCollabSync.exe";
+
+    // MessageBox payload — editable title + body so the researcher can stamp
+    // the popup with a session/case identifier without hand-patching the
+    // generated C. {Researcher} placeholder is substituted at template time.
+    // Newlines and quotes are escaped for C string literal embedding.
+    public string MessageBoxTitle { get; set; } = "DllSidecar PoC {Researcher}";
+    public string MessageBoxBody { get; set; } = "DLL Sideloading PoC\nResearcher: {Researcher}\nDllSidecar — BugAInters 2026";
 }
 
 public enum PayloadType

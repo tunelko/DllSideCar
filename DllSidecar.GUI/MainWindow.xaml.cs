@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using DllSidecar.Core.Configuration;
 using DllSidecar.Core.Models;
 using DllSidecar.Core.Services;
 using DllSidecar.GUI.Views;
@@ -86,6 +87,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Closing += OnClosing;
         // Route every Core log entry into the UI panel. Warn+ is visible; Debug stays in
         // the event stream only (inspectable if needed for diagnostics).
         CoreLog.Emitted += OnLogEmitted;
@@ -97,7 +99,10 @@ public partial class MainWindow : Window
             Key.B, ModifierKeys.Control);
         InputBindings.Add(toggleBinding);
 
-        NavigateTo(new AnalyzePage(this));
+        // Wizard is the recommended starting point — guided pipeline that hands
+        // off to Analyze/Scan/Runtime as needed. Power users with a specific
+        // tool in mind navigate directly via the sidebar.
+        NavigateTo(new Views.Wizard.WizardPage(this));
     }
 
     private void OnLogEmitted(LogEntry entry)
@@ -117,6 +122,13 @@ public partial class MainWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        // Restore console panel height from persisted UI state. Default in
+        // AppConfig is 32 (collapsed) so first-run users see the console as
+        // a thin bottom strip, not an oversized sink.
+        var saved = ConfigManager.Current.UiState.ConsoleHeight;
+        if (saved >= 32 && saved < ActualHeight) // sanity bound
+            LogRow.Height = new GridLength(saved);
+
         var gcc64 = BuildSystem.FindGcc("x64");
         var gcc32 = BuildSystem.FindGcc("x86");
         StatusGcc.Text = gcc64 != null ? "GCC X64 — OK" : gcc32 != null ? "GCC X86 — OK" : "GCC — MISSING";
@@ -131,7 +143,58 @@ public partial class MainWindow : Window
         Log("DllSidecar GUI started");
     }
 
-    public void NavigateTo(System.Windows.Controls.Page page) => ContentFrame.Navigate(page);
+    /// <summary>Persist console panel height so the user's drag-resize choice
+    /// (or the collapsed default) survives across sessions.</summary>
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        try
+        {
+            // GridLength.Value is "*" weight or pixels. We always use absolute
+            // pixels for LogRow so this is the height in DIPs.
+            var h = LogRow.Height.IsAbsolute ? LogRow.Height.Value : LogRow.ActualHeight;
+            if (h >= 32) ConfigManager.Current.UiState.ConsoleHeight = h;
+            ConfigManager.Save();
+        }
+        catch { /* best-effort persist; never block close */ }
+    }
+
+    public void NavigateTo(System.Windows.Controls.Page page)
+    {
+        ContentFrame.Navigate(page);
+        SetActiveNavForPage(page);
+    }
+
+    /// <summary>
+    /// Light up the sidebar entry that corresponds to the navigated page.
+    /// Pages reachable only from the Tools popup (Build, Config) intentionally
+    /// fall through to "no match" — they're not part of the main rail and
+    /// shouldn't activate any sidebar item.
+    /// </summary>
+    private void SetActiveNavForPage(System.Windows.Controls.Page page)
+    {
+        // FQN on Button — UseWindowsForms=true makes the bare 'Button' type
+        // ambiguous between WPF and WinForms in this project.
+        System.Windows.Controls.Button? active = page switch
+        {
+            Views.Wizard.WizardPage    => NavBtnWizard,
+            AnalyzePage                => NavBtnAnalyze,
+            ScanPage                   => NavBtnScan,
+            ProcmonPage                => NavBtnProcmon,
+            RuntimeTracePage           => NavBtnRuntime,
+            InstallerPage              => NavBtnInstaller,
+            PrivescPage                => NavBtnPrivesc,
+            GeneratePage               => NavBtnDllTechniques,
+            AdvisoryPage               => NavBtnAdvisory,
+            AdvisoryLibraryPage        => NavBtnAdvisoryLibrary,
+            _                          => null,
+        };
+        System.Windows.Controls.Button[] all =
+        [
+            NavBtnWizard, NavBtnAnalyze, NavBtnScan, NavBtnProcmon, NavBtnRuntime,
+            NavBtnInstaller, NavBtnPrivesc, NavBtnDllTechniques, NavBtnAdvisory, NavBtnAdvisoryLibrary
+        ];
+        foreach (var b in all) b.Tag = ReferenceEquals(b, active) ? "active" : null;
+    }
 
     public void Log(string message)
     {
@@ -183,15 +246,42 @@ public partial class MainWindow : Window
         ToolsPopup.IsOpen = !ToolsPopup.IsOpen;
     }
 
+    private void HelpDropdown_Click(object sender, RoutedEventArgs e)
+    {
+        HelpPopup.IsOpen = !HelpPopup.IsOpen;
+    }
+
+    private void NavReadDocs_Click(object sender, RoutedEventArgs e)
+    {
+        HelpPopup.IsOpen = false;
+        Helpers.SafeUrl.Open("https://github.com/tunelko/DllSideCar");
+    }
+
+    private void NavCheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        HelpPopup.IsOpen = false;
+        // Placeholder until the auto-update channel ships. Keeping the entry visible
+        // so the menu shape stabilises now and we just wire the network call later.
+        MessageBox.Show(this,
+            "Update check is not implemented yet.\n\nLatest releases will be published at:\nhttps://github.com/tunelko/DllSideCar/releases",
+            "Check for updates",
+            MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void NavAbout_Click(object sender, RoutedEventArgs e)
+    {
+        HelpPopup.IsOpen = false;
+        var dlg = new Views.AboutDialog { Owner = this };
+        dlg.ShowDialog();
+    }
+
     // ---------- Nav handlers ----------
 
     private void NavAnalyze_Click(object sender, RoutedEventArgs e) => NavigateTo(new AnalyzePage(this));
     private void NavScan_Click(object sender, RoutedEventArgs e) => NavigateTo(new ScanPage(this));
     private void NavProcmon_Click(object sender, RoutedEventArgs e) => NavigateTo(new ProcmonPage(this));
     private void NavInstaller_Click(object sender, RoutedEventArgs e) => NavigateTo(new InstallerPage(this));
-    private void NavTracer_Click(object sender, RoutedEventArgs e) => NavigateTo(new GeneratePage(this, GenerationMode.Tracer));
-    private void NavProxy_Click(object sender, RoutedEventArgs e) => NavigateTo(new GeneratePage(this, GenerationMode.Proxy));
-    private void NavSideload_Click(object sender, RoutedEventArgs e) => NavigateTo(new GeneratePage(this, GenerationMode.Sideload));
+    private void NavDllTechniques_Click(object sender, RoutedEventArgs e) => NavigateTo(new GeneratePage(this));
     private void NavBuild_Click(object sender, RoutedEventArgs e) { ToolsPopup.IsOpen = false; NavigateTo(new BuildPage(this)); }
     private void NavPrivesc_Click(object sender, RoutedEventArgs e) => NavigateTo(new PrivescPage(this));
     private void NavAdvisory_Click(object sender, RoutedEventArgs e) => NavigateTo(new AdvisoryPage(this));

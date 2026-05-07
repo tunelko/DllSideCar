@@ -20,7 +20,7 @@
             <TextBlock Foreground="{StaticResource Overlay}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap">
                 <Run Text="Statically extract a .msi or .exe installer WITHOUT executing it — no custom actions, no registry writes, no sandbox needed. Tries in sequence: 7-Zip → msiexec /a → innounp. Output lands in "/>
                 <Run Text="%LOCALAPPDATA%\DllSidecar\extracted\"
-                     FontFamily="Cascadia Mono,Consolas" Foreground="{StaticResource Subtext}"/>
+                     FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Subtext}"/>
                 <Run Text=" · once extracted you can jump straight to Scan Directory."/>
             </TextBlock>
         </StackPanel>
@@ -33,12 +33,12 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="InstallerPathBox" Grid.Column="0" FontFamily="Cascadia Mono,Consolas"
+            <TextBox x:Name="InstallerPathBox" Grid.Column="0" FontFamily="{StaticResource FontMono}"
                     />
             <Button Grid.Column="1" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
                     Margin="10,0,0,0" Click="Browse_Click" ToolTip="Browse for installer (.exe / .msi)"/>
-            <Button Grid.Column="2" x:Name="ExtractBtn" Content="EXTRACT"
-                    Style="{StaticResource TerminalButton}" Margin="10,0,0,0" Click="Extract_Click"/>
+            <Button Grid.Column="2" x:Name="ExtractBtn" Content="&#x1F4E6;  Extract"
+                    Style="{StaticResource AccentButton}" Margin="10,0,0,0" Click="Extract_Click"/>
             <Button Grid.Column="3" x:Name="CancelBtn" Content="Cancel"
                     Style="{StaticResource DangerButton}" Margin="10,0,0,0"
                     Click="Cancel_Click" IsEnabled="False" Visibility="Collapsed"/>
@@ -61,16 +61,16 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Method:"    Foreground="{StaticResource Subtext}" Margin="0,2,14,2"/>
-                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="SumMethod"    Foreground="{StaticResource Text}" FontFamily="Cascadia Mono,Consolas" Margin="0,2"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="SumMethod"    Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}" Margin="0,2"/>
                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Output dir:" Foreground="{StaticResource Subtext}" Margin="0,2,14,2"/>
-                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="SumOutput"    Foreground="{StaticResource Text}" FontFamily="Cascadia Mono,Consolas" Margin="0,2" TextWrapping="Wrap"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="SumOutput"    Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}" Margin="0,2" TextWrapping="Wrap"/>
                     <TextBlock Grid.Row="2" Grid.Column="0" Text="Files:"      Foreground="{StaticResource Subtext}" Margin="0,2,14,2"/>
-                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="SumFiles"     Foreground="{StaticResource Text}" FontFamily="Cascadia Mono,Consolas" Margin="0,2"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="SumFiles"     Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}" Margin="0,2"/>
                     <TextBlock Grid.Row="3" Grid.Column="0" Text="Total size:" Foreground="{StaticResource Subtext}" Margin="0,2,14,2"/>
-                    <TextBlock Grid.Row="3" Grid.Column="1" x:Name="SumSize"      Foreground="{StaticResource Text}" FontFamily="Cascadia Mono,Consolas" Margin="0,2"/>
+                    <TextBlock Grid.Row="3" Grid.Column="1" x:Name="SumSize"      Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}" Margin="0,2"/>
                 </Grid>
                 <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                    <Button x:Name="ScanBtn" Content="Scan extracted" Style="{StaticResource PrimaryButton}"
+                    <Button x:Name="ScanBtn" Content="&#x1F50E;  Scan extracted" Style="{StaticResource AccentButton}"
                             Click="Scan_Click" IsEnabled="False"/>
                     <Button x:Name="OpenFolderBtn" Content="Open folder" Style="{StaticResource SecondaryButton}"
                             Margin="8,0,0,0" Click="OpenFolder_Click" IsEnabled="False"/>
@@ -85,7 +85,7 @@
                 <ScrollViewer x:Name="LogScroller" VerticalScrollBarVisibility="Auto">
                     <TextBox x:Name="LogBox" IsReadOnly="True" Background="Transparent"
                              Foreground="{StaticResource Text}" BorderThickness="0"
-                             FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                             FontFamily="{StaticResource FontMono}" FontSize="11"
                              TextWrapping="Wrap" AcceptsReturn="True"/>
                 </ScrollViewer>
             </DockPanel>

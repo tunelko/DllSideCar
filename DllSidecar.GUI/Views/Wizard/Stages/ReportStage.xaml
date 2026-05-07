@@ -23,7 +23,7 @@
                 BorderThickness="1" CornerRadius="8">
             <TextBox x:Name="MdView" Background="Transparent" Foreground="{StaticResource Text}"
                      BorderThickness="0" Padding="14,10" IsReadOnly="False"
-                     FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                     FontFamily="{StaticResource FontMono}" FontSize="11"
                      TextWrapping="NoWrap" AcceptsReturn="True" AcceptsTab="True"
                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                      SpellCheck.IsEnabled="False"/>

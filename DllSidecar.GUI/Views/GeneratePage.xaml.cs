@@ -11,8 +11,16 @@ namespace DllSidecar.GUI.Views;
 public partial class GeneratePage : Page
 {
     private readonly MainWindow _main;
-    private readonly GenerationMode _mode;
+    // Mode is driven by the [Proxy | Sideload] segmented switch in the page header.
+    // Tracer is no longer reachable from the UI; default starts at Proxy and the
+    // initial pick auto-flips to Sideload if the loaded analysis has no named exports.
+    private GenerationMode _mode = GenerationMode.Proxy;
     private PeAnalysis? _analysis;
+    // Suppresses the mode-switch handler during initial XAML hydration. Starts true:
+    // ModeProxy has IsChecked="True" in XAML, which fires Checked DURING
+    // InitializeComponent before ExportPanel/ThreadPanel exist. The ctor flips it
+    // back to false after wiring.
+    private bool _suppressModeChange = true;
 
     // Deploy context, page-local so HostExeBox edits persist until Generate.
     // Seeded from _main.PendingDeployContext (drained on ctor) or null when the
@@ -30,32 +38,29 @@ public partial class GeneratePage : Page
     private static readonly string ProjectRoot = Path.GetFullPath(
         Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", ".."));
 
-    public GeneratePage(MainWindow main, GenerationMode mode)
+    /// <summary>
+    /// Convenience overload — callers (Scan / Analyze) hand off a recommended technique
+    /// based on what the user just picked. Tracer is no longer a UI mode, so any caller
+    /// passing it falls through to Sideload. The auto-pick still kicks in if the analysis
+    /// has no named exports (Proxy needs at least one).
+    /// </summary>
+    public GeneratePage(MainWindow main, GenerationMode preferred) : this(main)
+    {
+        _suppressModeChange = true;
+        if (preferred == GenerationMode.Sideload || preferred == GenerationMode.Tracer)
+            ModeSideload.IsChecked = true;
+        else
+            ModeProxy.IsChecked = true;
+        _suppressModeChange = false;
+        ApplyMode();
+    }
+
+    public GeneratePage(MainWindow main)
     {
         _main = main;
-        _mode = mode;
         InitializeComponent();
 
-        PageTitle.Text = mode switch
-        {
-            GenerationMode.Tracer => "Export Tracer",
-            GenerationMode.Proxy => "DLL Proxy",
-            GenerationMode.Sideload => "DLL Sideload",
-            _ => "Generate"
-        };
-        PageSubtitle.Text = mode switch
-        {
-            GenerationMode.Tracer   => "Build a tracing DLL that wraps every export of the target DLL, forwarding each call while logging it. Use when you need to observe which exports are actually invoked at runtime — no payload fired.",
-            GenerationMode.Proxy    => "Build a proxy DLL that forwards all exports to the renamed original (_orig.dll) and fires your payload from a single chosen export. The classic sideload form — keeps the host process working.",
-            GenerationMode.Sideload => "Build a stub DLL with no forwarding and no _orig.dll dependency. One-shot payload fires from DllMain. Use when the host can tolerate a missing DLL or when you want the smallest possible footprint.",
-            _ => ""
-        };
-
-        // Show/hide proxy-specific controls
-        bool isProxy = mode == GenerationMode.Proxy;
-        bool isSideload = mode == GenerationMode.Sideload;
-        ExportPanel.Visibility = isProxy ? Visibility.Visible : Visibility.Collapsed;
-        ThreadPanel.Visibility = isProxy || isSideload ? Visibility.Visible : Visibility.Collapsed;
+        PageTitle.Text = "DLL Techniques";
 
         PopulateXorKeys();
         UpdateDeployBanner();
@@ -74,9 +79,51 @@ public partial class GeneratePage : Page
             LoadAnalysis(_main.CurrentDllPath);
         }
 
+        // Auto-pick the technique from the loaded analysis: Proxy needs named exports,
+        // Sideload works always. Mirrors the wizard's CraftStage selection logic.
+        _suppressModeChange = true;
+        if (_analysis != null && _analysis.NamedExports == 0)
+            ModeSideload.IsChecked = true;
+        else
+            ModeProxy.IsChecked = true;
+        _suppressModeChange = false;
+        ApplyMode();
+
         // Restore last-session UI state, then wire change handlers so every edit persists.
         RestoreUiState();
         WirePersistence();
+    }
+
+    private void ModeSwitch_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressModeChange) return;
+        ApplyMode();
+    }
+
+    /// <summary>
+    /// Push the segmented switch's state into <see cref="_mode"/> and reflect it in the
+    /// dependent UI: page subtitle, ExportPanel (Proxy only), ThreadPanel.
+    /// </summary>
+    private void ApplyMode()
+    {
+        // Defensive — XAML hydration order can fire RadioButton.Checked before the
+        // dependent panels are instantiated. The ctor's _suppressModeChange flag is
+        // the primary guard; this is a second line of defense.
+        if (ModeSideload == null || ModeProxy == null) return;
+
+        _mode = ModeSideload.IsChecked == true ? GenerationMode.Sideload : GenerationMode.Proxy;
+
+        if (PageSubtitle != null)
+            PageSubtitle.Text = _mode switch
+            {
+                GenerationMode.Proxy    => "Forward every export to the renamed original (_orig.dll) and fire your payload from one chosen export. Classic sideload form — host keeps working.",
+                GenerationMode.Sideload => "Stub DLL with no forwarding and no _orig.dll dependency. One-shot payload fires from DllMain. Smallest footprint.",
+                _ => ""
+            };
+
+        bool isProxy = _mode == GenerationMode.Proxy;
+        if (ExportPanel != null) ExportPanel.Visibility = isProxy ? Visibility.Visible : Visibility.Collapsed;
+        if (ThreadPanel != null) ThreadPanel.Visibility = Visibility.Visible;
     }
 
     private void RestoreUiState()
@@ -445,14 +492,6 @@ public partial class GeneratePage : Page
             // (always runs on DLL_PROCESS_ATTACH). If the user picks an export, it
             // also triggers payload (guarded so it still runs exactly once).
         }
-        else if (_mode == GenerationMode.Tracer && _analysis.Exports.Count == 0)
-        {
-            MessageBox.Show(
-                "Tracer mode wraps every export to log calls. With 0 exports there is nothing to wrap.\n\n" +
-                "Use Sideload mode instead (one-shot DllMain payload).",
-                "Tracer not applicable", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
 
         GenerateBtn.IsEnabled = false;
         SetStatus("Generating...", StatusKind.Info);
@@ -488,6 +527,13 @@ public partial class GeneratePage : Page
         // SandboxEscape-only target CSV, ignored by other payloads.
         if (PayloadCombo.SelectedIndex == 3 && !string.IsNullOrWhiteSpace(SandboxTargetsBox.Text))
             config.SandboxTargets = SandboxTargetsBox.Text.Trim();
+
+        // MessageBox title/body come from global Config → Payload Defaults so
+        // the same stamp is reused across PoCs. {Researcher} substitution and
+        // C-string escaping happen inside TemplateEngine.
+        var payloadCfg = ConfigManager.Current.Payload;
+        config.MessageBoxTitle = payloadCfg.MessageBoxTitle;
+        config.MessageBoxBody = payloadCfg.MessageBoxBody;
 
         // Runtime / deploy options — drive the .bat tail's probe/delay/wait logic
         // and the payload's proof file write. All three have safe defaults in XAML.

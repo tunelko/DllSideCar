@@ -50,6 +50,7 @@ public partial class ScanPage : Page
             CorrelateBtn.IsEnabled = _rows.Count > 0;
             CorrelateEtwBtn.IsEnabled = _rows.Count > 0 && _main.LastEtwResult != null;
             CheckCvesBtn.IsEnabled = _lastScan.Existing.Count > 0;
+            PromoteToWizardBtn.IsEnabled = _rows.Count > 0;
 
             SetStatus($"Restored: {_rows.Count} candidates from previous scan · click SCAN to refresh",
                 StatusKind.Info);
@@ -239,6 +240,7 @@ public partial class ScanPage : Page
         CorrelateBtn.IsEnabled = hasCandidates;
         CorrelateEtwBtn.IsEnabled = hasCandidates && _main.LastEtwResult != null;
         CheckCvesBtn.IsEnabled = results.Existing.Count > 0;
+        PromoteToWizardBtn.IsEnabled = hasCandidates;
         _allRows.Clear();
         foreach (var c in results.Existing) _allRows.Add(new CandidateRow(c));
         foreach (var p in results.Phantoms) _allRows.Add(new CandidateRow(p));
@@ -533,6 +535,30 @@ public partial class ScanPage : Page
             : $"Correlation: no match ({parsed.FilteredRows} events in CSV)";
         SetStatus(msg, total > 0 ? StatusKind.Ok : StatusKind.Warn);
         _main.Log(msg);
+    }
+
+    /// <summary>
+    /// Hand the current scan results to the Research Wizard. The wizard ctor
+    /// detects the populated <see cref="WizardSession.ScanResults"/> and resumes
+    /// at the Survey stage, skipping Input.
+    /// </summary>
+    private void PromoteToWizard_Click(object sender, RoutedEventArgs e)
+    {
+        if (_lastScan == null || _allRows.Count == 0)
+        {
+            SetStatus("No scan results to promote", StatusKind.Warn);
+            return;
+        }
+
+        var session = _main.CurrentWizardSession ?? new Core.Models.Wizard.WizardSession();
+        session.EntryPoint = Core.Models.Wizard.WizardEntryPoint.ScanFolder;
+        session.ScanResults = _lastScan;
+        if (!string.IsNullOrEmpty(_main.LastScanDir))
+            session.SurveyRootDir = _main.LastScanDir;
+        _main.CurrentWizardSession = session;
+
+        _main.Log($"Promoted scan ({_lastScan.ExistingCount} existing + {_lastScan.PhantomCount} phantom) to wizard");
+        _main.NavigateTo(new Wizard.WizardPage(_main));
     }
 
     private void CorrelateEtw_Click(object sender, RoutedEventArgs e)

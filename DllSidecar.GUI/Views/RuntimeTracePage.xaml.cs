@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using DllSidecar.Core.Configuration;
@@ -62,6 +63,11 @@ public partial class RuntimeTracePage : Page
             // Runtime Trace entry point. Otherwise this is a standalone visit.
             ResumeWizardBtn.Visibility = _main.CurrentWizardSession != null
                 ? Visibility.Visible : Visibility.Collapsed;
+            // Same gate flips Promote's label: 'Promote to Wizard' when a wizard
+            // session is alive (the action conceptually returns the user to it),
+            // 'Promote to Scan' otherwise (the destination is just the Scan page).
+            PromoteBtn.Content = _main.CurrentWizardSession != null
+                ? "Promote to Wizard" : "Promote to Scan";
 
             if (_main.LastEtwResult != null)
             {
@@ -85,11 +91,21 @@ public partial class RuntimeTracePage : Page
     {
         if (TargetBox == null) return; // called during InitializeComponent before controls exist
         var isLaunch = ModeLaunch.IsChecked == true;
-        // Launch mode: show path TextBox + folder (📁) action. Attach mode: show PID chip + picker (⋮).
-        TargetBox.Visibility = isLaunch ? Visibility.Visible : Visibility.Collapsed;
-        AttachPicker.Visibility = isLaunch ? Visibility.Collapsed : Visibility.Visible;
-        BrowseBtn.Visibility = isLaunch ? Visibility.Visible : Visibility.Collapsed;
-        PickProcBtn.Visibility = isLaunch ? Visibility.Collapsed : Visibility.Visible;
+        var isAttach = ModeAttach.IsChecked == true;
+        var isWatch  = ModeWatch.IsChecked == true;
+
+        // Three swappable target editors, only one visible at a time.
+        // WatchCmdRow now hosts both CMD and MATCH on a single line so a
+        // single visibility toggle drives the whole Watch panel.
+        TargetBox.Visibility    = isLaunch ? Visibility.Visible : Visibility.Collapsed;
+        AttachPicker.Visibility = isAttach ? Visibility.Visible : Visibility.Collapsed;
+        WatchNameBox.Visibility = isWatch  ? Visibility.Visible : Visibility.Collapsed;
+        WatchCmdRow.Visibility  = isWatch  ? Visibility.Visible : Visibility.Collapsed;
+
+        // Action buttons: Browse for Launch, PID picker for Attach, Service picker for Watch.
+        BrowseBtn.Visibility   = isLaunch ? Visibility.Visible : Visibility.Collapsed;
+        PickProcBtn.Visibility = isAttach ? Visibility.Visible : Visibility.Collapsed;
+        PickSvcBtn.Visibility  = isWatch  ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void Browse_Click(object sender, RoutedEventArgs e)
@@ -174,6 +190,35 @@ public partial class RuntimeTracePage : Page
         PidChipText.Text = "";
     }
 
+    private void PickSvc_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dlg = new ServicePickerDialog { Owner = Window.GetWindow(this) };
+            if (dlg.ShowDialog() != true) return;
+            if (string.IsNullOrEmpty(dlg.SelectedImageFile) || string.IsNullOrEmpty(dlg.SelectedServiceName))
+                return;
+            // Auto-fill the watch panel: image basename feeds the ETW match,
+            // service name builds an idempotent restart command. Uses 'net'
+            // because it's synchronous (waits for stop to finish before start),
+            // and the '&' (not '&&') chain runs start even if stop failed
+            // because the service was already stopped. Users can edit either.
+            WatchNameBox.Text = dlg.SelectedImageFile;
+            WatchCmdBox.Text = $"net stop {dlg.SelectedServiceName} & net start {dlg.SelectedServiceName}";
+            // Cmd-line filter: non-empty for svchost-style shared hosts, blank
+            // otherwise. Picker computes "-s ServiceName" for svchost; blank
+            // means "match by image name only" which is correct for splunkd,
+            // sshd, and any service with its own dedicated process.
+            WatchMatchBox.Text = dlg.SelectedCmdLineFilter ?? "";
+        }
+        catch (Exception ex)
+        {
+            _main.Log($"Service picker failed: {ex.GetType().Name}: {ex.Message}");
+            MessageBox.Show($"{ex.GetType().Name}: {ex.Message}\n\n{ex.StackTrace}",
+                "Service picker error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void Trace_Click(object sender, RoutedEventArgs e)
     {
         if (_tracer != null) { Stop_Click(sender, e); return; }
@@ -196,8 +241,12 @@ public partial class RuntimeTracePage : Page
         _tracer.StatusChanged += OnStatusChanged;
 
         var isLaunch = ModeLaunch.IsChecked == true;
+        var isAttach = ModeAttach.IsChecked == true;
+        var isWatch  = ModeWatch.IsChecked == true;
         Overlay.Show("Starting trace",
-            isLaunch ? "Launching ETW session and target process..." : "Attaching to process...");
+            isLaunch ? "Launching ETW session and target process..."
+            : isAttach ? "Attaching to process..."
+            : "Starting ETW session and firing trigger command...");
 
         try
         {
@@ -224,7 +273,7 @@ public partial class RuntimeTracePage : Page
                 var launchMode = ParseLaunchMode();
                 _tracer.StartWithExe(exePath, string.IsNullOrEmpty(args) ? null : args, launchMode, _cts.Token);
             }
-            else
+            else if (isAttach)
             {
                 if (!_attachPid.HasValue)
                 {
@@ -242,6 +291,24 @@ public partial class RuntimeTracePage : Page
                     return;
                 }
                 _tracer.AttachToPid(_attachPid.Value, _cts.Token);
+            }
+            else // isWatch
+            {
+                var procName = WatchNameBox.Text?.Trim() ?? "";
+                if (string.IsNullOrEmpty(procName))
+                {
+                    SetStatus("Enter a process name to watch (e.g. splunkd.exe)", StatusKind.Err);
+                    _tracer.Dispose();
+                    _tracer = null;
+                    return;
+                }
+                var cmd = WatchCmdBox.Text?.Trim();
+                var match = WatchMatchBox.Text?.Trim();
+                _tracer.StartWatchByName(
+                    procName,
+                    string.IsNullOrEmpty(cmd) ? null : cmd,
+                    _cts.Token,
+                    string.IsNullOrEmpty(match) ? null : match);
             }
         }
         catch (Exception ex)
@@ -265,15 +332,23 @@ public partial class RuntimeTracePage : Page
         // Stop icon (■) in IconButton chrome; color cue via ToolTip since style stays neutral.
         TraceBtn.Content = "■";
         TraceBtn.ToolTip = "Stop trace";
+        // Show + start the REC pulse so the user has a clear visual that ETW is live.
+        RecBadge.Visibility = Visibility.Visible;
+        StartRecPulse();
         TargetBox.IsEnabled = false;
         ArgsBox.IsEnabled = false;
+        WatchNameBox.IsEnabled = false;
+        WatchCmdBox.IsEnabled = false;
+        WatchMatchBox.IsEnabled = false;
         IlAuto.IsEnabled = false;
         IlMedium.IsEnabled = false;
         IlSame.IsEnabled = false;
         BrowseBtn.IsEnabled = false;
         PickProcBtn.IsEnabled = false;
+        PickSvcBtn.IsEnabled = false;
         ModeLaunch.IsEnabled = false;
         ModeAttach.IsEnabled = false;
+        ModeWatch.IsEnabled = false;
         PromoteBtn.IsEnabled = false;
         CorrelateBtn.IsEnabled = false;
 
@@ -286,8 +361,12 @@ public partial class RuntimeTracePage : Page
         };
         _elapsedTimer.Start();
 
-        var mode = ModeLaunch.IsChecked == true ? "Launch" : "Attach";
-        SetStatus($"[{mode}] Tracing... interact with the target, then click STOP.", StatusKind.Info);
+        var mode = isLaunch ? "Launch" : isAttach ? "Attach" : "Watch";
+        SetStatus(
+            isWatch
+                ? "[Watch] Capturing... trigger the target (or wait for restart cycles), then click STOP."
+                : $"[{mode}] Tracing... interact with the target, then click STOP.",
+            StatusKind.Info);
         _main.Log($"Runtime trace started ({mode})");
 
         if (isLaunch)
@@ -319,15 +398,24 @@ public partial class RuntimeTracePage : Page
 
         TraceBtn.Content = "▶";
         TraceBtn.ToolTip = "Start trace";
+        // Hide + stop the REC pulse — leaving the storyboard running on a hidden
+        // element burns CPU on the compositor for nothing.
+        StopRecPulse();
+        RecBadge.Visibility = Visibility.Collapsed;
         TargetBox.IsEnabled = true;
         ArgsBox.IsEnabled = true;
+        WatchNameBox.IsEnabled = true;
+        WatchCmdBox.IsEnabled = true;
+        WatchMatchBox.IsEnabled = true;
         IlAuto.IsEnabled = true;
         IlMedium.IsEnabled = true;
         IlSame.IsEnabled = true;
         BrowseBtn.IsEnabled = true;
         PickProcBtn.IsEnabled = true;
+        PickSvcBtn.IsEnabled = true;
         ModeLaunch.IsEnabled = true;
         ModeAttach.IsEnabled = true;
+        ModeWatch.IsEnabled = true;
 
         PopulateResults(_lastResult);
 
@@ -588,6 +676,27 @@ public partial class RuntimeTracePage : Page
         StatProcs.Text = "0";
         StatWritable.Text = "0";
         ElapsedText.Text = "";
+    }
+
+    /// <summary>
+    /// Looks up the RecPulse storyboard from RecBadge.Resources and begins it.
+    /// Targets the RecDot ellipse's Opacity (1 → 0.25, AutoReverse, Forever).
+    /// Resource lookup is delayed to runtime so a missing key fails soft.
+    /// </summary>
+    private void StartRecPulse()
+    {
+        if (RecBadge.Resources["RecPulse"] is Storyboard sb)
+            sb.Begin(RecBadge, isControllable: true);
+    }
+
+    private void StopRecPulse()
+    {
+        if (RecBadge.Resources["RecPulse"] is Storyboard sb)
+        {
+            try { sb.Stop(RecBadge); } catch { /* never started — fine */ }
+        }
+        // Reset the dot to fully opaque so a new Start picks it up clean.
+        RecDot.Opacity = 1.0;
     }
 
     private enum StatusKind { Info, Ok, Warn, Err }

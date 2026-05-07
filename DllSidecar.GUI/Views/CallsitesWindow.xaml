@@ -1,0 +1,87 @@
+<Window x:Class="DllSidecar.GUI.Views.CallsitesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Callsites — dynamic loader API calls"
+        Width="1100" Height="640"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource Base}"
+        FontFamily="{StaticResource FontSans}"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType">
+    <Grid Margin="20,16,20,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock x:Name="HeaderTitle" Text="Loader-API callsites"
+                       FontSize="20" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+            <TextBlock FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,4,0,0" TextWrapping="Wrap"
+                       Text="Indirect call/jmp instructions in this PE that resolve through the IAT to a dynamic loader API. Each row pinpoints a place where the binary may load a DLL by name at runtime — context the static IAT view alone can't surface."/>
+        </StackPanel>
+
+        <!-- Filter -->
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="FilterBox" Grid.Column="0"
+                     FontFamily="{StaticResource FontMono}" FontSize="11" Padding="6,4"
+                     ToolTip="Filter by API, RVA, caller, or disassembly text"
+                     TextChanged="Filter_Changed"/>
+            <Button x:Name="CopyBtn" Grid.Column="1" Content="Copy TSV"
+                    Style="{StaticResource SecondaryButton}" Margin="12,0,0,0"
+                    Click="Copy_Click"
+                    ToolTip="Copy filtered rows to clipboard as TSV"/>
+        </Grid>
+
+        <!-- Grid -->
+        <Border Grid.Row="2" Background="{StaticResource Mantle}" CornerRadius="6" Padding="6">
+            <DataGrid x:Name="Grid" AutoGenerateColumns="False" IsReadOnly="True"
+                      Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
+                      RowBackground="{StaticResource Surface0}" AlternatingRowBackground="#3B3B52"
+                      GridLinesVisibility="None" HeadersVisibility="Column"
+                      FontFamily="{StaticResource FontMono}" FontSize="11"
+                      SelectionMode="Single" RowHeight="26"
+                      VerticalScrollBarVisibility="Auto">
+                <DataGrid.ColumnHeaderStyle>
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="{StaticResource Surface1}"/>
+                        <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+                        <Setter Property="Padding" Value="8,6"/>
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                    </Style>
+                </DataGrid.ColumnHeaderStyle>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="RVA"     Binding="{Binding RvaText}"     Width="100"/>
+                    <DataGridTextColumn Header="Op"      Binding="{Binding Mnemonic}"    Width="55"/>
+                    <DataGridTextColumn Header="Module"  Binding="{Binding TargetModule}" Width="130"/>
+                    <DataGridTextColumn Header="API"     Binding="{Binding TargetApi}"   Width="160"/>
+                    <DataGridTextColumn Header="Loaded"  Binding="{Binding LoadedNameText}" Width="180"
+                                        ElementStyle="{StaticResource AxisExploitCell}"
+                                        ToolTipService.ToolTip="First-arg string resolved from the call setup. Bare names (foo.dll) are sideload candidates; absolute paths and '?' (computed) are not."/>
+                    <DataGridTextColumn Header="Flags"   Binding="{Binding LoadFlagsText}" Width="180"
+                                        ToolTipService.ToolTip="LoadLibraryEx dwFlags. 0 / unset = classic search-order (sideloadable). LOAD_WITH_ALTERED_SEARCH_PATH or LOAD_LIBRARY_SEARCH_* limit the search."/>
+                    <DataGridTextColumn Header="Caller"  Binding="{Binding CallerHint}"  Width="220"/>
+                    <DataGridTextColumn Header="Disassembly" Binding="{Binding Disasm}"  Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- Footer -->
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <TextBlock x:Name="Status" HorizontalAlignment="Left" VerticalAlignment="Center"
+                       Foreground="{StaticResource Overlay}" FontSize="11"
+                       FontFamily="{StaticResource FontMono}"/>
+            <Button HorizontalAlignment="Right" Content="Close"
+                    Style="{StaticResource SecondaryButton}"
+                    Click="Close_Click" IsCancel="True"/>
+        </Grid>
+    </Grid>
+</Window>

@@ -3,8 +3,39 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="24,20">
-            <TextBlock Text="Step 5 · Craft the PoC"
-                       FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Text}" Margin="0,0,0,4"/>
+            <!-- Header: title on the left, mode tiles top-right.
+                 Tiles act as page-level mode toggles, always visible without scrolling. -->
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Step 5 · Craft the PoC"
+                           FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Text}"
+                           VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="TileProxy" Style="{StaticResource ActionTile}"
+                            Width="160" Margin="0,0,8,0" Padding="12,8" Click="TileProxy_Click">
+                        <StackPanel>
+                            <TextBlock Text="&#x26A1;" FontSize="18" TextAlignment="Center"/>
+                            <TextBlock Text="Proxy" FontSize="12" FontWeight="SemiBold" TextAlignment="Center"
+                                       Foreground="{StaticResource Text}" Margin="0,3,0,1"/>
+                            <TextBlock Text="forward + fire" FontSize="10" TextAlignment="Center"
+                                       Foreground="{StaticResource Overlay}"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="TileSideload" Style="{StaticResource ActionTile}"
+                            Width="160" Padding="12,8" Click="TileSideload_Click">
+                        <StackPanel>
+                            <TextBlock Text="&#x1F4E6;" FontSize="18" TextAlignment="Center"/>
+                            <TextBlock Text="Sideload" FontSize="12" FontWeight="SemiBold" TextAlignment="Center"
+                                       Foreground="{StaticResource Text}" Margin="0,3,0,1"/>
+                            <TextBlock Text="drop + run DllMain" FontSize="10" TextAlignment="Center"
+                                       Foreground="{StaticResource Overlay}"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
             <TextBlock x:Name="HeaderHint" FontSize="12" Foreground="{StaticResource Subtext}" Margin="0,0,0,14" TextWrapping="Wrap"/>
 
             <!-- Deploy banner — seeded from ResolveTarget. Arch toggle + host editor
@@ -17,11 +48,11 @@
                     <TextBlock Text="DEPLOY + RUN" Foreground="{StaticResource Phosphor}"
                                FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"/>
                     <TextBlock x:Name="AutoModeText" Foreground="{StaticResource Phosphor}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="11" Margin="0,4,0,0"
+                               FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,4,0,0"
                                TextWrapping="Wrap" Visibility="Collapsed"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <TextBlock Text="Arch:" Foreground="{StaticResource Subtext}"
-                                   FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                   FontFamily="{StaticResource FontMono}" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
                                 BorderThickness="1" CornerRadius="6">
@@ -36,7 +67,7 @@
                         </Border>
                     </StackPanel>
                     <TextBlock x:Name="DeployDropText" Foreground="{StaticResource Subtext}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="11" Margin="0,6,0,6"
+                               FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,6,0,6"
                                TextWrapping="Wrap"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -45,9 +76,9 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="Host:" Foreground="{StaticResource Subtext}"
-                                   FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                   FontFamily="{StaticResource FontMono}" FontSize="11"
                                    VerticalAlignment="Center"/>
-                        <TextBox Grid.Column="1" x:Name="HostExeBox" FontFamily="Cascadia Mono,Consolas"
+                        <TextBox Grid.Column="1" x:Name="HostExeBox" FontFamily="{StaticResource FontMono}"
                                  FontSize="11" Padding="6,4"
                                  TextChanged="HostExeBox_Changed"
                                  ToolTip="EXE launched after deploy. Default = first arch-matching importer. Change if you want the upstream launcher."/>
@@ -56,64 +87,29 @@
                     </Grid>
                     <TextBlock x:Name="HostWarning" Visibility="Collapsed" Margin="70,4,0,0"
                                Foreground="{StaticResource Yellow}" FontSize="10.5"
-                               FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"
+                               FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"
                                Text="⚠ Looks like a temp-extracted path. The real launcher (portable EXE / installer / parent) probably lives elsewhere — override above."/>
                 </StackPanel>
             </Border>
 
-            <!-- Mode tiles -->
-            <Grid Margin="0,0,0,14">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <Button Grid.Column="0" x:Name="TileTracer" Style="{StaticResource ActionTile}"
-                        Margin="0,0,4,0" Padding="16,16" Click="TileTracer_Click">
-                    <StackPanel>
-                        <TextBlock Text="&#x1F4DD;" FontSize="22" TextAlignment="Center"/>
-                        <TextBlock Text="Tracer" FontSize="13" FontWeight="SemiBold" TextAlignment="Center"
-                                   Foreground="{StaticResource Text}" Margin="0,6,0,2"/>
-                        <TextBlock Text="log every export call" FontSize="10" TextAlignment="Center"
-                                   Foreground="{StaticResource Overlay}"/>
-                    </StackPanel>
-                </Button>
-                <Button Grid.Column="1" x:Name="TileProxy" Style="{StaticResource ActionTile}"
-                        Margin="2,0" Padding="16,16" Click="TileProxy_Click">
-                    <StackPanel>
-                        <TextBlock Text="&#x26A1;" FontSize="22" TextAlignment="Center"/>
-                        <TextBlock Text="Proxy" FontSize="13" FontWeight="SemiBold" TextAlignment="Center"
-                                   Foreground="{StaticResource Text}" Margin="0,6,0,2"/>
-                        <TextBlock Text="forward + fire" FontSize="10" TextAlignment="Center"
-                                   Foreground="{StaticResource Overlay}"/>
-                    </StackPanel>
-                </Button>
-                <Button Grid.Column="2" x:Name="TileSideload" Style="{StaticResource ActionTile}"
-                        Margin="4,0,0,0" Padding="16,16" Click="TileSideload_Click">
-                    <StackPanel>
-                        <TextBlock Text="&#x1F4E6;" FontSize="22" TextAlignment="Center"/>
-                        <TextBlock Text="Sideload" FontSize="13" FontWeight="SemiBold" TextAlignment="Center"
-                                   Foreground="{StaticResource Text}" Margin="0,6,0,2"/>
-                        <TextBlock Text="drop + run DllMain" FontSize="10" TextAlignment="Center"
-                                   Foreground="{StaticResource Overlay}"/>
-                    </StackPanel>
-                </Button>
-            </Grid>
-
-            <!-- Config: 2 columns mirror GeneratePage (payload/export/thread | evasion/execution/options) -->
+            <!-- Config: 3 stacked columns mirroring DLL Techniques (GeneratePage).
+                 Col 1: PAYLOAD → TARGET EXPORT (proxy only) → THREAD MODE (proxy only)
+                 Col 2: EVASION (wider; internal TUNING mini-card to its right)
+                 Col 3: POST-PROCESSING → EXECUTION
+                 EVASION column is the growth area — new techniques (AMSI hooks,
+                 ETW patch, hellgate, etc.) plug in as more checkboxes here. -->
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="1*"/>
+                    <ColumnDefinition Width="1.5*"/>
+                    <ColumnDefinition Width="1*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Left column -->
+                <!-- Col 1: payload → target → thread mode -->
                 <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                    <Border Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
-                            BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,10">
+                    <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
                         <StackPanel>
-                            <TextBlock Text="PAYLOAD" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                       FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
+                            <TextBlock Text="PAYLOAD" Style="{StaticResource SectionHeader}"/>
                             <ComboBox x:Name="PayloadCombo" SelectedIndex="0" SelectionChanged="PayloadCombo_Changed">
                                 <ComboBoxItem Content="MessageBox PoC (safe, visual proof)"/>
                                 <ComboBoxItem Content="Execute command"/>
@@ -122,33 +118,28 @@
                                               ToolTip="Cross-process inject into a less-restricted sibling + CreateProcessA on WinSta0\Default. Use for AppContainer hosts where WinExec is blocked."/>
                             </ComboBox>
                             <TextBox x:Name="PayloadDataBox" Margin="0,8,0,0"
-                                     FontFamily="Cascadia Mono,Consolas" Visibility="Collapsed"
+                                     FontFamily="{StaticResource FontMono}" Visibility="Collapsed"
                                      ToolTip="Command to execute. calc.exe / cmd.exe / cmd.exe /k whoami / full path etc."/>
                             <StackPanel x:Name="SandboxTargetsPanel" Visibility="Collapsed" Margin="0,8,0,0">
                                 <TextBlock Text="Inject targets (CSV)" Foreground="{StaticResource Subtext}" FontSize="10"/>
-                                <TextBox x:Name="SandboxTargetsBox" FontFamily="Cascadia Mono,Consolas"
+                                <TextBox x:Name="SandboxTargetsBox" FontFamily="{StaticResource FontMono}"
                                          Text="AcroCEF.exe,AdobeCollabSync.exe"
                                          ToolTip="Sibling processes to try inject-escape into. Adobe default. Office: MsoSync.exe,msoxmlmf.exe. Edge: msedgewebview2.exe."/>
                             </StackPanel>
                         </StackPanel>
                     </Border>
 
-                    <Border x:Name="ExportPanel" Visibility="Collapsed"
-                            Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
-                            BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,10">
+                    <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10"
+                            x:Name="ExportPanel" Visibility="Collapsed">
                         <StackPanel>
-                            <TextBlock Text="TARGET EXPORT" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                       FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
+                            <TextBlock Text="TARGET EXPORT" Style="{StaticResource SectionHeader}"/>
                             <ComboBox x:Name="ExportCombo" MaxDropDownHeight="240"/>
                         </StackPanel>
                     </Border>
 
-                    <Border x:Name="ThreadPanel" Visibility="Collapsed"
-                            Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
-                            BorderThickness="1" CornerRadius="8" Padding="16,12">
+                    <Border Style="{StaticResource SectionCard}" x:Name="ThreadPanel" Visibility="Collapsed">
                         <StackPanel>
-                            <TextBlock Text="THREAD MODE" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                       FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
+                            <TextBlock Text="THREAD MODE" Style="{StaticResource SectionHeader}"/>
                             <ComboBox x:Name="ThreadCombo" SelectedIndex="0">
                                 <ComboBoxItem Content="Calling thread (hijack, most reliable)"/>
                                 <ComboBoxItem Content="New thread (CreateThread)"/>
@@ -158,45 +149,80 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Right column -->
-                <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                    <Border Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
-                            BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,10">
+                <!-- Col 2: EVASION (wider, internal TUNING mini-card on the right) -->
+                <StackPanel Grid.Column="1" Margin="8,0,8,0">
+                    <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto" MinWidth="180"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="EVASION"
+                                       Style="{StaticResource SectionHeader}"
+                                       VerticalAlignment="Bottom"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="TUNING"
+                                       Style="{StaticResource SectionHeader}"
+                                       Margin="20,0,0,8" VerticalAlignment="Bottom"/>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,0">
+                                <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,5"/>
+                                <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,5"/>
+                                <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,5"/>
+                            </StackPanel>
+                            <Border Grid.Row="1" Grid.Column="1" Margin="20,0,0,0"
+                                    Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                                    BorderThickness="1" CornerRadius="6" Padding="14,12"
+                                    VerticalAlignment="Top">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="100"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Delay (ms)"
+                                               Foreground="{StaticResource Subtext}" FontSize="11"
+                                               VerticalAlignment="Center" Margin="0,0,12,8"/>
+                                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="DelayBox" Text="0"
+                                             Margin="0,0,0,8" Padding="8,5"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="XOR key"
+                                               Foreground="{StaticResource Subtext}" FontSize="11"
+                                               VerticalAlignment="Center" Margin="0,8,12,0"/>
+                                    <ComboBox Grid.Row="1" Grid.Column="1" x:Name="XorKeyCombo" Margin="0,8,0,0"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!-- Col 3: post-processing + execution -->
+                <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                    <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
                         <StackPanel>
-                            <TextBlock Text="EVASION" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                       FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
-                            <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,4"/>
-                            <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,4"/>
-                            <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,4"/>
+                            <TextBlock Text="POST-PROCESSING" Style="{StaticResource SectionHeader}"/>
+                            <CheckBox x:Name="ChkCloneMeta" Content="Clone version info (metadata)" Margin="0,4"/>
+                            <CheckBox x:Name="ChkStomp" Content="Timestamp stomping" Margin="0,4"/>
+                            <CheckBox x:Name="ChkAutoBuild" Content="Compile DLL with MinGW" Margin="0,4" IsChecked="True"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SectionCard}">
+                        <StackPanel>
+                            <TextBlock Text="EXECUTION" Style="{StaticResource SectionHeader}"/>
+                            <CheckBox x:Name="ChkWriteProof" Content="Write proof file to %TEMP%"
+                                      IsChecked="True" Margin="0,4"
+                                      ToolTip="Payload writes dllsidecar_proof_&lt;PID&gt;.txt to %TEMP%. Reliable when MessageBox is invisible."/>
                             <Grid Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="80"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="100"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Delay (ms):" Foreground="{StaticResource Subtext}"
-                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBox Grid.Column="1" x:Name="DelayBox" Text="0"/>
-                                <TextBlock Grid.Column="2" Text="XOR:" Foreground="{StaticResource Subtext}"
-                                           VerticalAlignment="Center" Margin="12,0,8,0"/>
-                                <ComboBox Grid.Column="3" x:Name="XorKeyCombo"/>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
-                            BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,10">
-                        <StackPanel>
-                            <TextBlock Text="EXECUTION" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                       FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
-                            <CheckBox x:Name="ChkWriteProof" Content="Write proof file to %TEMP%"
-                                      IsChecked="True" Margin="0,4"
-                                      ToolTip="Payload writes dllsidecar_proof_&lt;PID&gt;.txt to %TEMP%. Reliable when MessageBox is invisible."/>
-                            <Grid Margin="0,8,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="70"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Pre-launch delay (s):"
                                            Foreground="{StaticResource Subtext}"
@@ -204,7 +230,7 @@
                                 <TextBox Grid.Column="1" x:Name="PreLaunchDelayBox" Text="0"/>
                             </Grid>
                             <TextBlock Text="Host wait strategy" Foreground="{StaticResource Subtext}"
-                                       FontSize="11" Margin="0,8,0,4"/>
+                                       FontSize="11" Margin="0,10,0,4"/>
                             <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
                                     BorderThickness="1" CornerRadius="6" HorizontalAlignment="Left">
                                 <StackPanel Orientation="Horizontal">
@@ -221,7 +247,7 @@
                             <Grid Margin="0,6,0,0" x:Name="FireTimeoutRow" Visibility="Collapsed">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="70"/>
+                                    <ColumnDefinition Width="80"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Fire timeout (s):"
                                            Foreground="{StaticResource Subtext}"
@@ -230,22 +256,11 @@
                             </Grid>
                         </StackPanel>
                     </Border>
-
-                    <Border Background="{StaticResource Surface0}" BorderBrush="{StaticResource Ring}"
-                            BorderThickness="1" CornerRadius="8" Padding="16,12">
-                        <StackPanel>
-                            <TextBlock Text="POST-PROCESSING" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                       FontWeight="Medium" Foreground="{StaticResource Blue}" Margin="0,0,0,8"/>
-                            <CheckBox x:Name="ChkCloneMeta" Content="Clone version info (metadata)" Margin="0,4"/>
-                            <CheckBox x:Name="ChkStomp" Content="Timestamp stomping" Margin="0,4"/>
-                            <CheckBox x:Name="ChkAutoBuild" Content="Compile DLL with MinGW" Margin="0,4" IsChecked="True"/>
-                        </StackPanel>
-                    </Border>
                 </StackPanel>
             </Grid>
 
             <TextBlock x:Name="StatusLine" Foreground="{StaticResource Overlay}" FontSize="11"
-                       FontFamily="Cascadia Mono,Consolas" Margin="0,14,0,0" TextWrapping="Wrap"/>
+                       FontFamily="{StaticResource FontMono}" Margin="0,14,0,0" TextWrapping="Wrap"/>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

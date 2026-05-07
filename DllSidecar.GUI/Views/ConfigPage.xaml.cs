@@ -126,6 +126,10 @@ public partial class ConfigPage : Page
 
         // Behavior
         AutoCveLookupBox.IsChecked = cfg.AutoCveLookup;
+
+        // Payload defaults
+        MsgBoxTitleBox.Text = cfg.Payload.MessageBoxTitle;
+        MsgBoxBodyBox.Text = cfg.Payload.MessageBoxBody;
     }
 
     private void GetNvdKey_Click(object sender, RoutedEventArgs e)
@@ -235,6 +239,13 @@ public partial class ConfigPage : Page
         cfg.Researcher.IncibePublicDisplayName = IncibeDisplayNameBox.Text.Trim();
 
         cfg.AutoCveLookup = AutoCveLookupBox.IsChecked == true;
+
+        // Payload defaults — fall back to current values when blank so a
+        // user emptying the box doesn't generate empty C string literals.
+        if (!string.IsNullOrWhiteSpace(MsgBoxTitleBox.Text))
+            cfg.Payload.MessageBoxTitle = MsgBoxTitleBox.Text;
+        if (!string.IsNullOrWhiteSpace(MsgBoxBodyBox.Text))
+            cfg.Payload.MessageBoxBody = MsgBoxBodyBox.Text;
     }
 
     private static string? NullIfBlank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();

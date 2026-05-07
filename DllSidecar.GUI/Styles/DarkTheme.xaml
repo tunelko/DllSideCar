@@ -67,8 +67,31 @@
     <!-- Typography                                                       -->
     <!-- Geist fallback chain: Geist > Segoe UI Variable > Segoe UI       -->
     <!-- ================================================================ -->
+    <!--
+        Typographic role system. Four roles, four resources. Always reference these
+        instead of hardcoding font names so we can swap per-role policy in one spot.
+
+        FontSans    : default UI - forms, buttons, prose. Fallback chain favours the
+                      installed Geist family then falls back to Windows defaults.
+        FontMono    : technical data - paths, hashes, logs, advisory editor body,
+                      anything where character alignment matters. NEVER swap this for
+                      a display face: alignment + readability would regress.
+        FontDisplay : visual identity - app brand text, sidebar section labels,
+                      occasional headline strings. DinaRemasterII first; falls back to
+                      the FontSans chain if the user hasn't installed it.
+        FontBadge   : status pills (RUNTIME, PHANTOM, RESOLVED, SYSTEM, ETW, ...).
+                      Wants the same identity feel as FontDisplay but at small caps,
+                      so the fallback is the FontMono chain rather than FontSans, to
+                      preserve the tabular look in dense rows.
+        FontConsole : the live log panel. DinaRemasterII first to give the console its own
+                      retro-terminal identity; if absent, falls through the FontMono
+                      chain so column alignment is still preserved.
+    -->
     <FontFamily x:Key="FontSans">Geist, Geist Variable, Segoe UI Variable Text, Segoe UI, -apple-system, sans-serif</FontFamily>
     <FontFamily x:Key="FontMono">Geist Mono, Cascadia Mono, Consolas, ui-monospace, monospace</FontFamily>
+    <FontFamily x:Key="FontDisplay">DinaRemasterII, Geist, Geist Variable, Segoe UI Variable Text, Segoe UI, sans-serif</FontFamily>
+    <FontFamily x:Key="FontBadge">DinaRemasterII, Cascadia Mono, Consolas, ui-monospace, monospace</FontFamily>
+    <FontFamily x:Key="FontConsole">DinaRemasterII, Geist Mono, Cascadia Mono, Consolas, ui-monospace, monospace</FontFamily>
 
     <!-- ================================================================ -->
     <!-- Focus visual style — 2px solid blue outline, no dashed rect      -->
@@ -516,6 +539,26 @@
     </Style>
 
     <!-- ================================================================ -->
+    <!-- Axis cell text styles — one accent colour per axis so the eye    -->
+    <!-- can parse Exploit/Impact/Confidence (and similar columns in     -->
+    <!-- modal grids) at a glance without reading the header. Originally  -->
+    <!-- defined locally in ScanPage; promoted to global so Window-       -->
+    <!-- hosted modals (CallsitesWindow, ServiceAuditWindow) can reuse.   -->
+    <!-- ================================================================ -->
+    <Style x:Key="AxisExploitCell" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource Phosphor}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style x:Key="AxisImpactCell" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource Red}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style x:Key="AxisConfCell" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource Blue}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- ================================================================ -->
     <!-- TerminalButton — phosphor-green, identity button for the tool    -->
     <!-- Use for "do the dangerous thing": Scan, Generate, Build, Extract -->
     <!-- Mono font + uppercase content gives it hacker-console identity   -->
@@ -642,12 +685,21 @@
         </Setter>
     </Style>
 
+    <!--
+        AccentButton: same chrome as IconButton (transparent + ring border, hover lights
+        up via Surface0 + RingStrong) but accepts a label alongside an optional glyph.
+        The whole "primary action" idiom across pages now reads as a single capsule
+        family: 32px tall, 110px min-wide, neutral dark, subtle hover. The Vercel-like
+        blue glow was removed for visual coherence with the rest of the chrome.
+    -->
     <Style x:Key="AccentButton" TargetType="Button">
-        <Setter Property="Background" Value="{StaticResource Blue}"/>
-        <Setter Property="Foreground" Value="#FFFFFF"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="16,6"/>
-        <Setter Property="MinHeight" Value="30"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Ring}"/>
+        <Setter Property="Padding" Value="14,6"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="MinWidth" Value="110"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontFamily" Value="{StaticResource FontSans}"/>
@@ -656,30 +708,25 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Grid>
-                        <!-- Subtle blue glow on hover — signature Vercel-like polish -->
-                        <Border x:Name="glow" Background="Transparent" CornerRadius="6" Opacity="0">
-                            <Border.Effect>
-                                <DropShadowEffect Color="#0A72EF" BlurRadius="20" ShadowDepth="0" Opacity="0.7"/>
-                            </Border.Effect>
-                        </Border>
-                        <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                Padding="{TemplateBinding Padding}" CornerRadius="6"
-                                SnapsToDevicePixels="True"
-                                TextElement.Foreground="{TemplateBinding Foreground}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </Grid>
+                    <Border x:Name="bd" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}" CornerRadius="6"
+                            SnapsToDevicePixels="True"
+                            TextElement.Foreground="{TemplateBinding Foreground}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="#2D87F2"/>
-                            <Setter TargetName="glow" Property="Opacity" Value="1"/>
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface0}"/>
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource RingStrong}"/>
+                            <Setter Property="Foreground" Value="{StaticResource Text}"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="#0560C7"/>
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface1}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface1}"/>
+                            <Setter TargetName="bd" Property="Background" Value="Transparent"/>
                             <Setter Property="Foreground" Value="{StaticResource Muted}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>

@@ -42,11 +42,11 @@
                                         ToolTip="Probe well-known MSYS2 / mingw-w64 install roots"/>
                             </StackPanel>
                             <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                                <Button Content="Validate toolchain" Style="{StaticResource AccentButton}" Click="Validate_Click"
+                                <Button Content="&#x2713;  Validate toolchain" Style="{StaticResource AccentButton}" Click="Validate_Click"
                                         ToolTip="Run BuildSystem.FindGcc / FindWindres for both archs"/>
                             </StackPanel>
                         </Grid>
-                        <TextBlock x:Name="ValidateStatus" FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                        <TextBlock x:Name="ValidateStatus" FontFamily="{StaticResource FontMono}" FontSize="11"
                                    Foreground="{StaticResource Overlay}" Margin="0,12,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
@@ -82,7 +82,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="NvdApiKeyBox" Grid.Column="0"
-                                     FontFamily="Cascadia Mono,Consolas"
+                                     FontFamily="{StaticResource FontMono}"
                                      ToolTip="Request at https://nvd.nist.gov/developers/request-an-api-key"/>
                             <Button Grid.Column="1" Content="Get key…" Style="{StaticResource SecondaryButton}"
                                     Margin="6,0,0,0" Click="GetNvdKey_Click"/>
@@ -116,18 +116,18 @@
 
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Name"   Style="{StaticResource FieldLabel}"/>
                             <TextBlock Grid.Row="0" Grid.Column="1" Text="Handle" Style="{StaticResource FieldLabel}" Margin="10,0,0,0"/>
-                            <TextBox   Grid.Row="1" Grid.Column="0" x:Name="ResearcherNameBox"   FontFamily="Cascadia Mono,Consolas"/>
-                            <TextBox   Grid.Row="1" Grid.Column="1" x:Name="ResearcherHandleBox" FontFamily="Cascadia Mono,Consolas" Margin="10,0,0,0"/>
+                            <TextBox   Grid.Row="1" Grid.Column="0" x:Name="ResearcherNameBox"   FontFamily="{StaticResource FontMono}"/>
+                            <TextBox   Grid.Row="1" Grid.Column="1" x:Name="ResearcherHandleBox" FontFamily="{StaticResource FontMono}" Margin="10,0,0,0"/>
 
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="Blog"  Style="{StaticResource FieldLabel}"/>
                             <TextBlock Grid.Row="2" Grid.Column="1" Text="Email" Style="{StaticResource FieldLabel}" Margin="10,0,0,0"/>
-                            <TextBox   Grid.Row="3" Grid.Column="0" x:Name="ResearcherBlogBox"  FontFamily="Cascadia Mono,Consolas"/>
-                            <TextBox   Grid.Row="3" Grid.Column="1" x:Name="ResearcherEmailBox" FontFamily="Cascadia Mono,Consolas" Margin="10,0,0,0"/>
+                            <TextBox   Grid.Row="3" Grid.Column="0" x:Name="ResearcherBlogBox"  FontFamily="{StaticResource FontMono}"/>
+                            <TextBox   Grid.Row="3" Grid.Column="1" x:Name="ResearcherEmailBox" FontFamily="{StaticResource FontMono}" Margin="10,0,0,0"/>
 
                             <TextBlock Grid.Row="4" Grid.Column="0" Text="PGP fingerprint (40 hex)" Style="{StaticResource FieldLabel}"/>
                             <TextBlock Grid.Row="4" Grid.Column="1" Text="PGP key id (16 hex)" Style="{StaticResource FieldLabel}" Margin="10,0,0,0"/>
-                            <TextBox   Grid.Row="5" Grid.Column="0" x:Name="PgpFingerprintBox" FontFamily="Cascadia Mono,Consolas"/>
-                            <TextBox   Grid.Row="5" Grid.Column="1" x:Name="PgpKeyIdBox"       FontFamily="Cascadia Mono,Consolas" Margin="10,0,0,0"/>
+                            <TextBox   Grid.Row="5" Grid.Column="0" x:Name="PgpFingerprintBox" FontFamily="{StaticResource FontMono}"/>
+                            <TextBox   Grid.Row="5" Grid.Column="1" x:Name="PgpKeyIdBox"       FontFamily="{StaticResource FontMono}" Margin="10,0,0,0"/>
                         </Grid>
 
                         <Grid Margin="0,10,0,0">
@@ -145,7 +145,7 @@
                                 <TextBlock Grid.Column="0" Text="INCIBE public display name:"
                                            Foreground="{StaticResource Subtext}" VerticalAlignment="Center"
                                            Margin="0,0,8,0"/>
-                                <TextBox Grid.Column="1" x:Name="IncibeDisplayNameBox" FontFamily="Cascadia Mono,Consolas"/>
+                                <TextBox Grid.Column="1" x:Name="IncibeDisplayNameBox" FontFamily="{StaticResource FontMono}"/>
                             </Grid>
                         </Grid>
                     </StackPanel>
@@ -163,6 +163,24 @@
                     </StackPanel>
                 </Border>
 
+                <!-- PAYLOAD DEFAULTS -->
+                <Border Style="{StaticResource SectionCard}" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="PAYLOAD DEFAULTS" Style="{StaticResource SectionHeader}"/>
+                        <TextBlock Text="MessageBox PoC popup text reused across every Generate run. Use {Researcher} as a placeholder — it's substituted at template time. Newlines are emitted as \n in the generated C; quotes are escaped automatically."
+                                   FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                        <TextBlock Text="MessageBox title" Style="{StaticResource FieldLabel}"/>
+                        <TextBox x:Name="MsgBoxTitleBox" FontFamily="{StaticResource FontMono}"
+                                 ToolTip="Title bar text. Default: 'DllSidecar PoC {Researcher}'"/>
+                        <TextBlock Text="MessageBox body" Style="{StaticResource FieldLabel}" Margin="0,10,0,0"/>
+                        <TextBox x:Name="MsgBoxBodyBox" FontFamily="{StaticResource FontMono}"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 MinHeight="70" MaxHeight="140"
+                                 VerticalScrollBarVisibility="Auto"
+                                 ToolTip="Body text. Multi-line is fine — every newline becomes \n in the generated C source."/>
+                    </StackPanel>
+                </Border>
+
             </StackPanel>
         </ScrollViewer>
 
@@ -171,7 +189,7 @@
             <Grid>
                 <StackPanel HorizontalAlignment="Left" Orientation="Horizontal">
                     <TextBlock x:Name="SaveStatus" VerticalAlignment="Center"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                               FontFamily="{StaticResource FontMono}" FontSize="11"
                                Foreground="{StaticResource Overlay}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
                 <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">

@@ -224,6 +224,27 @@ public partial class PrivescPage : Page
         _main.NavigateTo(new AnalyzePage(_main));
     }
 
+    private void AuditServices_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dlg = new ServiceAuditWindow { Owner = Window.GetWindow(this) };
+            if (dlg.ShowDialog() != true || string.IsNullOrEmpty(dlg.SelectedAnalyzePath)) return;
+            // Hand off to AnalyzePage. User clicks 🔬 Callsites there to close
+            // the audit loop. We don't auto-analyze on landing because the
+            // existing AnalyzePage flow expects a manual click and the user
+            // may want to review the path first.
+            _main.CurrentDllPath = dlg.SelectedAnalyzePath;
+            _main.NavigateTo(new AnalyzePage(_main));
+        }
+        catch (Exception ex)
+        {
+            _main.Log($"Service audit failed: {ex.GetType().Name}: {ex.Message}");
+            System.Windows.MessageBox.Show($"{ex.GetType().Name}: {ex.Message}\n\n{ex.StackTrace}",
+                "Service audit error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         _cts?.Cancel();

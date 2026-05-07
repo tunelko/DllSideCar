@@ -24,7 +24,7 @@
             <Border Background="{StaticResource Surface0}" CornerRadius="999"
                     Padding="7,1" Margin="8,0,0,0" VerticalAlignment="Center">
                 <TextBlock x:Name="StatusPill" Text="?" FontSize="9" FontWeight="Bold"
-                           FontFamily="{StaticResource FontMono}"
+                           FontFamily="{StaticResource FontBadge}"
                            Foreground="{StaticResource Subtext}"/>
             </Border>
             <TextBlock x:Name="PurposeText" Text=""
@@ -35,7 +35,7 @@
 
         <!-- Path input + buttons -->
         <TextBox x:Name="PathBox" Grid.Row="1" Grid.Column="0"
-                 FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                 FontFamily="{StaticResource FontMono}" FontSize="11"
                  TextChanged="PathBox_TextChanged"/>
         <Button x:Name="BrowseBtn" Grid.Row="1" Grid.Column="1" Content="&#x1F4C1;"
                 Style="{StaticResource IconButton}" Margin="6,0,0,0"

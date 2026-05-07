@@ -30,6 +30,29 @@
             <TextBlock Foreground="{StaticResource Overlay}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
                        Text="Map the privilege escalation surface of a target directory. Four modular detectors run independently: services that execute as LocalSystem, scheduled tasks with HighestAvailable principal, EXE manifests with autoElevate=true, and updater/maintenance heuristics. Critical severity marks the classic user→SYSTEM chain."/>
 
+            <!-- Machine-wide audit shortcut. Independent of the directory
+                 picker below — this enumerates registered services across the
+                 whole machine so you can drill into a specific service binary
+                 (ImagePath / ServiceDll) without picking a target dir. -->
+            <Border Style="{StaticResource StatCard}" Margin="0,12,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="MACHINE AUDIT" Foreground="{StaticResource Blue}"
+                                   FontWeight="Bold" FontSize="11" FontFamily="{StaticResource FontMono}"/>
+                        <TextBlock Foreground="{StaticResource Subtext}" FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"
+                                   Text="Enumerate registered services and jump into AnalyzePage with the right binary preselected. Closes the SandboxEscaper-style audit loop: pick service → analyze its DLL → 🔬 Callsites."/>
+                    </StackPanel>
+                    <Button Grid.Column="1" x:Name="AuditServicesBtn"
+                            Content="&#x1F52C;  Audit services"
+                            Style="{StaticResource AccentButton}" Margin="14,0,0,0"
+                            Click="AuditServices_Click"
+                            ToolTip="Open the machine-wide service audit modal"/>
+                </Grid>
+            </Border>
         </StackPanel>
 
         <!-- Path picker -->
@@ -40,7 +63,7 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="DirPathBox" Grid.Column="0" FontFamily="Cascadia Mono,Consolas"/>
+            <TextBox x:Name="DirPathBox" Grid.Column="0" FontFamily="{StaticResource FontMono}"/>
             <Button Grid.Column="1" x:Name="BrowseBtn" Content="&#x1F4C1;"
                     Style="{StaticResource IconButton}" Margin="10,0,0,0" Click="Browse_Click"
                     ToolTip="Browse for directory"/>
@@ -139,7 +162,7 @@
                           Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
                           RowBackground="{StaticResource Surface0}" AlternatingRowBackground="#1F1F1F"
                           GridLinesVisibility="None" HeadersVisibility="Column"
-                          FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                          FontFamily="{StaticResource FontMono}" FontSize="11"
                           SelectionMode="Single" RowHeight="28"
                           SelectionChanged="FindingsGrid_SelectionChanged"
                           VerticalScrollBarVisibility="Auto">
@@ -160,7 +183,7 @@
                                             Padding="8,2" HorizontalAlignment="Left" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding SeverityLabel}" Foreground="{Binding SeverityFg}"
                                                    FontSize="10" FontWeight="Bold"
-                                                   FontFamily="Cascadia Mono,Consolas"/>
+                                                   FontFamily="{StaticResource FontBadge}"/>
                                     </Border>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
@@ -182,7 +205,7 @@
                         <TextBlock Text="FINDING DETAILS" FontFamily="{StaticResource FontMono}"
                                    FontSize="11" FontWeight="Medium" Foreground="{StaticResource Phosphor}"
                                    Margin="0,0,0,8"/>
-                        <Button x:Name="OpenAnalyzeBtn" Content="Open PE in Analyze" Style="{StaticResource AccentButton}"
+                        <Button x:Name="OpenAnalyzeBtn" Content="&#x2197;  Open PE in Analyze" Style="{StaticResource AccentButton}"
                                 HorizontalAlignment="Left" Margin="0,0,0,8" Visibility="Collapsed"
                                 Click="OpenInAnalyze_Click"/>
                     </StackPanel>
@@ -195,18 +218,18 @@
                             <TextBlock x:Name="DetailTitle" Foreground="{StaticResource Text}" FontSize="14"
                                        FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,6"/>
                             <TextBlock x:Name="DetailPe" Foreground="{StaticResource Subtext}"
-                                       FontFamily="Cascadia Mono,Consolas" FontSize="10"
+                                       FontFamily="{StaticResource FontMono}" FontSize="10"
                                        TextWrapping="Wrap" Margin="0,0,0,14"/>
 
                             <TextBlock Text="EVIDENCE" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                        FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,4,0,4"/>
                             <TextBlock x:Name="DetailEvidence" Foreground="{StaticResource Text}" FontSize="11"
-                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"/>
 
                             <TextBlock Text="PRIVILEGED CONTEXT" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                        FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,14,0,4"/>
                             <TextBlock x:Name="DetailContext" Foreground="{StaticResource Text}" FontSize="11"
-                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"/>
 
                             <TextBlock Text="EXTRAS" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                        FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,14,0,4"/>
@@ -220,10 +243,10 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0" Text="{Binding Key}"
                                                        Foreground="{StaticResource Overlay}" Margin="0,0,10,0"
-                                                       FontFamily="Cascadia Mono,Consolas" FontSize="10"/>
+                                                       FontFamily="{StaticResource FontMono}" FontSize="10"/>
                                             <TextBlock Grid.Column="1" Text="{Binding Value}"
                                                        Foreground="{StaticResource Text}" FontSize="10"
-                                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"/>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

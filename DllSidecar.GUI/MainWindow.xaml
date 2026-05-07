@@ -26,7 +26,28 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
-        <!-- Nav button: Grid content with icon (fixed 28px) + label (Visibility bound to sidebar state) -->
+        <!-- Sidebar background: subtle vertical gradient from pure black at top to a slightly
+             desaturated dark grey at the bottom — same family as Mantle but with depth cue. -->
+        <LinearGradientBrush x:Key="SidebarBg" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#000000" Offset="0"/>
+            <GradientStop Color="#0E0E12" Offset="0.55"/>
+            <GradientStop Color="#1A1A22" Offset="1"/>
+        </LinearGradientBrush>
+
+        <!-- Nav section band: horizontal gradient that fades from a tinted accent to fully
+             transparent on the right. Used as the backdrop for each section header label
+             (WIZARD / ANALYSIS / GENERATE) so the groups read as visual blocks rather than
+             a uniform list. -->
+        <LinearGradientBrush x:Key="NavSectionBg" StartPoint="0,0.5" EndPoint="1,0.5">
+            <GradientStop Color="#2A3A56" Offset="0"/>
+            <GradientStop Color="#0F1A2E" Offset="0.45"/>
+            <GradientStop Color="#00000000" Offset="1"/>
+        </LinearGradientBrush>
+
+        <!-- Nav button: Grid content with icon (fixed 28px) + label (Visibility bound to sidebar state).
+             Active state driven by Tag="active" — code-behind toggles it on the
+             button matching the current page so the user can see at a glance
+             where they are. -->
         <Style x:Key="NavButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
@@ -47,6 +68,10 @@
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="border" Property="Background" Value="{StaticResource Surface0}"/>
                                 <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="active">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource Surface1}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Phosphor}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -69,9 +94,18 @@
         <Style x:Key="NavGroup" TargetType="TextBlock">
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
-            <Setter Property="Foreground" Value="{StaticResource Overlay}"/>
-            <Setter Property="Margin" Value="12,18,0,6"/>
+            <Setter Property="FontFamily" Value="{StaticResource FontDisplay}"/>
+            <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+            <Setter Property="Margin" Value="0"/>
+        </Style>
+
+        <!-- Wrapper Border style for section headers: paints the gradient band behind the
+             NavGroup label and collapses with the sidebar like the rest of the labels do. -->
+        <Style x:Key="NavSectionBand" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource NavSectionBg}"/>
+            <Setter Property="Margin" Value="6,16,6,4"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="CornerRadius" Value="3"/>
             <Setter Property="Visibility" Value="{Binding IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
         </Style>
 
@@ -133,7 +167,7 @@
         </Grid.ColumnDefinitions>
 
         <!-- ========== Sidebar ========== -->
-        <Border Grid.Column="0" Background="{StaticResource Mantle}"
+        <Border Grid.Column="0" Background="{StaticResource SidebarBg}"
                 BorderBrush="{StaticResource Ring}" BorderThickness="0,0,1,0" Padding="8">
             <DockPanel>
                 <!-- Header (brand + toggle) -->
@@ -145,6 +179,7 @@
                     <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="6,0,0,0"
                                 Visibility="{Binding IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="DllSidecar" FontSize="17" FontWeight="SemiBold"
+                                   FontFamily="{StaticResource FontDisplay}"
                                    Foreground="{StaticResource Text}"/>
                         <TextBlock Text="@tunelko · BugAInters 2026" FontSize="10"
                                    Foreground="{StaticResource Overlay}" Margin="0,2,0,0"/>
@@ -172,8 +207,10 @@
                 <!-- Nav items -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,4">
-                        <TextBlock Text="WIZARD" Style="{StaticResource NavGroup}" Margin="12,0,0,6"/>
-                        <Button Style="{StaticResource NavButton}" Click="NavWizard_Click"
+                        <Border Style="{StaticResource NavSectionBand}" Margin="6,4,6,4">
+                            <TextBlock Text="WIZARD" Style="{StaticResource NavGroup}"/>
+                        </Border>
+                        <Button x:Name="NavBtnWizard" Style="{StaticResource NavButton}" Click="NavWizard_Click"
                                 ToolTip="Research Wizard — guided end-to-end pipeline from input to advisory (Guided or Express)">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x2728;" Style="{StaticResource NavIcon}"/>
@@ -181,70 +218,62 @@
                             </StackPanel>
                         </Button>
 
-                        <TextBlock Text="ANALYSIS" Style="{StaticResource NavGroup}"/>
-                        <Button Style="{StaticResource NavButton}" Click="NavAnalyze_Click" ToolTip="Analyze PE — inspect a single DLL/EXE (exports, signature, flags)">
+                        <Border Style="{StaticResource NavSectionBand}">
+                            <TextBlock Text="ANALYSIS" Style="{StaticResource NavGroup}"/>
+                        </Border>
+                        <Button x:Name="NavBtnAnalyze" Style="{StaticResource NavButton}" Click="NavAnalyze_Click" ToolTip="Analyze PE — inspect a single DLL/EXE (exports, signature, flags)">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F50D;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Analyze PE" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavScan_Click" ToolTip="Scan Directory — find sideload candidates ranked by exploitability">
+                        <Button x:Name="NavBtnScan" Style="{StaticResource NavButton}" Click="NavScan_Click" ToolTip="Scan Directory — find sideload candidates ranked by exploitability">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F4C1;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Scan Directory" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavProcmon_Click" ToolTip="ProcMon CSV — ingest Process Monitor export, correlate with scan">
+                        <Button x:Name="NavBtnProcmon" Style="{StaticResource NavButton}" Click="NavProcmon_Click" ToolTip="ProcMon CSV — ingest Process Monitor export, correlate with scan">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F4CA;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="ProcMon CSV" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavRuntimeTrace_Click" ToolTip="Runtime Trace — live ETW monitoring of DLL load failures (requires admin)">
+                        <Button x:Name="NavBtnRuntime" Style="{StaticResource NavButton}" Click="NavRuntimeTrace_Click" ToolTip="Runtime Trace — live ETW monitoring of DLL load failures (requires admin)">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x23F1;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Runtime Trace" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavInstaller_Click" ToolTip="Installer Extract — statically unpack .msi/.exe without running it">
+                        <Button x:Name="NavBtnInstaller" Style="{StaticResource NavButton}" Click="NavInstaller_Click" ToolTip="Installer Extract — statically unpack .msi/.exe without running it">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F4E5;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Installer Extract" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavPrivesc_Click" ToolTip="Privesc Surface — map SYSTEM services, tasks, autoElevate manifests">
+                        <Button x:Name="NavBtnPrivesc" Style="{StaticResource NavButton}" Click="NavPrivesc_Click" ToolTip="Privesc Surface — map SYSTEM services, tasks, autoElevate manifests">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F510;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Privesc Surface" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
 
-                        <TextBlock Text="GENERATE" Style="{StaticResource NavGroup}"/>
-                        <Button Style="{StaticResource NavButton}" Click="NavTracer_Click" ToolTip="Export Tracer — wrap every export to log which ones the host actually calls">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x1F4DD;" Style="{StaticResource NavIcon}"/>
-                                <TextBlock Text="Export Tracer" Style="{StaticResource NavLabel}"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavProxy_Click" ToolTip="DLL Proxy — forward exports to _orig.dll, fire payload on chosen export">
+                        <Border Style="{StaticResource NavSectionBand}">
+                            <TextBlock Text="GENERATE" Style="{StaticResource NavGroup}"/>
+                        </Border>
+                        <Button x:Name="NavBtnDllTechniques" Style="{StaticResource NavButton}" Click="NavDllTechniques_Click" ToolTip="DLL Techniques — switch between Proxy (forward + fire) and Sideload (DllMain stub)">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x26A1;" Style="{StaticResource NavIcon}"/>
-                                <TextBlock Text="DLL Proxy" Style="{StaticResource NavLabel}"/>
+                                <TextBlock Text="DLL Techniques" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavSideload_Click" ToolTip="DLL Sideload — one-shot stub, no forwarding, payload in DllMain">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x1F4E6;" Style="{StaticResource NavIcon}"/>
-                                <TextBlock Text="DLL Sideload" Style="{StaticResource NavLabel}"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavAdvisory_Click" ToolTip="Advisory — draft a markdown report, preview live, export to PDF">
+                        <Button x:Name="NavBtnAdvisory" Style="{StaticResource NavButton}" Click="NavAdvisory_Click" ToolTip="Advisory — draft a markdown report, preview live, export to PDF">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F4C4;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Advisory" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource NavButton}" Click="NavAdvisoryLibrary_Click" ToolTip="Advisory Library — persisted case archive with disclosure timeline and status tracking">
+                        <Button x:Name="NavBtnAdvisoryLibrary" Style="{StaticResource NavButton}" Click="NavAdvisoryLibrary_Click" ToolTip="Advisory Library — persisted case archive with disclosure timeline and status tracking">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F5C2;" Style="{StaticResource NavIcon}"/>
                                 <TextBlock Text="Library" Style="{StaticResource NavLabel}"/>
@@ -263,7 +292,10 @@
                 <RowDefinition Height="Auto"/>            <!-- 1: menu bar (Tools, status) -->
                 <RowDefinition Height="*" MinHeight="160"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition x:Name="LogRow" Height="160" MinHeight="32"/>
+                <!-- Console panel — starts collapsed (32 = header only). User
+                     drags the splitter to resize; persisted height in UiState.
+                     ConsoleHeight is restored at load and saved on close. -->
+                <RowDefinition x:Name="LogRow" Height="32" MinHeight="32"/>
             </Grid.RowDefinitions>
 
             <!-- Title strip: pure window chrome — drag area + min/max/close. Solid Crust
@@ -307,12 +339,10 @@
                     </LinearGradientBrush>
                 </Border.Background>
                 <DockPanel>
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock x:Name="StatusGcc2" Text="" FontSize="10"
-                                   FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Overlay}"
-                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal">
+                    <!-- Outermost right: Tools & Settings + Help dropdowns. The Popups stay
+                         attached to their PlacementTarget so they don't need to live next
+                         to the buttons in layout order. -->
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,0">
                         <Button x:Name="ToolsDropdown" Click="ToolsDropdown_Click"
                                 ToolTip="Build, Toolkit, Configuration" Cursor="Hand">
                             <Button.Style>
@@ -393,6 +423,86 @@
                                 </StackPanel>
                             </Border>
                         </Popup>
+                        <Button x:Name="HelpDropdown" Click="HelpDropdown_Click"
+                                ToolTip="Help / About" Cursor="Hand" Margin="6,0,0,0">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource Ring}"/>
+                                    <Setter Property="Padding" Value="14,5,12,5"/>
+                                    <Setter Property="FontSize" Value="12"/>
+                                    <Setter Property="FontWeight" Value="Medium"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface1}"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                                                        <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource RingStrong}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x2753;" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBlock Text="Help" VerticalAlignment="Center"/>
+                                <TextBlock Text=" &#x25BE;" FontSize="10" Foreground="{StaticResource Overlay}"
+                                           VerticalAlignment="Center" Margin="6,0,0,0"/>
+                            </StackPanel>
+                        </Button>
+                        <Popup x:Name="HelpPopup" PlacementTarget="{Binding ElementName=HelpDropdown}"
+                               Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                               PopupAnimation="Fade" HorizontalOffset="-2" VerticalOffset="4">
+                            <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource RingStrong}"
+                                    BorderThickness="1" CornerRadius="8" Padding="4,6"
+                                    MinWidth="240">
+                                <Border.Effect>
+                                    <DropShadowEffect ShadowDepth="4" Opacity="0.5" BlurRadius="12"/>
+                                </Border.Effect>
+                                <StackPanel>
+                                    <Button Style="{StaticResource NavButton}" Click="NavReadDocs_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x1F4D6;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Read the docs" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  open repository" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource NavButton}" Click="NavCheckUpdates_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x1F504;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Check for updates" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  coming soon" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Border Height="1" Background="{StaticResource Ring}" Margin="8,4"/>
+                                    <Button Style="{StaticResource NavButton}" Click="NavAbout_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x2139;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="About DllSidecar" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  version, license" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
                     </StackPanel>
                 </DockPanel>
             </Border>
@@ -414,11 +524,11 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
-                            <TextBlock Text="CONSOLE" FontFamily="{StaticResource FontMono}" FontSize="10"
-                                       FontWeight="Medium" Foreground="{StaticResource Subtext}"/>
-                            <TextBlock Text="—" Foreground="{StaticResource Overlay}" Margin="8,0" FontSize="10"/>
-                            <TextBlock x:Name="LogLineCount" Text="0 lines" FontFamily="{StaticResource FontMono}"
-                                       FontSize="10" Foreground="{StaticResource Overlay}"/>
+                            <TextBlock Text="CONSOLE" FontFamily="{StaticResource FontConsole}" FontSize="12"
+                                       FontWeight="Medium" Foreground="{StaticResource Phosphor}"/>
+                            <TextBlock Text="—" Foreground="{StaticResource Overlay}" Margin="8,0" FontSize="12"/>
+                            <TextBlock x:Name="LogLineCount" Text="0 lines" FontFamily="{StaticResource FontConsole}"
+                                       FontSize="12" Foreground="{StaticResource Overlay}"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0">
                             <Button x:Name="LogExpandBtn" Style="{StaticResource SidebarToggleBtn}"
@@ -434,9 +544,11 @@
 
                     <ScrollViewer x:Name="LogScroller" VerticalScrollBarVisibility="Auto">
                         <TextBox x:Name="LogBox" IsReadOnly="True" Background="Transparent"
-                                 Foreground="{StaticResource Subtext}" FontFamily="{StaticResource FontMono}"
-                                 FontSize="11" BorderThickness="0" Padding="14,8"
-                                 TextWrapping="Wrap" AcceptsReturn="True"/>
+                                 Foreground="{StaticResource Phosphor}" FontFamily="{StaticResource FontConsole}"
+                                 FontSize="12" BorderThickness="0" Padding="14,8"
+                                 TextWrapping="Wrap" AcceptsReturn="True"
+                                 CaretBrush="{StaticResource Phosphor}"
+                                 SelectionBrush="{StaticResource Phosphor}" SelectionOpacity="0.25"/>
                     </ScrollViewer>
                 </DockPanel>
             </Border>

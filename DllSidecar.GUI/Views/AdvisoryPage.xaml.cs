@@ -990,6 +990,12 @@ public partial class AdvisoryPage : Page
         // Build a file:// URI for the input HTML
         var uri = new Uri(htmlPath).AbsoluteUri;
 
+        // Dedicated profile dir — without --user-data-dir, --headless=new shares the
+        // user's default profile and silently no-ops (exit 0, no file written) when
+        // the user has Edge/Chrome already running. The profile dir gets removed
+        // after the process exits.
+        var tempProfile = Path.Combine(Path.GetTempPath(), $"dllsidecar-headless-{Guid.NewGuid():N}");
+
         var psi = new System.Diagnostics.ProcessStartInfo
         {
             FileName = chromium,
@@ -999,23 +1005,43 @@ public partial class AdvisoryPage : Page
             CreateNoWindow = true,
         };
         // Chromium headless PDF flags. `headless=new` is the current modern mode (2022+).
-        // `no-pdf-header-footer` removes the date/URL banners that browsers normally add.
         psi.ArgumentList.Add("--headless=new");
         psi.ArgumentList.Add("--disable-gpu");
-        psi.ArgumentList.Add("--no-pdf-header-footer");
         psi.ArgumentList.Add("--no-sandbox");
+        psi.ArgumentList.Add($"--user-data-dir={tempProfile}");
+        // Wait up to 10s of "virtual time" for fonts/scripts to settle before the
+        // print snapshot — avoids blank pages when Markdown highlighters / web fonts
+        // resolve asynchronously.
+        psi.ArgumentList.Add("--virtual-time-budget=10000");
+        psi.ArgumentList.Add("--no-pdf-header-footer");
         psi.ArgumentList.Add($"--print-to-pdf={pdfPath}");
         psi.ArgumentList.Add(uri);
 
-        using var proc = System.Diagnostics.Process.Start(psi)
-            ?? throw new InvalidOperationException("Could not start Chromium");
-
-        await proc.WaitForExitAsync();
-
-        if (proc.ExitCode != 0)
+        try
         {
-            var err = await proc.StandardError.ReadToEndAsync();
-            throw new InvalidOperationException($"Chromium exit {proc.ExitCode}: {err.Trim()}");
+            using var proc = System.Diagnostics.Process.Start(psi)
+                ?? throw new InvalidOperationException("Could not start Chromium");
+
+            await proc.WaitForExitAsync();
+
+            // Capture stderr regardless of exit code — if the file is missing the
+            // log entry is the only diagnostic the user gets.
+            var err = (await proc.StandardError.ReadToEndAsync()).Trim();
+
+            if (proc.ExitCode != 0)
+                throw new InvalidOperationException($"Chromium exit {proc.ExitCode}: {err}");
+
+            if (!string.IsNullOrEmpty(err))
+                Log.Warn("advisory.pdf", $"Chromium stderr (exit 0): {err}");
+        }
+        finally
+        {
+            // Best-effort profile cleanup. Chromium may still hold file handles for
+            // a brief window — swallow IOExceptions and let the next run's GUID
+            // create a fresh dir.
+            try { if (Directory.Exists(tempProfile)) Directory.Delete(tempProfile, true); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
     }
 

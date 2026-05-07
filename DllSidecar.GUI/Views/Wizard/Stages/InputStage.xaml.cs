@@ -20,22 +20,14 @@ public partial class InputStage : System.Windows.Controls.UserControl, IWizardSt
 
         PathBox.Text = _session.InputPath ?? "";
 
-        // Seed entry point + goal toggles from session state (so going Back to Input preserves choices)
+        // Seed entry point from session state (going Back to Input preserves choice).
+        // HuntingGoal lives on WizardPage now (chrome-level) — Input doesn't touch it.
         switch (_session.EntryPoint)
         {
             case WizardEntryPoint.AnalyzeBinary: EntryAnalyze.IsChecked = true; break;
             case WizardEntryPoint.RuntimeTrace:  EntryRuntime.IsChecked = true; break;
             default:                             EntryScan.IsChecked = true; break;
         }
-        switch (_session.HuntingGoal)
-        {
-            case WizardHuntingGoal.LocalPrivesc: GoalPrivesc.IsChecked = true; break;
-            case WizardHuntingGoal.Persistence:  GoalPersist.IsChecked = true; break;
-            default:                             GoalCode.IsChecked = true; break;
-        }
-        GoalCode.Checked    += (_, _) => GoalHint.Text = "Code execution in the user's context — the common case. Survey ranks by exploitability + writable ACLs.";
-        GoalPrivesc.Checked += (_, _) => GoalHint.Text = "Looking for user → SYSTEM. Survey ranks SYSTEM services, AutoElevate manifests, scheduled tasks higher.";
-        GoalPersist.Checked += (_, _) => GoalHint.Text = "Reboot-surviving vectors. Survey favours COM hijacks, writable Program Files, startup folder drops.";
 
         Drop += OnDrop;
         DragEnter += OnDragEnter;
@@ -48,10 +40,8 @@ public partial class InputStage : System.Windows.Controls.UserControl, IWizardSt
 
     public Task<bool> ValidateAndCommit()
     {
-        // Capture goal
-        _session.HuntingGoal = GoalPrivesc.IsChecked == true ? WizardHuntingGoal.LocalPrivesc
-                             : GoalPersist.IsChecked == true ? WizardHuntingGoal.Persistence
-                             : WizardHuntingGoal.ArbitraryCode;
+        // HuntingGoal is captured live by WizardPage's Goal_Changed handler —
+        // no need to commit it here.
 
         // Runtime entry pivots out of the wizard — no path validation, just route.
         if (EntryRuntime.IsChecked == true)

@@ -175,12 +175,6 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
                 "Wizard", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
-        if (_session.CraftMode == GenerationMode.Tracer && _target.Exports.Count == 0)
-        {
-            System.Windows.MessageBox.Show("Tracer wraps every export. With 0 exports there is nothing to wrap — use Sideload.",
-                "Wizard", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return false;
-        }
 
         // Capture ALL UI values on the UI thread before jumping to a worker.
         int payloadIdx = PayloadCombo.SelectedIndex;
@@ -323,6 +317,9 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
 
     private void SelectDefaultMode()
     {
+        // Tracer is intentionally not selectable from the wizard — it lives on the
+        // standalone GENERATE → Export Tracer page for reconnaissance flows. The
+        // wizard restricts itself to the two PoC-final modes.
         if (_target == null || _target.NamedExports == 0)
             _session.CraftMode = GenerationMode.Sideload;
         else
@@ -331,13 +328,15 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
 
     private void UpdateModeTiles()
     {
-        TileTracer.BorderBrush   = _session.CraftMode == GenerationMode.Tracer   ? Phosphor() : Ring();
         TileProxy.BorderBrush    = _session.CraftMode == GenerationMode.Proxy    ? Phosphor() : Ring();
         TileSideload.BorderBrush = _session.CraftMode == GenerationMode.Sideload ? Phosphor() : Ring();
 
-        TileTracer.IsEnabled   = _target != null && _target.Exports.Count > 0;
         TileProxy.IsEnabled    = _target != null && _target.NamedExports > 0;
         TileSideload.IsEnabled = _target != null;
+
+        // If a previously-saved session selected Tracer, demote it to a sane wizard mode.
+        if (_session.CraftMode == GenerationMode.Tracer)
+            _session.CraftMode = TileProxy.IsEnabled ? GenerationMode.Proxy : GenerationMode.Sideload;
 
         bool isProxy = _session.CraftMode == GenerationMode.Proxy;
         bool isSideload = _session.CraftMode == GenerationMode.Sideload;
@@ -394,7 +393,6 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
 
     // ---------- Handlers ----------
 
-    private void TileTracer_Click(object sender, RoutedEventArgs e)   { _session.CraftMode = GenerationMode.Tracer;   UpdateModeTiles(); }
     private void TileProxy_Click(object sender, RoutedEventArgs e)    { _session.CraftMode = GenerationMode.Proxy;    UpdateModeTiles(); }
     private void TileSideload_Click(object sender, RoutedEventArgs e) { _session.CraftMode = GenerationMode.Sideload; UpdateModeTiles(); }
 
@@ -562,6 +560,13 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         };
         if (!string.IsNullOrWhiteSpace(sandboxTargets))
             config.SandboxTargets = sandboxTargets;
+
+        // Pick up MessageBox title/body from Config → Payload Defaults so the
+        // wizard-generated PoCs use the user's customised popup text, not
+        // TemplateConfig's hardcoded fallback.
+        var payloadCfg = ConfigManager.Current.Payload;
+        config.MessageBoxTitle = payloadCfg.MessageBoxTitle;
+        config.MessageBoxBody = payloadCfg.MessageBoxBody;
 
         var baseName = Path.GetFileNameWithoutExtension(_target.Filename);
         var modeLabel = _session.CraftMode.ToString().ToLowerInvariant();

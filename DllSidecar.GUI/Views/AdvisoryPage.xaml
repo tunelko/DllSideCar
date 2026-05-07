@@ -134,7 +134,7 @@
                     <!-- Editor -->
                     <TextBox x:Name="MdEditor" Background="Transparent" Foreground="{StaticResource Text}"
                              BorderThickness="0" Padding="16,12"
-                             FontFamily="Cascadia Mono,Consolas" FontSize="12"
+                             FontFamily="{StaticResource FontMono}" FontSize="12"
                              TextWrapping="NoWrap" AcceptsReturn="True" AcceptsTab="True"
                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                              TextChanged="MdEditor_TextChanged"
@@ -154,7 +154,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" x:Name="FooterStatus" VerticalAlignment="Center"
-                           FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                           FontFamily="{StaticResource FontMono}" FontSize="11"
                            Foreground="{StaticResource Overlay}" TextTrimming="CharacterEllipsis"
                            Text="Ready — analyze a PE first, or the template will fall back to placeholders."/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
@@ -165,7 +165,7 @@
                     <Button x:Name="SaveSourceBtn" Content="Save .md" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" Click="SaveMd_Click"/>
                     <Button x:Name="SaveHtmlBtn" Content="Save HTML" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" Click="SaveHtml_Click"
                             ToolTip="Save a styled HTML file (Markdown only)"/>
-                    <Button Content="Export PDF" Style="{StaticResource AccentButton}" Margin="8,0,0,0" Click="ExportPdf_Click"
+                    <Button Content="&#x21A7;  Export PDF" Style="{StaticResource AccentButton}" Margin="8,0,0,0" Click="ExportPdf_Click"
                             ToolTip="Render directly to PDF — no print dialog, no external tool needed"/>
                 </StackPanel>
             </Grid>

@@ -25,12 +25,6 @@
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
         </Style>
-        <Style x:Key="ModeRadio" TargetType="RadioButton">
-            <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,0,16,0"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
     </Page.Resources>
     <Grid>
     <Grid Margin="28,20,28,16">
@@ -59,28 +53,45 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <!-- EXE · ATTACH — stretches to fill up to the IL/FILTERS column -->
+            <!-- TARGET — stretches to fill up to the IL/FILTERS column -->
             <Border Grid.Column="0" Style="{StaticResource GroupCard}" Margin="0,0,10,0">
                 <StackPanel>
-                    <TextBlock Text="EXE · ATTACH" Style="{StaticResource GroupLabel}" Margin="0,0,0,6"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <RadioButton x:Name="ModeLaunch" Style="{StaticResource ModeRadio}"
-                                     Content="Launch EXE" IsChecked="True"
-                                     Checked="Mode_Changed"/>
-                        <RadioButton x:Name="ModeAttach" Style="{StaticResource ModeRadio}"
-                                     Content="Attach to PID"
-                                     Checked="Mode_Changed"/>
-                    </StackPanel>
+                    <TextBlock Text="TARGET" Style="{StaticResource GroupLabel}" Margin="0,0,0,6"/>
+                    <!-- Segmented mode bar — pills sized to content, hugged
+                         left. Same visual chrome as IL/FILTERS but compact
+                         instead of stretched, since the labels are short and
+                         a full-width bar wastes the rest of the card. -->
+                    <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                            BorderThickness="1" CornerRadius="6" HorizontalAlignment="Left"
+                            Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="ModeLaunch" GroupName="TraceMode"
+                                         Style="{StaticResource SegmentedRadio}"
+                                         Content="Launch" IsChecked="True"
+                                         Checked="Mode_Changed"/>
+                            <RadioButton x:Name="ModeAttach" GroupName="TraceMode"
+                                         Style="{StaticResource SegmentedRadio}"
+                                         Content="Attach"
+                                         Checked="Mode_Changed"/>
+                            <RadioButton x:Name="ModeWatch" GroupName="TraceMode"
+                                         Style="{StaticResource SegmentedRadio}"
+                                         Content="Watch"
+                                         Checked="Mode_Changed"
+                                         ToolTip="Adopt every new process whose name matches. Survives service restarts (PID changes)."/>
+                        </StackPanel>
+                    </Border>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <!-- Target picker swaps per mode (launch path vs PID chip) -->
+                        <!-- Target picker swaps per mode (launch path / PID chip / watch panel) -->
                         <Grid Grid.Column="0">
-                            <TextBox x:Name="TargetBox" FontFamily="Cascadia Mono,Consolas"
+                            <TextBox x:Name="TargetBox" FontFamily="{StaticResource FontMono}"
                                      ToolTip="Path to EXE to launch. Quoted paths with args are parsed automatically."/>
                             <Grid x:Name="AttachPicker" Visibility="Collapsed">
                                 <Border x:Name="PidChip" Visibility="Collapsed"
@@ -89,7 +100,7 @@
                                         HorizontalAlignment="Left" VerticalAlignment="Center">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock x:Name="PidChipText" Foreground="{StaticResource Text}"
-                                                   FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                                   FontFamily="{StaticResource FontMono}" FontSize="11"
                                                    VerticalAlignment="Center"/>
                                         <Button Content="&#x2715;" Click="ClearPid_Click" Background="Transparent"
                                                 BorderThickness="0" Foreground="{StaticResource Overlay}"
@@ -98,8 +109,12 @@
                                     </StackPanel>
                                 </Border>
                             </Grid>
+                            <!-- Watch panel: process name on top, command line below -->
+                            <TextBox x:Name="WatchNameBox" Visibility="Collapsed"
+                                     FontFamily="{StaticResource FontMono}"
+                                     ToolTip="Process name to adopt (e.g. splunkd.exe). Matched case-insensitively, with or without .exe."/>
                         </Grid>
-                        <!-- Action icons: Browse (folder), Pick (list) — visibility per mode -->
+                        <!-- Action icons: Browse (folder), Pick proc (list), Pick service (gear) — visibility per mode -->
                         <Button x:Name="BrowseBtn" Grid.Column="1" Content="&#x1F5C1;"
                                 Style="{StaticResource IconButton}" Margin="8,0,0,0"
                                 Click="Browse_Click" ToolTip="Browse EXE"/>
@@ -107,13 +122,63 @@
                                 Style="{StaticResource IconButton}" Margin="6,0,0,0"
                                 Click="PickProc_Click" ToolTip="Pick process"
                                 Visibility="Collapsed"/>
+                        <Button x:Name="PickSvcBtn" Grid.Column="3" Content="&#x2699;"
+                                Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                                Click="PickSvc_Click" ToolTip="Pick service — fills name + sc stop/start command"
+                                Visibility="Collapsed"/>
+                        <!-- REC badge — visible while ETW session is active. Red dot
+                             pulses 1 → 0.3 → 1 (1s loop, autoreverse) so the user
+                             always sees a clear "we're capturing" cue next to Stop. -->
+                        <StackPanel x:Name="RecBadge" Grid.Column="4" Orientation="Horizontal"
+                                    VerticalAlignment="Center" Margin="10,0,4,0"
+                                    Visibility="Collapsed">
+                            <StackPanel.Resources>
+                                <Storyboard x:Key="RecPulse">
+                                    <DoubleAnimation
+                                        Storyboard.TargetName="RecDot"
+                                        Storyboard.TargetProperty="Opacity"
+                                        From="1.0" To="0.25" Duration="0:0:0.6"
+                                        AutoReverse="True" RepeatBehavior="Forever"/>
+                                </Storyboard>
+                            </StackPanel.Resources>
+                            <Ellipse x:Name="RecDot" Width="10" Height="10" Fill="#FF5B4F"
+                                     VerticalAlignment="Center"/>
+                            <TextBlock Text="REC" Foreground="#FF5B4F"
+                                       FontFamily="{StaticResource FontMono}" FontSize="11" FontWeight="Bold"
+                                       VerticalAlignment="Center" Margin="6,0,0,0"/>
+                        </StackPanel>
                         <!-- Start/Stop — swaps content and tooltip between ▶ and ■ at runtime -->
-                        <Button x:Name="TraceBtn" Grid.Column="3" Content="&#x25B6;"
+                        <Button x:Name="TraceBtn" Grid.Column="5" Content="&#x25B6;"
                                 Style="{StaticResource IconButton}" Margin="6,0,0,0"
                                 Click="Trace_Click" ToolTip="Start trace"/>
                     </Grid>
+                    <!-- Watch mode: trigger CMD + optional MATCH filter on the
+                         same row, labels above their textboxes. CMD gets 2x
+                         the width since shell chains (net stop X & net start X)
+                         are usually longer than the '-s ServiceName' MATCH. -->
+                    <Grid x:Name="WatchCmdRow" Visibility="Collapsed" Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock Text="CMD" Foreground="{StaticResource Phosphor}"
+                                       FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"
+                                       Margin="0,0,0,3"/>
+                            <TextBox x:Name="WatchCmdBox" FontFamily="{StaticResource FontMono}"
+                                     ToolTip="Command line to fire after the ETW session starts. Runs through cmd.exe /c so chaining (sc stop x &amp;&amp; sc start x), pipes, and redirects all work. Leave empty to trigger the target manually."/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="MATCH" Foreground="{StaticResource Phosphor}"
+                                       FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"
+                                       Margin="0,0,0,3"
+                                       ToolTip="Optional: only adopt new processes whose command line contains this substring (case-insensitive). Auto-filled to '-s ServiceName' when picking a svchost-hosted service."/>
+                            <TextBox x:Name="WatchMatchBox" FontFamily="{StaticResource FontMono}"
+                                     ToolTip="Substring required in the new process's command line for the watch to adopt it. Leave empty to match by name only. Typical use: '-s BITS' for svchost-hosted services."/>
+                        </StackPanel>
+                    </Grid>
                     <TextBlock x:Name="ElapsedText" Foreground="{StaticResource Overlay}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                               FontFamily="{StaticResource FontMono}" FontSize="11"
                                Margin="0,6,0,0"/>
                     <!-- Hidden args kept for ParseCommandLine -->
                     <TextBox x:Name="ArgsBox" Visibility="Collapsed" Text=""/>
@@ -224,7 +289,7 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="PROCESS TREE · click to filter" Style="{StaticResource SectionHeader}"/>
                     <TreeView x:Name="ProcessTree" Background="Transparent" BorderThickness="0"
-                              Foreground="{StaticResource Text}" FontFamily="Cascadia Mono,Consolas"
+                              Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}"
                               FontSize="11" SelectedItemChanged="ProcessTree_Selected"
                               ItemContainerStyle="{StaticResource BoxedTreeViewItem}">
                         <TreeView.ItemTemplate>
@@ -258,7 +323,7 @@
                                VerticalAlignment="Center" Margin="0,0,10,0"/>
                     <TextBox x:Name="DllSearchBox" Grid.Column="1"
                              Background="Transparent" BorderThickness="0"
-                             FontFamily="Cascadia Mono,Consolas" FontSize="11" Padding="0,2"
+                             FontFamily="{StaticResource FontMono}" FontSize="11" Padding="0,2"
                              ToolTip="Filter by DLL name, process or directory"
                              TextChanged="DllSearch_Changed"/>
                     <Border x:Name="FilterChip" Grid.Column="2" Visibility="Collapsed"
@@ -267,7 +332,7 @@
                             VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock x:Name="FilterChipText" Foreground="{StaticResource Text}"
-                                       FontFamily="Cascadia Mono,Consolas" FontSize="10"
+                                       FontFamily="{StaticResource FontMono}" FontSize="10"
                                        VerticalAlignment="Center"/>
                             <Button Content="&#x2715;" Click="ClearProcessFilter_Click" Background="Transparent"
                                     BorderThickness="0" Foreground="{StaticResource Overlay}"
@@ -289,7 +354,7 @@
                           Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
                           RowBackground="{StaticResource Surface0}" AlternatingRowBackground="#3B3B52"
                           GridLinesVisibility="None" HeadersVisibility="Column"
-                          FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                          FontFamily="{StaticResource FontMono}" FontSize="11"
                           SelectionMode="Single" RowHeight="26"
                           SelectionChanged="DllGrid_SelectionChanged"
                           VerticalScrollBarVisibility="Auto">
@@ -337,7 +402,7 @@
                             <TextBlock x:Name="DetailTitle" Foreground="{StaticResource Text}" FontSize="14"
                                        FontWeight="Bold" Margin="0,0,0,6"/>
                             <TextBlock x:Name="DetailBody" Foreground="{StaticResource Text}" FontSize="11"
-                                       FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"/>
+                                       FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"/>
 
                             <TextBlock Text="SEARCHED PATHS" Foreground="{StaticResource Blue}"
                                        FontWeight="Bold" FontSize="10" Margin="0,12,0,4"/>
@@ -347,7 +412,7 @@
                                         <Border Background="{StaticResource Surface0}" CornerRadius="3" Padding="8,5" Margin="0,0,0,4">
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Path}" Foreground="{StaticResource Text}"
-                                                           FontFamily="Cascadia Mono,Consolas" FontSize="10" TextWrapping="Wrap"/>
+                                                           FontFamily="{StaticResource FontMono}" FontSize="10" TextWrapping="Wrap"/>
                                                 <TextBlock Text="{Binding Meta}" Foreground="{StaticResource Overlay}"
                                                            FontSize="10" Margin="0,2,0,0"/>
                                             </StackPanel>
@@ -365,7 +430,7 @@
         <Grid Grid.Row="5" Margin="0,10,0,0">
             <TextBlock x:Name="Status" HorizontalAlignment="Left" VerticalAlignment="Center"
                        Foreground="{StaticResource Overlay}" FontSize="12"
-                       Text="Ready. Choose Launch EXE or Attach to PID."/>
+                       Text="Ready. Choose Launch EXE, Attach to PID, or Watch by Name."/>
             <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                 <Button x:Name="ResumeWizardBtn" Content="← Back to Wizard"
                         Style="{StaticResource AccentButton}" Visibility="Collapsed"

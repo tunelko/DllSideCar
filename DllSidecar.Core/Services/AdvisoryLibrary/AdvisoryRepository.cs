@@ -1657,7 +1657,8 @@ CREATE INDEX IF NOT EXISTS ix_links_advisory_kind ON advisory_links(advisory_id,
          cvss_v4_vector, cvss_v4_score, cvss_v4_severity,
          researcher_pgp_fingerprint, researcher_pgp_key_id,
          incibe_ranking_opt_in, incibe_public_display_name,
-         last_template_id)
+         last_template_id,
+         sequence_number)
         VALUES ($id, $created, $updated, $status, $title,
          $vendor, $product, $pversion, $arch,
          $pepath, $pefile, $installdir,

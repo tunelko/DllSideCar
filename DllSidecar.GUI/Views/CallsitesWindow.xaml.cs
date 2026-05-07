@@ -1,0 +1,174 @@
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using DllSidecar.Core.Models;
+using DllSidecar.Core.Services;
+
+namespace DllSidecar.GUI.Views;
+
+/// <summary>
+/// Modal that disassembles a PE on open, lists every call/jmp through the IAT
+/// to a dynamic-loading API, and lets the user filter and copy the results.
+/// </summary>
+public partial class CallsitesWindow : Window
+{
+    private readonly string _pePath;
+    private List<Row> _all = [];
+    private Dictionary<string, int> _trackedImports = new();
+
+    public CallsitesWindow(string pePath, string? archHint = null)
+    {
+        _pePath = pePath;
+        InitializeComponent();
+        Services.WindowChromeHelper.Apply(this, "Callsites — dynamic loader API calls");
+        HeaderTitle.Text = $"Loader-API callsites — {System.IO.Path.GetFileName(pePath)}"
+                           + (string.IsNullOrEmpty(archHint) ? "" : $" ({archHint})");
+        Loaded += (_, _) => Load();
+    }
+
+    private void Load()
+    {
+        try
+        {
+            Status.Text = "Scanning...";
+            var scan = CallsiteScanner.Scan(_pePath);
+            _all = scan.Callsites.Select(s => new Row(s)).ToList();
+            _trackedImports = scan.TrackedImports;
+            ApplyFilter();
+        }
+        catch (NotSupportedException ex)
+        {
+            Status.Text = $"Unsupported: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            Status.Text = $"Scan failed: {ex.GetType().Name}: {ex.Message}";
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        if (Grid == null || FilterBox == null || Status == null) return;
+
+        var q = FilterBox.Text.Trim();
+        IEnumerable<Row> rows = _all;
+        if (q.Length > 0)
+        {
+            rows = rows.Where(r =>
+                r.RvaText.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || r.TargetApi.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || r.TargetModule.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || r.CallerHint.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || r.Disasm.Contains(q, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var visible = rows.OrderBy(r => r.Source.CallRva).ToList();
+        Grid.ItemsSource = visible;
+
+        Status.Text = BuildStatusText(visible.Count);
+    }
+
+    /// <summary>
+    /// Three states the user wants disambiguated:
+    /// 1) callsites > 0 — show count + per-API breakdown.
+    /// 2) callsites == 0 AND tracked imports == 0 — DLL doesn't import any
+    ///    of the tracked loader APIs at all (most service DLLs). Suggest
+    ///    trying a binary that explicitly does dynamic loading.
+    /// 3) callsites == 0 AND tracked imports > 0 — imports exist but are
+    ///    never reached via direct IAT call/jmp. Likely paths: delay-load,
+    ///    GetProcAddress(LoadLibrary), or only referenced from non-executable
+    ///    sections. Surface the tracked imports so the user can confirm.
+    /// </summary>
+    private string BuildStatusText(int visibleCount)
+    {
+        if (_all.Count > 0)
+        {
+            var byApi = _all.GroupBy(r => r.TargetApi).OrderByDescending(g => g.Count())
+                .Select(g => $"{g.Key}={g.Count()}");
+            // Resolved-name count is the actionable signal: how many callsites
+            // we can hand to a sideload audit without the user opening x64dbg.
+            var resolved = _all.Count(r => r.Source.LoadedName != null);
+            var resolvedHint = resolved > 0 ? $" · {resolved} with resolved name" : "";
+            return visibleCount == _all.Count
+                ? $"{_all.Count} callsites · {string.Join(" ", byApi)}{resolvedHint}"
+                : $"{visibleCount} of {_all.Count} callsites match · {string.Join(" ", byApi)}{resolvedHint}";
+        }
+
+        if (_trackedImports.Count == 0)
+            return "0 callsites · no LoadLibrary*/LdrLoadDll/GetModuleHandle* in IAT — this PE doesn't directly import any loader API (try a binary that loads DLLs at runtime)";
+
+        var importsLine = string.Join(" ", _trackedImports
+            .OrderByDescending(kv => kv.Value)
+            .Select(kv => $"{kv.Key}={kv.Value}"));
+        return $"0 callsites · imports tracked: {importsLine} (no direct IAT calls — likely delay-load or GetProcAddress)";
+    }
+
+    private void Filter_Changed(object sender, TextChangedEventArgs e) => ApplyFilter();
+
+    private void Copy_Click(object sender, RoutedEventArgs e)
+    {
+        if (Grid.ItemsSource is not IEnumerable<Row> rows) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("RVA\tOp\tModule\tAPI\tLoaded\tFlags\tCaller\tDisassembly");
+        foreach (var r in rows)
+            sb.AppendLine($"{r.RvaText}\t{r.Mnemonic}\t{r.TargetModule}\t{r.TargetApi}\t{r.LoadedNameText}\t{r.LoadFlagsText}\t{r.CallerHint}\t{r.Disasm}");
+        try
+        {
+            System.Windows.Clipboard.SetText(sb.ToString());
+            Status.Text = "Copied to clipboard";
+        }
+        catch (Exception ex)
+        {
+            Status.Text = $"Copy failed: {ex.Message}";
+        }
+    }
+
+    private void Close_Click(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
+
+    private class Row
+    {
+        public Callsite Source { get; }
+        public string RvaText => $"0x{Source.CallRva:X8}";
+        public string Mnemonic => Source.Mnemonic;
+        public string TargetModule => Source.TargetModule;
+        public string TargetApi => Source.TargetApi;
+        public string CallerHint => Source.CallerHint;
+        public string Disasm => Source.Disasm;
+        // "?" tells the user "we couldn't statically resolve this" — different
+        // from "" because a blank cell reads like "no value", and there always
+        // IS a string here at runtime; we just couldn't see it without sim.
+        public string LoadedNameText => Source.LoadedName ?? "?";
+        public string LoadFlagsText => FormatLoadFlags(Source.LoadFlags);
+        public Row(Callsite c) { Source = c; }
+    }
+
+    /// <summary>
+    /// Render a LoadLibraryEx dwFlags value as a human-readable mask, e.g.
+    /// "0x8 LOAD_WITH_ALTERED_SEARCH_PATH". Caller cares mostly about
+    /// "is this a sideload candidate" which boils down to "no SEARCH_*
+    /// restriction = yes". Bit names from MSDN.
+    /// </summary>
+    private static string FormatLoadFlags(uint? flags)
+    {
+        if (flags == null) return "";
+        var v = flags.Value;
+        if (v == 0) return "0 (search-order)";
+
+        var bits = new List<string>();
+        void Take(uint mask, string name) { if ((v & mask) != 0) { bits.Add(name); v &= ~mask; } }
+        Take(0x00000001, "DONT_RESOLVE_DLL_REFERENCES");
+        Take(0x00000010, "LOAD_IGNORE_CODE_AUTHZ_LEVEL");
+        Take(0x00000002, "LOAD_LIBRARY_AS_DATAFILE");
+        Take(0x00000040, "LOAD_LIBRARY_AS_DATAFILE_EXCLUSIVE");
+        Take(0x00000020, "LOAD_LIBRARY_AS_IMAGE_RESOURCE");
+        Take(0x00001000, "LOAD_LIBRARY_SEARCH_DEFAULT_DIRS");
+        Take(0x00000200, "LOAD_LIBRARY_SEARCH_APPLICATION_DIR");
+        Take(0x00000400, "LOAD_LIBRARY_SEARCH_USER_DIRS");
+        Take(0x00000800, "LOAD_LIBRARY_SEARCH_SYSTEM32");
+        Take(0x00000100, "LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR");
+        Take(0x00000080, "LOAD_LIBRARY_REQUIRE_SIGNED_TARGET");
+        Take(0x00000008, "LOAD_WITH_ALTERED_SEARCH_PATH");
+        var unknown = v != 0 ? $" +0x{v:X}" : "";
+        return $"0x{flags.Value:X} {string.Join("|", bits)}{unknown}";
+    }
+}

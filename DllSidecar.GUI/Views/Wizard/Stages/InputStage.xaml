@@ -40,7 +40,6 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -103,7 +102,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBox x:Name="PathBox" Grid.Column="0"
-                     FontFamily="Cascadia Mono,Consolas" FontSize="12"
+                     FontFamily="{StaticResource FontMono}" FontSize="12"
                      TextChanged="PathBox_Changed"/>
             <Button Grid.Column="1" x:Name="BrowseFileBtn" Content="Browse file..."
                     Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" Click="BrowseFile_Click"/>
@@ -119,7 +118,7 @@
                 <TextBlock Text="RUNTIME TRACE" Foreground="{StaticResource Phosphor}"
                            FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"/>
                 <TextBlock Foreground="{StaticResource Text}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"
-                           Text="Runtime trace lives outside the wizard. Press Continue to jump to the Runtime Trace page. There, launch or attach to your target, then use 'Promote to Scan' to bring the discovered phantoms back into the wizard via the Scan a folder entry."/>
+                           Text="This module runs outside the wizard context. Press Continue to jump to the Runtime Trace page; capture events there, then click 'Promote to Wizard' to bring the discovered phantoms back into this wizard via the Scan stage."/>
             </StackPanel>
         </Border>
 
@@ -138,29 +137,8 @@
             </StackPanel>
         </Border>
 
-        <!-- Hunting-for selector -->
-        <TextBlock Grid.Row="5" Text="HUNTING FOR" Foreground="{StaticResource Blue}"
-                   FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"
-                   Margin="0,8,0,6"/>
-        <StackPanel Grid.Row="6" Orientation="Horizontal">
-            <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
-                    BorderThickness="1" CornerRadius="6" HorizontalAlignment="Left">
-                <StackPanel Orientation="Horizontal">
-                    <RadioButton x:Name="GoalCode" GroupName="Goal"
-                                 Style="{StaticResource SegmentedRadio}" IsChecked="True"
-                                 Content="Arbitrary code (default)"/>
-                    <RadioButton x:Name="GoalPrivesc" GroupName="Goal"
-                                 Style="{StaticResource SegmentedRadio}"
-                                 Content="Local privesc (SYSTEM)"/>
-                    <RadioButton x:Name="GoalPersist" GroupName="Goal"
-                                 Style="{StaticResource SegmentedRadio}"
-                                 Content="Persistence"/>
-                </StackPanel>
-            </Border>
-            <TextBlock x:Name="GoalHint" Margin="14,0,0,0" VerticalAlignment="Center"
-                       FontSize="11" Foreground="{StaticResource Overlay}"
-                       TextWrapping="Wrap" MaxWidth="380"
-                       Text="Code execution in the user's context — the common case. Survey ranks by exploitability + writable ACLs."/>
-        </StackPanel>
+        <!-- HUNTING FOR moved to WizardPage chrome (above the stage content)
+             so the goal is visible across all stages, not buried at the bottom
+             of Input. -->
     </Grid>
 </UserControl>

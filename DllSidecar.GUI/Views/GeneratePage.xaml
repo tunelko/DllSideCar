@@ -13,12 +13,40 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,14">
-            <TextBlock x:Name="PageTitle" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Text}"/>
-            <TextBlock x:Name="PageSubtitle" FontSize="12" Foreground="{StaticResource Overlay}"
-                       Margin="0,4,0,0" TextWrapping="Wrap"/>
-        </StackPanel>
+        <!-- Header: title + subtitle on the left, technique switch on the right.
+             The switch is the single source of truth for which technique we generate;
+             the rest of the form (TARGET EXPORT panel visibility, page title/subtitle)
+             reacts to it. -->
+        <Grid Grid.Row="0" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock x:Name="PageTitle" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+                <TextBlock x:Name="PageSubtitle" FontSize="12" Foreground="{StaticResource Overlay}"
+                           Margin="0,4,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Technique" Foreground="{StaticResource Subtext}" FontSize="11"
+                           VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                        BorderThickness="1" CornerRadius="6">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="ModeProxy" GroupName="DllTechnique"
+                                     Style="{StaticResource SegmentedRadio}"
+                                     Content="Proxy" IsChecked="True"
+                                     Checked="ModeSwitch_Changed"
+                                     ToolTip="Forward all exports to _orig.dll, fire payload from a chosen export"/>
+                        <RadioButton x:Name="ModeSideload" GroupName="DllTechnique"
+                                     Style="{StaticResource SegmentedRadio}"
+                                     Content="Sideload"
+                                     Checked="ModeSwitch_Changed"
+                                     ToolTip="Stub DLL with no forwarding — payload fires from DllMain"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
 
         <!-- DLL picker -->
         <Grid Grid.Row="1" Margin="0,0,0,14">
@@ -32,7 +60,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBox x:Name="DllPathBox" FontFamily="Cascadia Mono,Consolas"/>
+                <TextBox x:Name="DllPathBox" FontFamily="{StaticResource FontMono}"/>
                 <Button Grid.Column="1" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
                         Margin="10,0,0,0" Click="Browse_Click" ToolTip="Browse for target DLL"/>
             </Grid>
@@ -54,14 +82,14 @@
                     <TextBlock Text="DEPLOY + RUN" Foreground="{StaticResource Phosphor}"
                                FontFamily="{StaticResource FontMono}" FontSize="10" FontWeight="Bold"/>
                     <TextBlock x:Name="AutoModeText" Foreground="{StaticResource Phosphor}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="11" Margin="0,4,0,0"
+                               FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,4,0,0"
                                TextWrapping="Wrap" Visibility="Collapsed"/>
                     <!-- Arch override — static scan's majority vote sometimes picks the wrong arch
                          when a dir mixes x86 and x64 importers (MobaXterm's mx86_64b\bin\ mostly x86
                          with a few x64 stragglers). Let the researcher flip it. -->
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0" x:Name="ArchRow" Visibility="Collapsed">
                         <TextBlock Text="Arch:" Foreground="{StaticResource Subtext}"
-                                   FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                   FontFamily="{StaticResource FontMono}" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
                                 BorderThickness="1" CornerRadius="6">
@@ -76,7 +104,7 @@
                         </Border>
                     </StackPanel>
                     <TextBlock x:Name="DeployDropText" Foreground="{StaticResource Subtext}"
-                               FontFamily="Cascadia Mono,Consolas" FontSize="11" Margin="0,6,0,6"
+                               FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,6,0,6"
                                TextWrapping="Wrap"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -85,9 +113,9 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="Host:" Foreground="{StaticResource Subtext}"
-                                   FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                                   FontFamily="{StaticResource FontMono}" FontSize="11"
                                    VerticalAlignment="Center"/>
-                        <TextBox Grid.Column="1" x:Name="HostExeBox" FontFamily="Cascadia Mono,Consolas"
+                        <TextBox Grid.Column="1" x:Name="HostExeBox" FontFamily="{StaticResource FontMono}"
                                  FontSize="11" Padding="6,4"
                                  TextChanged="HostExeBox_Changed"
                                  ToolTip="EXE launched after deploy. Default = IAT importer. Change to the upstream launcher if the importer is an internal binary that doesn't run standalone."/>
@@ -96,7 +124,7 @@
                     </Grid>
                     <TextBlock x:Name="HostWarning" Visibility="Collapsed" Margin="70,4,0,0"
                                Foreground="{StaticResource Yellow}" FontSize="10.5"
-                               FontFamily="Cascadia Mono,Consolas" TextWrapping="Wrap"
+                               FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"
                                Text="⚠ Looks like a temp-extracted path. The real launcher (portable EXE / installer / parent) probably lives elsewhere — override above."/>
                 </StackPanel>
                 <Button Grid.Column="1" Content="Clear" Style="{StaticResource GhostButton}"
@@ -108,13 +136,16 @@
         <!-- Configuration columns + output -->
         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
             <StackPanel>
+                <!-- 3 columns: PAYLOAD/EXPORT/THREAD on the left, EVASION (with TUNING)
+                     in the wider middle, EXECUTION + POST-PROCESSING on the right. -->
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="1*"/>
+                        <ColumnDefinition Width="1.5*"/>
+                        <ColumnDefinition Width="1*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Left column -->
+                    <!-- Col 1: target/payload selection -->
                     <StackPanel Grid.Column="0" Margin="0,0,8,0">
                         <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
                             <StackPanel>
@@ -127,11 +158,11 @@
                                                   ToolTip="Cross-process inject into a less-restricted sibling (e.g. AcroCEF) + CreateProcessA on WinSta0\Default so cmd.exe appears on desktop. Required for AppContainer hosts where WinExec is blocked."/>
                                 </ComboBox>
                                 <TextBox x:Name="PayloadDataBox" Margin="0,8,0,0"
-                                         FontFamily="Cascadia Mono,Consolas" Visibility="Collapsed"
+                                         FontFamily="{StaticResource FontMono}" Visibility="Collapsed"
                                          ToolTip="Command to execute. calc.exe / cmd.exe / cmd.exe /k whoami / full path etc."/>
                                 <StackPanel x:Name="SandboxTargetsPanel" Visibility="Collapsed" Margin="0,8,0,0">
                                     <TextBlock Text="Inject targets (CSV)" Foreground="{StaticResource Subtext}" FontSize="10"/>
-                                    <TextBox x:Name="SandboxTargetsBox" FontFamily="Cascadia Mono,Consolas"
+                                    <TextBox x:Name="SandboxTargetsBox" FontFamily="{StaticResource FontMono}"
                                              Text="AcroCEF.exe,AdobeCollabSync.exe"
                                              ToolTip="Sibling processes to try inject-escape into. Adobe default shown. Office: MsoSync.exe,msoxmlmf.exe. Edge: msedgewebview2.exe. First one that passes OpenProcess + VirtualAllocEx RWX test wins."/>
                                 </StackPanel>
@@ -158,31 +189,64 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- Right column -->
-                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                    <!-- Col 2: evasion (largest, internal 2-col with TUNING mini-card) -->
+                    <StackPanel Grid.Column="1" Margin="8,0,8,0">
                         <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
-                            <StackPanel>
-                                <TextBlock Text="EVASION" Style="{StaticResource SectionHeader}"/>
-                                <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,4"/>
-                                <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,4"/>
-                                <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,4"/>
-                                <Grid Margin="0,10,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="100"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="120"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Delay (ms):" Foreground="{StaticResource Subtext}"
-                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBox Grid.Column="1" x:Name="DelayBox" Text="0"/>
-                                    <TextBlock Grid.Column="2" Text="XOR key:" Foreground="{StaticResource Subtext}"
-                                               VerticalAlignment="Center" Margin="16,0,8,0"/>
-                                    <ComboBox Grid.Column="3" x:Name="XorKeyCombo"/>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
+                            <!-- 2x2 grid mirrors the wizard's CraftStage:
+                                 Row 0 = EVASION + TUNING labels on the same baseline
+                                 Row 1 = boolean toggles | tuning mini-card. -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto" MinWidth="220"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
 
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="EVASION"
+                                           Style="{StaticResource SectionHeader}"
+                                           VerticalAlignment="Bottom"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="TUNING"
+                                           Style="{StaticResource SectionHeader}"
+                                           Margin="20,0,0,8" VerticalAlignment="Bottom"/>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,0">
+                                    <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,5"/>
+                                    <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,5"/>
+                                    <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,5"/>
+                                </StackPanel>
+                                <Border Grid.Row="1" Grid.Column="1" Margin="20,0,0,0"
+                                        Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
+                                        BorderThickness="1" CornerRadius="6" Padding="14,12"
+                                        VerticalAlignment="Top">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="100"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Delay (ms)"
+                                                   Foreground="{StaticResource Subtext}" FontSize="11"
+                                                   VerticalAlignment="Center" Margin="0,0,12,8"/>
+                                        <TextBox Grid.Row="0" Grid.Column="1" x:Name="DelayBox" Text="0"
+                                                 Margin="0,0,0,8" Padding="8,5"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="XOR key"
+                                                   Foreground="{StaticResource Subtext}" FontSize="11"
+                                                   VerticalAlignment="Center" Margin="0,8,12,0"/>
+                                        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="XorKeyCombo" Margin="0,8,0,0"/>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Col 3: post-processing + execution -->
+                    <StackPanel Grid.Column="2" Margin="8,0,0,0">
                         <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
                             <StackPanel>
                                 <TextBlock Text="POST-PROCESSING" Style="{StaticResource SectionHeader}"/>
@@ -251,7 +315,7 @@
                     <StackPanel>
                         <TextBlock Text="GENERATED FILES" Style="{StaticResource SectionHeader}" Foreground="{StaticResource Green}"/>
                         <TextBlock x:Name="OutputInfo" Foreground="{StaticResource Text}"
-                                   FontFamily="Cascadia Mono,Consolas" FontSize="11" TextWrapping="Wrap"/>
+                                   FontFamily="{StaticResource FontMono}" FontSize="11" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -261,7 +325,7 @@
         <Border Grid.Row="4" Background="{StaticResource Mantle}" CornerRadius="6" Padding="16,12" Margin="0,14,0,0">
             <Grid>
                 <TextBlock x:Name="GenStatus" HorizontalAlignment="Left" VerticalAlignment="Center"
-                           FontFamily="Cascadia Mono,Consolas" FontSize="11"
+                           FontFamily="{StaticResource FontMono}" FontSize="11"
                            Foreground="{StaticResource Overlay}" TextTrimming="CharacterEllipsis"/>
                 <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                     <Button Content="Reset to Starter defaults" Style="{StaticResource SecondaryButton}" Click="Reset_Click"
