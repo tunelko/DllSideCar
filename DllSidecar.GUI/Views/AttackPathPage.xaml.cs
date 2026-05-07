@@ -378,15 +378,16 @@ public partial class AttackPathPage : Page
         var (cx, cy) = Polar(CenterX, CenterY, RingMiddle, angleDeg);
         var hasContent = step != null;
         var color = ParseHex(colorHex);
-        var dimColor = ParseHex(colorHex);
-        dimColor.Opacity = 0.35;
+        // ParseHex returns a frozen brush. Build the dim variant from the underlying
+        // Color so we don't try to mutate Opacity on a frozen instance (throws).
+        var dimColor = new SolidColorBrush(color.Color) { Opacity = 0.35 };
 
         // Pill: kind label inside, label + detail outside (radially outward).
         var pill = new Border
         {
             CornerRadius = new CornerRadius(14),
             Padding = new Thickness(10, 4, 10, 4),
-            Background = new SolidColorBrush(((SolidColorBrush)color).Color) { Opacity = hasContent ? 0.18 : 0.05 },
+            Background = new SolidColorBrush(color.Color) { Opacity = hasContent ? 0.18 : 0.05 },
             BorderBrush = hasContent ? color : dimColor,
             BorderThickness = new Thickness(1.5),
             Tag = kindLabel, // used by AnimateReveal to stagger pills in chain order
