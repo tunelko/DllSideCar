@@ -1,11 +1,13 @@
 name: CI
 
 on:
+  # Push triggers are intentionally limited to main: every change to develop
+  # or release/** lands via a pull_request anyway, and that fires its own run.
+  # Triggering on push for those branches duplicated work and the cancelled
+  # twin run polluted the PR's required-status-check rollup.
   push:
     branches:
       - main
-      - develop
-      - 'release/**'
   pull_request:
     branches:
       - main
@@ -17,6 +19,12 @@ on:
 
 permissions:
   contents: read
+
+# Belt-and-braces: even though push no longer fires for develop, this keeps
+# rapid-fire PR synchronize events (e.g. force-pushes) from racing each other.
+concurrency:
+  group: ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 env:
   DOTNET_VERSION: '9.0.x'

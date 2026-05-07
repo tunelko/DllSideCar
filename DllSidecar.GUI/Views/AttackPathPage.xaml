@@ -1,0 +1,119 @@
+<Page x:Class="DllSidecar.GUI.Views.AttackPathPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Background="{StaticResource Base}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header strip: title + source badge + focused-candidate summary -->
+        <Border Grid.Row="0" Background="{StaticResource Mantle}" Padding="28,18">
+            <Border.Effect>
+                <DropShadowEffect Color="#000000" BlurRadius="12" ShadowDepth="0" Opacity="0.5"/>
+            </Border.Effect>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Attack Path" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+                        <Border x:Name="SourceBadge" Background="#33007A8B" Padding="8,2" Margin="14,4,0,0"
+                                CornerRadius="2" VerticalAlignment="Center" Visibility="Collapsed">
+                            <TextBlock x:Name="SourceBadgeText" FontSize="10" FontWeight="Bold"
+                                       Foreground="{StaticResource Phosphor}" Text="FROM SCAN"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="Timeline of the discovery → exploitability flow for the focused candidate"
+                               FontSize="12" Foreground="{StaticResource Overlay}" Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <StackPanel x:Name="FocusSummary" Grid.Column="1" Orientation="Horizontal" Visibility="Collapsed">
+                    <StackPanel HorizontalAlignment="Right" Margin="0,0,16,0">
+                        <TextBlock x:Name="FocusDllName" Text="—" FontFamily="{StaticResource FontMono}"
+                                   FontSize="14" FontWeight="Bold" Foreground="{StaticResource Text}"
+                                   HorizontalAlignment="Right"/>
+                        <TextBlock x:Name="FocusDllPath" Text="" FontFamily="{StaticResource FontMono}"
+                                   FontSize="10" Foreground="{StaticResource Overlay}"
+                                   HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" MaxWidth="380"/>
+                    </StackPanel>
+                    <Border x:Name="SeverityBadge" Padding="10,6" CornerRadius="2"
+                            Background="#33FF5B4F" VerticalAlignment="Center"
+                            Cursor="Hand" MouseLeftButtonUp="SeverityBadge_Click">
+                        <TextBlock x:Name="SeverityBadgeText" Text="—" FontWeight="Bold" FontSize="13"
+                                   Foreground="{StaticResource Red}"/>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Body: empty state OR the timeline grid -->
+        <Grid Grid.Row="1">
+            <!-- Subtle horizontal-band gradient — left phosphor (discovery) bleeds to red
+                 (exploitation) on the right, mirroring the timeline reading direction. -->
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#0A007A8B" Offset="0"/>
+                    <GradientStop Color="#0A0A0A0A" Offset="0.5"/>
+                    <GradientStop Color="#0AFF5B4F" Offset="1"/>
+                </LinearGradientBrush>
+            </Grid.Background>
+
+            <!-- Empty state -->
+            <StackPanel x:Name="EmptyState" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        MaxWidth="520" Visibility="Visible">
+                <TextBlock Text="&#x1F3AF;" FontSize="64" Foreground="{StaticResource Overlay}"
+                           HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                <TextBlock Text="No candidate focused"
+                           FontSize="18" FontWeight="Bold" Foreground="{StaticResource Text}"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="Pick a candidate from the Scan page or a DLL row from a Runtime Trace, then come back here. The timeline will render the chosen candidate's discovery, evidence, privesc, score and chain top-to-bottom."
+                           TextWrapping="Wrap" TextAlignment="Center"
+                           FontSize="12" Foreground="{StaticResource Subtext}"
+                           Margin="0,10,0,16"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button x:Name="GoScanBtn" Content="Open Scan" Style="{StaticResource SecondaryButton}"
+                            Margin="0,0,8,0" Click="GoScan_Click"/>
+                    <Button x:Name="GoRuntimeBtn" Content="Open Runtime Trace" Style="{StaticResource SecondaryButton}"
+                            Click="GoRuntime_Click"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Timeline scroll body -->
+            <ScrollViewer x:Name="TimelineHost" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled" Padding="28,18,28,18"
+                          Visibility="Collapsed">
+                <StackPanel x:Name="TimelineRoot">
+                    <!-- Phase columns row populated by RenderTimeline() -->
+                    <TextBlock Text="EVIDENCE TIMELINE"
+                               FontSize="11" FontWeight="Bold" Foreground="{StaticResource Subtext}"
+                               Margin="2,0,0,8"/>
+                    <Grid x:Name="PhaseGrid" Margin="0,0,0,28">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                    </Grid>
+
+                    <!-- Chain section divider -->
+                    <TextBlock Text="ATTACK CHAIN"
+                               FontSize="11" FontWeight="Bold" Foreground="{StaticResource Subtext}"
+                               Margin="2,0,0,8"/>
+                    <!-- Chain pipe — Canvas so we can draw connector arcs between pills.
+                         Programmatically populated; height is enough for pills + labels. -->
+                    <Border CornerRadius="10" Background="#191919" BorderBrush="#262626" BorderThickness="1"
+                            Padding="20,18,20,18">
+                        <Canvas x:Name="ChainCanvas" Height="120"/>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</Page>

@@ -31,9 +31,10 @@ TestResults/
 *.pem
 
 # ---- Excluded by project policy ----
-# Markdown docs (kept locally, not pushed) — except the public README.
+# Markdown docs (kept locally, not pushed) — except public docs.
 *.md
 !README.md
+!METRICS.md
 # PowerShell helpers (build/ops scripts kept local)
 *.ps1
 # Image assets per policy

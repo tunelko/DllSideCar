@@ -590,6 +590,7 @@ public partial class RuntimeTracePage : Page
         {
             DetailsEmpty.Visibility = Visibility.Visible;
             DetailsContent.Visibility = Visibility.Collapsed;
+            _main.CurrentAttackFocus = null;
             return;
         }
 
@@ -612,6 +613,29 @@ public partial class RuntimeTracePage : Page
             Meta = $"{ev.ProcessName}  (pid {ev.ProcessId})  @ {ev.Timestamp:HH:mm:ss.fff}" +
                    (ev.IsChildOfTarget ? "  [CHILD]" : ""),
         }).ToList();
+
+        // Update AttackPathPage focus. If a scan exists and this DLL name matches
+        // a known candidate, attach it so the chain/score render fully; otherwise
+        // the focus carries DLL name + runtime metadata only and AttackPathPage
+        // falls back to a degraded view.
+        SideloadCandidate? sideMatch = null;
+        PhantomCandidate? phantomMatch = null;
+        if (_main.LastScanResults != null)
+        {
+            sideMatch = _main.LastScanResults.Existing
+                .FirstOrDefault(c => string.Equals(c.Dll.Filename, row.DllName, StringComparison.OrdinalIgnoreCase));
+            if (sideMatch == null)
+                phantomMatch = _main.LastScanResults.Phantoms
+                    .FirstOrDefault(p => string.Equals(p.DllName, row.DllName, StringComparison.OrdinalIgnoreCase));
+        }
+        _main.CurrentAttackFocus = new MainWindow.AttackPathFocus(
+            MainWindow.AttackFocusSource.RuntimeTrace,
+            DllName: row.DllName,
+            DllPath: events.FirstOrDefault()?.FilePath,
+            Candidate: sideMatch,
+            Phantom: phantomMatch,
+            RuntimeProcess: row.ProcessName,
+            RuntimeEventCount: row.EventCount);
     }
 
     private void Promote_Click(object sender, RoutedEventArgs e)

@@ -58,6 +58,22 @@ public partial class MainWindow : Window
     // to update the existing record on "Save to Library" instead of creating a new row.
     public string? PendingAdvisoryRecordId { get; set; }
 
+    // Selection focus consumed by AttackPathPage. ScanPage sets it on row selection
+    // (full SideloadCandidate / PhantomCandidate available); RuntimeTracePage sets
+    // it on row selection (looks up the matching candidate from LastScanResults if
+    // present, otherwise focus carries DLL name + runtime evidence only and the
+    // attack-path renders a degraded view). Null → AttackPathPage shows empty state.
+    public AttackPathFocus? CurrentAttackFocus { get; set; }
+    public enum AttackFocusSource { Scan, RuntimeTrace }
+    public record AttackPathFocus(
+        AttackFocusSource Source,
+        string DllName,
+        string? DllPath,
+        Core.Models.SideloadCandidate? Candidate,
+        Core.Models.PhantomCandidate? Phantom,
+        string? RuntimeProcess = null,
+        int RuntimeEventCount = 0);
+
     // Active renderer id ("markdown" / "incibe" / "ghsa") to restore when reopening an
     // advisory. Without this, AdvisoryPage always boots with Markdown selected and any
     // RerenderEditor() (Template Fields apply, Vendor edit, combo change) silently
@@ -183,6 +199,7 @@ public partial class MainWindow : Window
             RuntimeTracePage           => NavBtnRuntime,
             InstallerPage              => NavBtnInstaller,
             PrivescPage                => NavBtnPrivesc,
+            AttackPathPage             => NavBtnAttackPath,
             GeneratePage               => NavBtnDllTechniques,
             AdvisoryPage               => NavBtnAdvisory,
             AdvisoryLibraryPage        => NavBtnAdvisoryLibrary,
@@ -191,7 +208,7 @@ public partial class MainWindow : Window
         System.Windows.Controls.Button[] all =
         [
             NavBtnWizard, NavBtnAnalyze, NavBtnScan, NavBtnProcmon, NavBtnRuntime,
-            NavBtnInstaller, NavBtnPrivesc, NavBtnDllTechniques, NavBtnAdvisory, NavBtnAdvisoryLibrary
+            NavBtnInstaller, NavBtnPrivesc, NavBtnAttackPath, NavBtnDllTechniques, NavBtnAdvisory, NavBtnAdvisoryLibrary
         ];
         foreach (var b in all) b.Tag = ReferenceEquals(b, active) ? "active" : null;
     }
@@ -284,6 +301,7 @@ public partial class MainWindow : Window
     private void NavDllTechniques_Click(object sender, RoutedEventArgs e) => NavigateTo(new GeneratePage(this));
     private void NavBuild_Click(object sender, RoutedEventArgs e) { ToolsPopup.IsOpen = false; NavigateTo(new BuildPage(this)); }
     private void NavPrivesc_Click(object sender, RoutedEventArgs e) => NavigateTo(new PrivescPage(this));
+    private void NavAttackPath_Click(object sender, RoutedEventArgs e) => NavigateTo(new AttackPathPage(this));
     private void NavAdvisory_Click(object sender, RoutedEventArgs e) => NavigateTo(new AdvisoryPage(this));
     private void NavAdvisoryLibrary_Click(object sender, RoutedEventArgs e) => NavigateTo(new AdvisoryLibraryPage(this));
     private void NavWizard_Click(object sender, RoutedEventArgs e) => NavigateTo(new Views.Wizard.WizardPage(this));

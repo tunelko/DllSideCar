@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="DllSidecar.GUI/Assets/dllsidecar.png" alt="DllSidecar" width="420">
-</p>
+![DllSidecar](DllSidecar.GUI/Assets/dllsidecar.png)
 
 # DllSidecar
 
@@ -15,6 +13,21 @@ The tool targets independent vulnerability researchers who need a
 reproducible end-to-end workflow from "I just installed software X"
 to "I have a complete, vendor-ready advisory packet".
 
+## Disclaimer
+
+DllSidecar is a personal-use research tool built and maintained by the
+author for identifying Windows applications susceptible to DLL
+Sideloading and Proxy Sideloading (CWE-427, CWE-426). It is used in
+day-to-day defensive research to surface potential local privilege
+escalation paths, with the goal of coordinated disclosure to affected
+vendors.
+
+The tool is provided as-is, for lawful security research, authorized
+testing, and educational purposes only. Use against software, systems,
+or environments for which you do not have explicit permission is your
+sole responsibility. The author assumes no liability for misuse or for
+any direct or indirect damage arising from its use.
+
 ## Features
 
 ### Static analysis
@@ -23,10 +36,16 @@ to "I have a complete, vendor-ready advisory packet".
   info, security flags (ASLR, DEP, CFG, SafeSEH).
 - **Sideload candidate scanner**: walks an installation directory,
   identifies signed executables that import unsigned DLLs without
-  absolute paths, and ranks results by exploitability.
+  absolute paths, and ranks results by exploitability via the
+  three-axis [scoring model](METRICS.md).
 - **Phantom DLL detector**: enumerates imports referenced by the IAT
   but not present on disk, the highest-value class of sideload
   candidates.
+- **IAT callsite scanner**: walks `ImageImportDescriptors` →
+  `FirstThunk` to locate where `LoadLibrary` is actually called, and
+  extracts the resolved string argument plus `LoadLibraryEx` flags
+  (`LOAD_LIBRARY_SEARCH_SYSTEM32`, etc.). Distinguishes
+  *no imports* from *imports without observable callsites*.
 - **Directory ACL checker**: flags writable-by-non-admin directories
   that would let a low-privileged user plant a payload.
 
@@ -37,12 +56,28 @@ to "I have a complete, vendor-ready advisory packet".
   surfaces the actual runtime DLL search order.
 - **Live ETW tracer** (admin): real-time monitoring of LoadLibrary
   failures across selected processes, with per-DLL aggregation and a
-  process tree view.
+  process tree view. Supports three modes (Launch / Attach / Watch),
+  command-line filtering for svchost group disambiguation, a Service
+  Picker that auto-fills Watch-by-Name, and a pulsing REC indicator
+  while a session is live.
 - **Installer extraction**: statically unpacks `.msi`, Inno Setup,
   NSIS, and 7-Zip self-extracting executables without execution.
 
+### Privilege escalation surface
+
+- **Service DLL Audit modal**: enumerates installed services, surfaces
+  candidates whose `ImagePath` or `ServiceDll` resolves out of a
+  writable directory, and links each finding back to the candidate
+  scanner.
+- **Privesc detectors**: scheduled tasks (with wrapper resolution to
+  the actual launched binary), services with `ServiceDll`, autoElevate
+  manifests, updater heuristics, and `requireAdministrator` paths.
+
 ### Code generation
 
+- **Unified DLL Techniques page**: single 3-column workflow (PAYLOAD /
+  EVASION / POST-PROC) for Proxy and Sideload modes, mirrored in the
+  guided research wizard.
 - **Export tracer**: wraps every export of a target DLL with a logger
   so the host process tells you which exports it actually calls.
 - **DLL proxy**: forwards exports to a renamed original and fires a
@@ -50,8 +85,17 @@ to "I have a complete, vendor-ready advisory packet".
   syscalls, encrypted strings, and assembly trampolines.
 - **DLL sideload stub**: one-shot non-forwarding payload in `DllMain`
   for phantom and replacement scenarios.
+- **Shellcode payload pattern**: `VirtualAlloc(RW)` →
+  `RtlCopyMemory` → `VirtualProtect(RX)` → `CreateThread` (no RWX
+  region, no direct cast on the calling thread). Mirrored across the
+  default, D/Invoke, and direct-syscall paths.
+- **Sandbox-escape payload**: cross-process inject + remote
+  `CreateProcessA` on `WinSta0\Default` for AppContainer/LOW IL hosts
+  (Acrobat, Office, Edge) where `WinExec` is policy-blocked.
 - **DJB2 hash calculator** with XOR key display for API-hash
   obfuscation work.
+- **Configurable defaults**: MessageBox PoC title and body editable
+  from Configuration → Payload Defaults.
 
 ### Build pipeline
 
@@ -79,12 +123,24 @@ to "I have a complete, vendor-ready advisory packet".
 
 ### Operational
 
+- **Guided research wizard** as the default landing page, with a
+  HUNTING-FOR strip in the chrome and a stage indicator that mirrors
+  the standalone DLL Techniques page.
 - **Self-hardened P/Invokes**: every native import is restricted to
   `System32` via `[assembly: DefaultDllImportSearchPaths]`, so the
   tool itself is not vulnerable to the same class of attack it
   researches.
-- Dark theme, collapsible navigation rail, dockable console, and a
-  guided multi-stage research wizard.
+- Dark theme, collapsible navigation rail with active-page highlight,
+  dockable console panel (collapsed by default, height persisted
+  across sessions), Help → About dialog, native splash screen.
+
+## Scoring model
+
+Candidates are ranked by a three-axis scorer
+(Exploitability / Impact / Confidence) with documented weights and a
+per-axis factor log. See [METRICS.md](METRICS.md) for the full
+breakdown — what each axis measures, every factor and its points, the
+confidence tiers, and the total/severity formula.
 
 ## Architecture
 
@@ -126,18 +182,3 @@ dotnet run --project DllSidecar.GUI
 ```
 dotnet test DllSidecar.Core.Tests/DllSidecar.Core.Tests.csproj --configuration Release
 ```
-
-## Disclaimer
-
-DllSidecar is a personal-use research tool built and maintained by the
-author for identifying Windows applications susceptible to DLL
-Sideloading and Proxy Sideloading (CWE-427, CWE-426). It is used in
-day-to-day defensive research to surface potential local privilege
-escalation paths, with the goal of coordinated disclosure to affected
-vendors.
-
-The tool is provided as-is, for lawful security research, authorized
-testing, and educational purposes only. Use against software, systems,
-or environments for which you do not have explicit permission is your
-sole responsibility. The author assumes no liability for misuse or for
-any direct or indirect damage arising from its use.
