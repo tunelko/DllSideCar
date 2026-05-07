@@ -40,6 +40,11 @@ public partial class AttackPathPage : Page
     private const double RingMiddle = 200;
     private const double RingOuterDecor = 280;
 
+    // Held across renders so the EVIDENCE pulse loop can be re-targeted on each
+    // refresh (and so step 6 can attach hover/click without re-querying the tree).
+    private FrameworkElement? _evidencePill;
+    private System.Windows.Media.Effects.DropShadowEffect? _evidenceGlow;
+
     public AttackPathPage(MainWindow main)
     {
         _main = main;
@@ -102,6 +107,8 @@ public partial class AttackPathPage : Page
     private void RenderDiagram()
     {
         DiagramCanvas.Children.Clear();
+        _evidencePill = null;
+        _evidenceGlow = null;
         if (_focus == null) return;
 
         DrawDecorativeRings();
@@ -112,6 +119,15 @@ public partial class AttackPathPage : Page
         DrawCenterBadge();
         DrawChainNodes();
         DrawOuterCards();
+
+        // Defer animations until layout settles — Opacity/Transform animations
+        // need the elements actually rendered to read correctly.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
+            new Action(() =>
+            {
+                AnimateReveal();
+                MaybeStartEvidencePulse();
+            }));
     }
 
     // ─────────────────── Geometry helpers ───────────────────
@@ -272,14 +288,22 @@ public partial class AttackPathPage : Page
             Fill = ParseHex(bg),
             Stroke = ParseHex(fg),
             StrokeThickness = 2,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            ToolTip = BuildBadgeTooltip(score),
         };
-        disc.Effect = new System.Windows.Media.Effects.DropShadowEffect
+        var badgeGlow = new System.Windows.Media.Effects.DropShadowEffect
         {
             Color = (Color)ColorConverter.ConvertFromString(fg),
             BlurRadius = 18,
             ShadowDepth = 0,
             Opacity = 0.55,
         };
+        disc.Effect = badgeGlow;
+        // Click → open the focused DLL in Analyze (or its phantom importer in
+        // Analyze when the focus is a phantom slot — phantom DLLs have no PE
+        // on disk so we land on the importer instead).
+        disc.MouseLeftButtonUp += (_, _) => OpenFocusInAnalyze();
+        AttachHoverGlow(disc, badgeGlow, baseline: 0.55, hoverPeak: 0.95);
         Canvas.SetLeft(disc, CenterX - RingCenter);
         Canvas.SetTop(disc, CenterY - RingCenter);
         DiagramCanvas.Children.Add(disc);
@@ -365,16 +389,28 @@ public partial class AttackPathPage : Page
             Background = new SolidColorBrush(((SolidColorBrush)color).Color) { Opacity = hasContent ? 0.18 : 0.05 },
             BorderBrush = hasContent ? color : dimColor,
             BorderThickness = new Thickness(1.5),
+            Tag = kindLabel, // used by AnimateReveal to stagger pills in chain order
         };
         if (hasContent)
         {
-            pill.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            var glow = new System.Windows.Media.Effects.DropShadowEffect
             {
                 Color = ((SolidColorBrush)color).Color,
                 BlurRadius = 14,
                 ShadowDepth = 0,
                 Opacity = 0.5,
             };
+            pill.Effect = glow;
+            pill.Cursor = System.Windows.Input.Cursors.Hand;
+            pill.ToolTip = BuildChainStepTooltip(kindLabel, step!);
+            pill.MouseLeftButtonUp += (_, _) => OnChainStepClick(kindLabel, step!);
+            AttachHoverGlow(pill, glow, baseline: 0.5, hoverPeak: 1.0);
+            // Capture EVIDENCE so MaybeStartEvidencePulse can animate the glow.
+            if (kindLabel == "EVIDENCE")
+            {
+                _evidencePill = pill;
+                _evidenceGlow = glow;
+            }
         }
         var pillText = new TextBlock
         {
@@ -533,17 +569,21 @@ public partial class AttackPathPage : Page
     {
         // North = Discovery, East = Static, South = Dynamic, West = Privesc.
         DrawOuterCard("DISCOVERY", "#00F0A3", BuildDiscoveryItems(),
-            x: CenterX - 130, y: 12, w: 260, h: 96);
+            x: CenterX - 130, y: 12, w: 260, h: 96,
+            onClick: () => _main.NavigateTo(new ScanPage(_main)));
         DrawOuterCard("STATIC", "#0A72EF", BuildStaticItems(),
-            x: 720, y: CenterY - 70, w: 168, h: 140);
+            x: 720, y: CenterY - 70, w: 168, h: 140,
+            onClick: OpenFocusInAnalyze);
         DrawOuterCard("DYNAMIC", "#F9E2AF", BuildDynamicItems(),
-            x: CenterX - 130, y: 596, w: 260, h: 96);
+            x: CenterX - 130, y: 596, w: 260, h: 96,
+            onClick: () => _main.NavigateTo(new RuntimeTracePage(_main)));
         DrawOuterCard("PRIVESC", "#FF5B4F", BuildPrivescItems(),
-            x: 12, y: CenterY - 70, w: 168, h: 140);
+            x: 12, y: CenterY - 70, w: 168, h: 140,
+            onClick: () => _main.NavigateTo(new PrivescPage(_main)));
     }
 
     private void DrawOuterCard(string title, string colorHex, IEnumerable<string> items,
-        double x, double y, double w, double h)
+        double x, double y, double w, double h, Action onClick)
     {
         var color = ParseHex(colorHex);
         var card = new Border
@@ -555,14 +595,19 @@ public partial class AttackPathPage : Page
             BorderBrush = color,
             BorderThickness = new Thickness(1),
             Padding = new Thickness(10, 8, 10, 8),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            ToolTip = BuildOuterCardTooltip(title, items),
         };
-        card.Effect = new System.Windows.Media.Effects.DropShadowEffect
+        var cardGlow = new System.Windows.Media.Effects.DropShadowEffect
         {
             Color = ((SolidColorBrush)color).Color,
             BlurRadius = 10,
             ShadowDepth = 0,
             Opacity = 0.18,
         };
+        card.Effect = cardGlow;
+        card.MouseLeftButtonUp += (_, _) => onClick();
+        AttachHoverGlow(card, cardGlow, baseline: 0.18, hoverPeak: 0.55);
 
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock
@@ -691,6 +736,215 @@ public partial class AttackPathPage : Page
                 _ => $"{f.Vector}: ",
             };
             yield return label + (f.Title ?? "");
+        }
+    }
+
+    // ─────────────────── Animation ───────────────────
+
+    /// <summary>
+    /// Staggered fade-in across the diagram so the user reads it in flow order
+    /// rather than all at once. Order: rings (instant) → centre badge → outer
+    /// cards (compass clockwise from N) → score sectors → chain pills (chain
+    /// order WRITE→LOAD→TRIGGER→PRIV→EVIDENCE) → connectors. Each element gets
+    /// its initial opacity to 0 before the storyboard fires so the canvas
+    /// renders blank for one frame and the animation is the first thing the
+    /// user sees.
+    /// </summary>
+    private void AnimateReveal()
+    {
+        // Indexes into kind order so chain pills come in chain-order, not z-order.
+        var pillOrder = new Dictionary<string, int>
+        {
+            ["WRITE"] = 0, ["LOAD"] = 1, ["TRIGGER"] = 2, ["PRIV"] = 3, ["EVIDENCE"] = 4,
+        };
+
+        int cardIdx = 0;
+        foreach (var child in DiagramCanvas.Children.OfType<UIElement>())
+        {
+            // Skip the decorative outer ring ellipses — they fade in instantly with
+            // the canvas itself; animating them adds noise.
+            if (child is Shapes.Ellipse e && e.Fill == null) continue;
+
+            // Pill staggering by chain order.
+            int delayMs = 200; // default for non-categorised elements (sectors, connectors)
+            if (child is Border b && b.Tag is string kind && pillOrder.TryGetValue(kind, out var idx))
+                delayMs = 350 + idx * 90;
+            // Outer cards = Border without Tag, larger than ~150x80 — stagger them.
+            else if (child is Border b2 && b2.Tag == null && b2.Width > 150)
+                delayMs = 100 + (cardIdx++) * 80;
+            // Centre badge: single Ellipse with Fill ≠ null and Stroke ≠ null.
+            else if (child is Shapes.Ellipse el && el.Fill != null) delayMs = 0;
+            // Score sectors and connectors (Path) — slightly later than badge.
+            else if (child is Shapes.Path) delayMs = 250;
+
+            child.Opacity = 0;
+            var anim = new System.Windows.Media.Animation.DoubleAnimation
+            {
+                From = 0,
+                To = 1,
+                Duration = TimeSpan.FromMilliseconds(420),
+                BeginTime = TimeSpan.FromMilliseconds(delayMs),
+                EasingFunction = new System.Windows.Media.Animation.CubicEase
+                    { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut },
+            };
+            child.BeginAnimation(UIElement.OpacityProperty, anim);
+        }
+    }
+
+    /// <summary>
+    /// If the focused candidate has live runtime (or any) evidence, pulse the
+    /// EVIDENCE pill's glow to indicate the chain is dynamically backed.
+    /// Otherwise the pill renders static. The pulse loops until the page is
+    /// navigated away from — Storyboard auto-stops with the visual tree.
+    /// </summary>
+    private void MaybeStartEvidencePulse()
+    {
+        if (_evidenceGlow == null) return;
+        var ev = _focus?.Candidate?.Evidence ?? _focus?.Phantom?.Evidence;
+        if (ev == null && _focus?.Source != MainWindow.AttackFocusSource.RuntimeTrace) return;
+
+        var anim = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            From = 0.5,
+            To = 1.0,
+            Duration = TimeSpan.FromSeconds(1.1),
+            AutoReverse = true,
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+            EasingFunction = new System.Windows.Media.Animation.SineEase
+                { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut },
+        };
+        _evidenceGlow.BeginAnimation(
+            System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, anim);
+    }
+
+    // ─────────────────── Hover / tooltip / click helpers ───────────────────
+
+    /// <summary>Bumps the drop-shadow opacity on hover. Reverts on leave.</summary>
+    private static void AttachHoverGlow(
+        FrameworkElement el,
+        System.Windows.Media.Effects.DropShadowEffect glow,
+        double baseline,
+        double hoverPeak)
+    {
+        el.MouseEnter += (_, _) =>
+        {
+            var anim = new System.Windows.Media.Animation.DoubleAnimation
+            {
+                To = hoverPeak,
+                Duration = TimeSpan.FromMilliseconds(180),
+            };
+            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, anim);
+        };
+        el.MouseLeave += (_, _) =>
+        {
+            var anim = new System.Windows.Media.Animation.DoubleAnimation
+            {
+                To = baseline,
+                Duration = TimeSpan.FromMilliseconds(220),
+            };
+            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, anim);
+        };
+    }
+
+    private static string BuildOuterCardTooltip(string title, IEnumerable<string> items)
+    {
+        var lines = new List<string> { title };
+        var list = items.ToList();
+        if (list.Count == 0) lines.Add("(no signals)");
+        else lines.AddRange(list.Select(it => "  · " + it));
+        lines.Add("");
+        lines.Add("Click to open the related page.");
+        return string.Join("\n", lines);
+    }
+
+    private static string BuildChainStepTooltip(string kindLabel, ChainStep step)
+    {
+        var lines = new List<string>
+        {
+            $"{kindLabel} — {step.Label}",
+        };
+        if (!string.IsNullOrEmpty(step.Detail)) lines.Add(step.Detail);
+        lines.Add("");
+        lines.Add(kindLabel switch
+        {
+            "WRITE"    => "Write primitive — directory ACL drives this step.",
+            "LOAD"     => "Click → open the DLL in Analyze.",
+            "TRIGGER"  => "Click → open the privesc finding source.",
+            "PRIV"     => "Privilege gained when the chain fires.",
+            "EVIDENCE" => "Click → open Runtime Trace.",
+            _ => "",
+        });
+        return string.Join("\n", lines);
+    }
+
+    private string BuildBadgeTooltip(ScoreBreakdown? score)
+    {
+        var lines = new List<string>
+        {
+            _focus?.DllName ?? "—",
+        };
+        if (!string.IsNullOrEmpty(_focus?.DllPath)) lines.Add(_focus!.DllPath!);
+        if (score != null)
+        {
+            lines.Add("");
+            lines.Add($"Total {score.Total}/10 — {score.Severity}");
+            lines.Add($"Exploit {score.Exploitability}/10 · Impact {score.Impact}/10 · Conf {score.Confidence}/10");
+        }
+        lines.Add("");
+        lines.Add("Click to open in Analyze.");
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>
+    /// Open the focused candidate in Analyze. Existing → load the DLL. Phantom →
+    /// load the importer (phantom slots have no PE on disk).
+    /// </summary>
+    private void OpenFocusInAnalyze()
+    {
+        if (_focus == null) return;
+        if (_focus.Candidate != null)
+        {
+            _main.CurrentAnalysis = _focus.Candidate.Dll;
+            _main.CurrentDllPath = _focus.Candidate.Dll.Path;
+            _main.NavigateTo(new AnalyzePage(_main));
+            return;
+        }
+        if (_focus.Phantom != null)
+        {
+            var imp = _focus.Phantom.Importers.FirstOrDefault();
+            if (imp == null) return;
+            _main.CurrentAnalysis = null;
+            _main.CurrentDllPath = imp.ExePath;
+            _main.NavigateTo(new AnalyzePage(_main));
+            return;
+        }
+        // Degraded focus (RuntimeTrace + no scan match): just open Analyze with the path.
+        if (!string.IsNullOrEmpty(_focus.DllPath))
+        {
+            _main.CurrentAnalysis = null;
+            _main.CurrentDllPath = _focus.DllPath;
+            _main.NavigateTo(new AnalyzePage(_main));
+        }
+    }
+
+    private void OnChainStepClick(string kindLabel, ChainStep step)
+    {
+        switch (kindLabel)
+        {
+            case "LOAD":
+                OpenFocusInAnalyze();
+                return;
+            case "EVIDENCE":
+                _main.NavigateTo(new RuntimeTracePage(_main));
+                return;
+            case "TRIGGER":
+            case "PRIV":
+                _main.NavigateTo(new PrivescPage(_main));
+                return;
+            default:
+                // WRITE: no obvious deep-link — surface the detail in the log instead.
+                _main.Log($"[AttackPath] {kindLabel}: {step.Label} — {step.Detail}");
+                return;
         }
     }
 
