@@ -18,6 +18,17 @@ on:
 permissions:
   contents: read
 
+# Dedup: a push to develop (or any PR-targeted branch) AND the corresponding
+# pull_request synchronize event normally fire two parallel runs. The key
+# `head_ref || ref_name` collapses them into the same group — push uses
+# ref_name (e.g. "develop"), pull_request uses head_ref (the PR's source
+# branch, also "develop" for develop→main PRs). cancel-in-progress lets the
+# later trigger (typically the pull_request run) cancel the earlier push run,
+# so only one full set of checks completes per logical change.
+concurrency:
+  group: ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 env:
   DOTNET_VERSION: '9.0.x'
   SOLUTION: 'DllSidecar.sln'
