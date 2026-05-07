@@ -257,6 +257,12 @@
                                 <TextBlock Text="Privesc Surface" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
+                        <Button x:Name="NavBtnAttackPath" Style="{StaticResource NavButton}" Click="NavAttackPath_Click" ToolTip="Attack Path — radial visualization of the discovery → exploitability flow for the focused candidate">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F3AF;" Style="{StaticResource NavIcon}"/>
+                                <TextBlock Text="Attack Path" Style="{StaticResource NavLabel}"/>
+                            </StackPanel>
+                        </Button>
 
                         <Border Style="{StaticResource NavSectionBand}">
                             <TextBlock Text="GENERATE" Style="{StaticResource NavGroup}"/>

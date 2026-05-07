@@ -585,9 +585,19 @@ public partial class ScanPage : Page
 
     private void CandidatesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (CandidatesGrid.SelectedItem is not CandidateRow row) { ClearDetails(); return; }
+        if (CandidatesGrid.SelectedItem is not CandidateRow row) { ClearDetails(); _main.CurrentAttackFocus = null; return; }
         if (row.Existing != null) PopulateExistingDetails(row.Existing);
         else if (row.Phantom != null) PopulatePhantomDetails(row.Phantom);
+        // Make this candidate the focus for AttackPathPage. Phantom path is synthesized
+        // (DirectoryPath + DllName) since phantom slots have no file on disk.
+        var dllPath = row.Existing?.Dll.Path
+            ?? (row.Phantom != null ? Path.Combine(row.Phantom.DirectoryPath, row.Phantom.DllName) : null);
+        _main.CurrentAttackFocus = new MainWindow.AttackPathFocus(
+            MainWindow.AttackFocusSource.Scan,
+            DllName: row.Filename,
+            DllPath: dllPath,
+            Candidate: row.Existing,
+            Phantom: row.Phantom);
     }
 
     private void CandidatesGrid_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
