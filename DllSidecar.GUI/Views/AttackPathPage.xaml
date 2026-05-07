@@ -28,11 +28,10 @@
                                        Foreground="{StaticResource Phosphor}" Text="FROM SCAN"/>
                         </Border>
                     </StackPanel>
-                    <TextBlock Text="Radial visualization of the discovery → exploitability flow for the focused candidate"
+                    <TextBlock Text="Timeline of the discovery → exploitability flow for the focused candidate"
                                FontSize="12" Foreground="{StaticResource Overlay}" Margin="0,4,0,0"/>
                 </StackPanel>
 
-                <!-- Top-right candidate summary (only when focused) -->
                 <StackPanel x:Name="FocusSummary" Grid.Column="1" Orientation="Horizontal" Visibility="Collapsed">
                     <StackPanel HorizontalAlignment="Right" Margin="0,0,16,0">
                         <TextBlock x:Name="FocusDllName" Text="—" FontFamily="{StaticResource FontMono}"
@@ -43,7 +42,8 @@
                                    HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" MaxWidth="380"/>
                     </StackPanel>
                     <Border x:Name="SeverityBadge" Padding="10,6" CornerRadius="2"
-                            Background="#33FF5B4F" VerticalAlignment="Center">
+                            Background="#33FF5B4F" VerticalAlignment="Center"
+                            Cursor="Hand" MouseLeftButtonUp="SeverityBadge_Click">
                         <TextBlock x:Name="SeverityBadgeText" Text="—" FontWeight="Bold" FontSize="13"
                                    Foreground="{StaticResource Red}"/>
                     </Border>
@@ -51,14 +51,16 @@
             </Grid>
         </Border>
 
-        <!-- Canvas host. Empty state covers it when no focus is set. -->
+        <!-- Body: empty state OR the timeline grid -->
         <Grid Grid.Row="1">
-            <!-- Subtle radial gradient background behind the canvas to give the diagram depth. -->
+            <!-- Subtle horizontal-band gradient — left phosphor (discovery) bleeds to red
+                 (exploitation) on the right, mirroring the timeline reading direction. -->
             <Grid.Background>
-                <RadialGradientBrush GradientOrigin="0.5,0.5" Center="0.5,0.5" RadiusX="0.7" RadiusY="0.7">
-                    <GradientStop Color="#15007A8B" Offset="0"/>
-                    <GradientStop Color="#000A0A0A" Offset="1"/>
-                </RadialGradientBrush>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#0A007A8B" Offset="0"/>
+                    <GradientStop Color="#0A0A0A0A" Offset="0.5"/>
+                    <GradientStop Color="#0AFF5B4F" Offset="1"/>
+                </LinearGradientBrush>
             </Grid.Background>
 
             <!-- Empty state -->
@@ -69,7 +71,7 @@
                 <TextBlock Text="No candidate focused"
                            FontSize="18" FontWeight="Bold" Foreground="{StaticResource Text}"
                            HorizontalAlignment="Center"/>
-                <TextBlock Text="Pick a candidate from the Scan page or a DLL row from a Runtime Trace, then come back here. The radial diagram will render the chosen candidate's discovery, evidence, privesc, score and chain in one view."
+                <TextBlock Text="Pick a candidate from the Scan page or a DLL row from a Runtime Trace, then come back here. The timeline will render the chosen candidate's discovery, evidence, privesc, score and chain top-to-bottom."
                            TextWrapping="Wrap" TextAlignment="Center"
                            FontSize="12" Foreground="{StaticResource Subtext}"
                            Margin="0,10,0,16"/>
@@ -81,11 +83,37 @@
                 </StackPanel>
             </StackPanel>
 
-            <!-- Canvas where the radial diagram renders. ViewBox keeps proportions when the
-                 window resizes. Step 3 will populate this with rings + nodes. -->
-            <Viewbox x:Name="DiagramHost" Stretch="Uniform" Margin="24" Visibility="Collapsed">
-                <Canvas x:Name="DiagramCanvas" Width="900" Height="700" Background="Transparent"/>
-            </Viewbox>
+            <!-- Timeline scroll body -->
+            <ScrollViewer x:Name="TimelineHost" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled" Padding="28,18,28,18"
+                          Visibility="Collapsed">
+                <StackPanel x:Name="TimelineRoot">
+                    <!-- Phase columns row populated by RenderTimeline() -->
+                    <TextBlock Text="EVIDENCE TIMELINE"
+                               FontSize="11" FontWeight="Bold" Foreground="{StaticResource Subtext}"
+                               Margin="2,0,0,8"/>
+                    <Grid x:Name="PhaseGrid" Margin="0,0,0,28">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                    </Grid>
+
+                    <!-- Chain section divider -->
+                    <TextBlock Text="ATTACK CHAIN"
+                               FontSize="11" FontWeight="Bold" Foreground="{StaticResource Subtext}"
+                               Margin="2,0,0,8"/>
+                    <!-- Chain pipe — Canvas so we can draw connector arcs between pills.
+                         Programmatically populated; height is enough for pills + labels. -->
+                    <Border CornerRadius="10" Background="#191919" BorderBrush="#262626" BorderThickness="1"
+                            Padding="20,18,20,18">
+                        <Canvas x:Name="ChainCanvas" Height="120"/>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </Page>

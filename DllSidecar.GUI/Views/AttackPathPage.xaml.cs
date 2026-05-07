@@ -14,36 +14,32 @@ using HAlign = System.Windows.HorizontalAlignment;
 namespace DllSidecar.GUI.Views;
 
 /// <summary>
-/// Radial visualization of the full discovery → exploitability flow for the
-/// candidate currently focused in MainWindow.CurrentAttackFocus.
+/// Horizontal timeline visualization of the discovery → exploitability flow
+/// for the candidate currently focused in MainWindow.CurrentAttackFocus.
 ///
-/// Layout (Canvas 900×700, centred at 450,350):
-///   • Outer cards at compass positions (N=Discovery, E=Static, S=Dynamic, W=Privesc)
-///   • Middle ring (r=200): 5 chain step nodes at angles 0°/72°/144°/216°/288°
-///       — convention: 0° = 12 o'clock, increasing clockwise.
-///   • Inner ring (r≈90..130): annular sectors per scoring axis (Exploit 50%,
-///       Impact 30%, Confidence 20%), starting at 0° going clockwise.
-///   • Center badge (r=60): Total / Severity / DLL name.
+/// Layout:
+///   • Header strip (in XAML) — title, source badge, candidate identity, severity badge
+///   • Phase row (PhaseGrid) — 5 columns: Discovery / Static / Dynamic / Privesc / Score
+///       each is a small evidence card with bullet items, click → deep-link to source
+///   • Attack chain (ChainCanvas) — 5 pills laid out horizontally with connector arrows:
+///       WRITE → LOAD → TRIGGER → PRIV → EVIDENCE
+///       chain-coloured glow, EVIDENCE pulses when DynamicEvidence is attached
 ///
-/// Connectors, hover/click, and animation land in subsequent steps.
+/// Reveal animation:
+///   • Phase columns slide-up + fade-in left-to-right (80ms stagger)
+///   • Chain pills appear in chain order (100ms stagger, starting after phases)
+///   • Connector lines fade in last
+///   • Hover bumps drop-shadow opacity. Click routes to relevant deep-link.
 /// </summary>
 public partial class AttackPathPage : Page
 {
     private readonly MainWindow _main;
     private MainWindow.AttackPathFocus? _focus;
 
-    private const double CenterX = 450;
-    private const double CenterY = 350;
-    private const double RingCenter = 60;
-    private const double RingInnerLo = 90;
-    private const double RingInnerHi = 130;
-    private const double RingMiddle = 200;
-    private const double RingOuterDecor = 280;
-
-    // Held across renders so the EVIDENCE pulse loop can be re-targeted on each
-    // refresh (and so step 6 can attach hover/click without re-querying the tree).
+    // Held across renders so MaybeStartEvidencePulse can re-target on each refresh.
     private FrameworkElement? _evidencePill;
     private System.Windows.Media.Effects.DropShadowEffect? _evidenceGlow;
+    private bool _chainResizeWired;
 
     public AttackPathPage(MainWindow main)
     {
@@ -58,14 +54,14 @@ public partial class AttackPathPage : Page
         if (_focus == null)
         {
             EmptyState.Visibility = Visibility.Visible;
-            DiagramHost.Visibility = Visibility.Collapsed;
+            TimelineHost.Visibility = Visibility.Collapsed;
             FocusSummary.Visibility = Visibility.Collapsed;
             SourceBadge.Visibility = Visibility.Collapsed;
             return;
         }
 
         EmptyState.Visibility = Visibility.Collapsed;
-        DiagramHost.Visibility = Visibility.Visible;
+        TimelineHost.Visibility = Visibility.Visible;
         FocusSummary.Visibility = Visibility.Visible;
         SourceBadge.Visibility = Visibility.Visible;
 
@@ -83,14 +79,7 @@ public partial class AttackPathPage : Page
         if (score != null)
         {
             SeverityBadgeText.Text = $"{score.Total}/10  {score.Severity.ToUpperInvariant()}";
-            var (bg, fg) = score.Severity switch
-            {
-                "Critical" => ("#33FF5B4F", "#FF5B4F"),
-                "High"     => ("#33F5A524", "#F5A524"),
-                "Medium"   => ("#330A72EF", "#0A72EF"),
-                "Low"      => ("#3300CA4E", "#00CA4E"),
-                _          => ("#33737373", "#737373"),
-            };
+            var (bg, fg) = SeverityColors(score.Severity);
             SeverityBadge.Background = ParseHex(bg);
             SeverityBadgeText.Foreground = ParseHex(fg);
         }
@@ -101,27 +90,27 @@ public partial class AttackPathPage : Page
             SeverityBadgeText.Foreground = ParseHex("#737373");
         }
 
-        RenderDiagram();
+        RenderTimeline();
     }
 
-    private void RenderDiagram()
+    private void RenderTimeline()
     {
-        DiagramCanvas.Children.Clear();
         _evidencePill = null;
         _evidenceGlow = null;
-        if (_focus == null) return;
 
-        DrawDecorativeRings();
-        DrawScoreSectors();
-        // Connectors run beneath the chain pills + centre badge so the latter
-        // visually "land on top of" their incoming evidence lines.
-        DrawConnectors();
-        DrawCenterBadge();
-        DrawChainNodes();
-        DrawOuterCards();
+        DrawPhaseColumns();
+        LayoutChainCanvas();
+        if (!_chainResizeWired)
+        {
+            // Pills + connectors are positioned by absolute canvas coordinates so they
+            // need re-layout on width changes. SizeChanged is the right trigger; first
+            // pass also fires during the initial layout so the diagram appears.
+            ChainCanvas.SizeChanged += (_, _) => LayoutChainCanvas();
+            _chainResizeWired = true;
+        }
 
-        // Defer animations until layout settles — Opacity/Transform animations
-        // need the elements actually rendered to read correctly.
+        // Defer animations until layout settles — the columns + chain pills must be
+        // measured before the opacity-from-zero animations look right.
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
             new Action(() =>
             {
@@ -130,519 +119,103 @@ public partial class AttackPathPage : Page
             }));
     }
 
-    // ─────────────────── Geometry helpers ───────────────────
+    // ─────────────────── Phase columns ───────────────────
 
-    /// <summary>Polar to canvas. 0° = 12 o'clock, increasing clockwise.</summary>
-    private static (double X, double Y) Polar(double cx, double cy, double r, double angleDeg)
+    private record Phase(string Title, string ColorHex, IEnumerable<string> Items, Action OnClick, bool IsScore = false);
+
+    private void DrawPhaseColumns()
     {
-        var rad = angleDeg * Math.PI / 180.0;
-        return (cx + r * Math.Sin(rad), cy - r * Math.Cos(rad));
-    }
+        PhaseGrid.Children.Clear();
 
-    private static SolidColorBrush ParseHex(string hex)
-    {
-        var b = (SolidColorBrush)new BrushConverter().ConvertFromString(hex)!;
-        b.Freeze();
-        return b;
-    }
-
-    /// <summary>
-    /// Build an annular sector path figure (donut wedge) from <paramref name="angleA"/> to
-    /// <paramref name="angleB"/> (CW, both in our 0°=top convention) bounded by
-    /// <paramref name="rIn"/> and <paramref name="rOut"/> radii.
-    /// </summary>
-    private static PathFigure AnnularSector(
-        double cx, double cy, double rIn, double rOut, double angleA, double angleB)
-    {
-        var (sxOut, syOut) = Polar(cx, cy, rOut, angleA);
-        var (exOut, eyOut) = Polar(cx, cy, rOut, angleB);
-        var (exIn,  eyIn)  = Polar(cx, cy, rIn,  angleB);
-        var (sxIn,  syIn)  = Polar(cx, cy, rIn,  angleA);
-        var isLarge = (angleB - angleA) > 180.0;
-
-        var fig = new PathFigure { StartPoint = new Point(sxOut, syOut), IsClosed = true };
-        fig.Segments.Add(new ArcSegment(new Point(exOut, eyOut), new Size(rOut, rOut), 0, isLarge, SweepDirection.Clockwise, true));
-        fig.Segments.Add(new LineSegment(new Point(exIn, eyIn), true));
-        fig.Segments.Add(new ArcSegment(new Point(sxIn, syIn), new Size(rIn, rIn), 0, isLarge, SweepDirection.Counterclockwise, true));
-        return fig;
-    }
-
-    // ─────────────────── Draw: decorative rings ───────────────────
-
-    private void DrawDecorativeRings()
-    {
-        // Three faint guide rings give the diagram visual structure. Stroke only.
-        foreach (var r in new[] { RingOuterDecor, RingMiddle, RingInnerHi })
+        var phases = new[]
         {
-            var ring = new Shapes.Ellipse
-            {
-                Width = r * 2,
-                Height = r * 2,
-                Stroke = ParseHex("#22FFFFFF"),
-                StrokeThickness = 1,
-                Fill = null,
-                IsHitTestVisible = false,
-            };
-            Canvas.SetLeft(ring, CenterX - r);
-            Canvas.SetTop(ring, CenterY - r);
-            DiagramCanvas.Children.Add(ring);
+            new Phase("DISCOVERY", "#00F0A3", BuildDiscoveryItems(),
+                () => _main.NavigateTo(new ScanPage(_main))),
+            new Phase("STATIC",    "#0A72EF", BuildStaticItems(),
+                OpenFocusInAnalyze),
+            new Phase("DYNAMIC",   "#F9E2AF", BuildDynamicItems(),
+                () => _main.NavigateTo(new RuntimeTracePage(_main))),
+            new Phase("PRIVESC",   "#FF5B4F", BuildPrivescItems(),
+                () => _main.NavigateTo(new PrivescPage(_main))),
+            new Phase("SCORE",     "#CBA6F7", BuildScoreItems(),
+                OpenFocusInAnalyze, IsScore: true),
+        };
+
+        for (int i = 0; i < phases.Length; i++)
+        {
+            var card = BuildPhaseCard(phases[i]);
+            card.Margin = new Thickness(i == 0 ? 0 : 6, 0, i == phases.Length - 1 ? 0 : 6, 0);
+            Grid.SetColumn(card, i);
+            PhaseGrid.Children.Add(card);
         }
     }
 
-    // ─────────────────── Draw: score sectors (inner ring) ───────────────────
-
-    private void DrawScoreSectors()
+    private Border BuildPhaseCard(Phase phase)
     {
-        var score = _focus?.Candidate?.Score ?? _focus?.Phantom?.Score;
-        if (score == null)
-        {
-            // Degraded view — just draw a faint ring with "no score" hint.
-            var ph = new TextBlock
-            {
-                Text = "(no scored candidate — pick one from Scan)",
-                Foreground = ParseHex("#737373"),
-                FontSize = 11,
-                IsHitTestVisible = false,
-            };
-            ph.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            Canvas.SetLeft(ph, CenterX - ph.DesiredSize.Width / 2);
-            Canvas.SetTop(ph, CenterY + RingInnerHi + 4);
-            DiagramCanvas.Children.Add(ph);
-            return;
-        }
-
-        // Sweep allocation matches the weighted Total formula. CW from 12 o'clock.
-        // Exploit dominates visually, mirroring its 50% weight.
-        var segments = new[]
-        {
-            (Label: "EXPLOIT", Value: score.Exploitability, Sweep: 180.0, Color: "#00F0A3"),
-            (Label: "IMPACT",  Value: score.Impact,         Sweep: 108.0, Color: "#FF5B4F"),
-            (Label: "CONF",    Value: score.Confidence,     Sweep:  72.0, Color: "#0A72EF"),
-        };
-
-        double cursor = 0;
-        foreach (var s in segments)
-        {
-            var endAngle = cursor + s.Sweep;
-            var fig = AnnularSector(CenterX, CenterY, RingInnerLo, RingInnerHi, cursor, endAngle - 0.5);
-            var geo = new PathGeometry();
-            geo.Figures.Add(fig);
-
-            var path = new Shapes.Path
-            {
-                Data = geo,
-                Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(s.Color)) { Opacity = 0.22 },
-                Stroke = ParseHex(s.Color),
-                StrokeThickness = 1.2,
-            };
-            DiagramCanvas.Children.Add(path);
-
-            // Sector label: positioned slightly outside the inner ring at the centre angle.
-            var midAngle = cursor + s.Sweep / 2;
-            var (lx, ly) = Polar(CenterX, CenterY, (RingInnerLo + RingInnerHi) / 2, midAngle);
-
-            var stack = new StackPanel { HorizontalAlignment = HAlign.Center };
-            stack.Children.Add(new TextBlock
-            {
-                Text = s.Label,
-                FontSize = 9,
-                FontWeight = FontWeights.Bold,
-                Foreground = ParseHex(s.Color),
-                HorizontalAlignment = HAlign.Center,
-            });
-            stack.Children.Add(new TextBlock
-            {
-                Text = $"{s.Value}/10",
-                FontSize = 13,
-                FontWeight = FontWeights.Bold,
-                Foreground = ParseHex("#EDEDED"),
-                HorizontalAlignment = HAlign.Center,
-            });
-            stack.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            Canvas.SetLeft(stack, lx - stack.DesiredSize.Width / 2);
-            Canvas.SetTop(stack, ly - stack.DesiredSize.Height / 2);
-            DiagramCanvas.Children.Add(stack);
-
-            cursor = endAngle;
-        }
-    }
-
-    // ─────────────────── Draw: centre badge ───────────────────
-
-    private void DrawCenterBadge()
-    {
-        var score = _focus?.Candidate?.Score ?? _focus?.Phantom?.Score;
-        var (bg, fg) = score?.Severity switch
-        {
-            "Critical" => ("#22FF5B4F", "#FF5B4F"),
-            "High"     => ("#22F5A524", "#F5A524"),
-            "Medium"   => ("#220A72EF", "#0A72EF"),
-            "Low"      => ("#2200CA4E", "#00CA4E"),
-            _          => ("#22737373", "#737373"),
-        };
-
-        var disc = new Shapes.Ellipse
-        {
-            Width = RingCenter * 2,
-            Height = RingCenter * 2,
-            Fill = ParseHex(bg),
-            Stroke = ParseHex(fg),
-            StrokeThickness = 2,
-            Cursor = System.Windows.Input.Cursors.Hand,
-            ToolTip = BuildBadgeTooltip(score),
-        };
-        var badgeGlow = new System.Windows.Media.Effects.DropShadowEffect
-        {
-            Color = (Color)ColorConverter.ConvertFromString(fg),
-            BlurRadius = 18,
-            ShadowDepth = 0,
-            Opacity = 0.55,
-        };
-        disc.Effect = badgeGlow;
-        // Click → open the focused DLL in Analyze (or its phantom importer in
-        // Analyze when the focus is a phantom slot — phantom DLLs have no PE
-        // on disk so we land on the importer instead).
-        disc.MouseLeftButtonUp += (_, _) => OpenFocusInAnalyze();
-        AttachHoverGlow(disc, badgeGlow, baseline: 0.55, hoverPeak: 0.95);
-        Canvas.SetLeft(disc, CenterX - RingCenter);
-        Canvas.SetTop(disc, CenterY - RingCenter);
-        DiagramCanvas.Children.Add(disc);
-
-        var stack = new StackPanel { HorizontalAlignment = HAlign.Center };
-        stack.Children.Add(new TextBlock
-        {
-            Text = score != null ? $"{score.Total}" : "—",
-            FontSize = 30,
-            FontWeight = FontWeights.Bold,
-            Foreground = ParseHex(fg),
-            HorizontalAlignment = HAlign.Center,
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = score?.Severity.ToUpperInvariant() ?? "DEGRADED",
-            FontSize = 9,
-            FontWeight = FontWeights.Bold,
-            Foreground = ParseHex(fg),
-            HorizontalAlignment = HAlign.Center,
-            Margin = new Thickness(0, -4, 0, 0),
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = TruncateMid(_focus?.DllName ?? "?", 18),
-            FontFamily = (FontFamily)FindResource("FontMono"),
-            FontSize = 9,
-            Foreground = ParseHex("#A1A1A1"),
-            HorizontalAlignment = HAlign.Center,
-            Margin = new Thickness(0, 4, 0, 0),
-        });
-        stack.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        Canvas.SetLeft(stack, CenterX - stack.DesiredSize.Width / 2);
-        Canvas.SetTop(stack, CenterY - stack.DesiredSize.Height / 2);
-        DiagramCanvas.Children.Add(stack);
-    }
-
-    private static string TruncateMid(string s, int max)
-    {
-        if (string.IsNullOrEmpty(s) || s.Length <= max) return s;
-        var keep = max - 1;
-        var head = keep / 2;
-        var tail = keep - head;
-        return s[..head] + "…" + s[^tail..];
-    }
-
-    // ─────────────────── Draw: chain step nodes (middle ring) ───────────────────
-
-    private void DrawChainNodes()
-    {
-        var priv = _focus?.Candidate?.Privesc ?? _focus?.Phantom?.Privesc;
-        var steps = priv?.ChainSteps;
-
-        var slots = new[]
-        {
-            (Kind: ChainStepKind.WritePrimitive,  Angle:   0.0, Label: "WRITE",    Color: "#F9E2AF"),
-            (Kind: ChainStepKind.LoadVector,      Angle:  72.0, Label: "LOAD",     Color: "#0A72EF"),
-            (Kind: ChainStepKind.Trigger,         Angle: 144.0, Label: "TRIGGER",  Color: "#CBA6F7"),
-            (Kind: ChainStepKind.Privilege,       Angle: 216.0, Label: "PRIV",     Color: "#FF5B4F"),
-            (Kind: ChainStepKind.RuntimeEvidence, Angle: 288.0, Label: "EVIDENCE", Color: "#00F0A3"),
-        };
-
-        foreach (var slot in slots)
-        {
-            var step = steps?.FirstOrDefault(s => s.Kind == slot.Kind);
-            DrawChainNode(slot.Angle, slot.Label, slot.Color, step);
-        }
-    }
-
-    private void DrawChainNode(double angleDeg, string kindLabel, string colorHex, ChainStep? step)
-    {
-        var (cx, cy) = Polar(CenterX, CenterY, RingMiddle, angleDeg);
-        var hasContent = step != null;
-        var color = ParseHex(colorHex);
-        // ParseHex returns a frozen brush. Build the dim variant from the underlying
-        // Color so we don't try to mutate Opacity on a frozen instance (throws).
-        var dimColor = new SolidColorBrush(color.Color) { Opacity = 0.35 };
-
-        // Pill: kind label inside, label + detail outside (radially outward).
-        var pill = new Border
-        {
-            CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(10, 4, 10, 4),
-            Background = new SolidColorBrush(color.Color) { Opacity = hasContent ? 0.18 : 0.05 },
-            BorderBrush = hasContent ? color : dimColor,
-            BorderThickness = new Thickness(1.5),
-            Tag = kindLabel, // used by AnimateReveal to stagger pills in chain order
-        };
-        if (hasContent)
-        {
-            var glow = new System.Windows.Media.Effects.DropShadowEffect
-            {
-                Color = ((SolidColorBrush)color).Color,
-                BlurRadius = 14,
-                ShadowDepth = 0,
-                Opacity = 0.5,
-            };
-            pill.Effect = glow;
-            pill.Cursor = System.Windows.Input.Cursors.Hand;
-            pill.ToolTip = BuildChainStepTooltip(kindLabel, step!);
-            pill.MouseLeftButtonUp += (_, _) => OnChainStepClick(kindLabel, step!);
-            AttachHoverGlow(pill, glow, baseline: 0.5, hoverPeak: 1.0);
-            // Capture EVIDENCE so MaybeStartEvidencePulse can animate the glow.
-            if (kindLabel == "EVIDENCE")
-            {
-                _evidencePill = pill;
-                _evidenceGlow = glow;
-            }
-        }
-        var pillText = new TextBlock
-        {
-            Text = kindLabel,
-            FontSize = 10,
-            FontWeight = FontWeights.Bold,
-            Foreground = hasContent ? color : dimColor,
-        };
-        pill.Child = pillText;
-        pill.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        Canvas.SetLeft(pill, cx - pill.DesiredSize.Width / 2);
-        Canvas.SetTop(pill, cy - pill.DesiredSize.Height / 2);
-        DiagramCanvas.Children.Add(pill);
-
-        if (!hasContent)
-        {
-            // Ghost node — render a tiny "—" hint just outward of the pill so the user sees
-            // the slot exists but no chain data is bound. Keep it discreet.
-            var hint = new TextBlock
-            {
-                Text = "—",
-                FontSize = 10,
-                Foreground = ParseHex("#5A5A5A"),
-            };
-            var (hx, hy) = Polar(CenterX, CenterY, RingMiddle + 28, angleDeg);
-            hint.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            Canvas.SetLeft(hint, hx - hint.DesiredSize.Width / 2);
-            Canvas.SetTop(hint, hy - hint.DesiredSize.Height / 2);
-            DiagramCanvas.Children.Add(hint);
-            return;
-        }
-
-        // Step Label + Detail rendered in a small panel positioned radially outward
-        // from the pill. The panel hugs the centre line of the angle but is nudged
-        // outward by ~36px so it doesn't overlap the pill itself.
-        var detailPanel = new StackPanel { MaxWidth = 160 };
-        detailPanel.Children.Add(new TextBlock
-        {
-            Text = step!.Label ?? "",
-            FontSize = 11,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = ParseHex("#EDEDED"),
-            TextAlignment = TextAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-        });
-        if (!string.IsNullOrEmpty(step.Detail))
-        {
-            detailPanel.Children.Add(new TextBlock
-            {
-                Text = step.Detail,
-                FontSize = 9,
-                Foreground = ParseHex("#A1A1A1"),
-                TextAlignment = TextAlignment.Center,
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 1, 0, 0),
-            });
-        }
-        var (dx, dy) = Polar(CenterX, CenterY, RingMiddle + 38, angleDeg);
-        detailPanel.Measure(new Size(160, double.PositiveInfinity));
-        Canvas.SetLeft(detailPanel, dx - detailPanel.DesiredSize.Width / 2);
-        Canvas.SetTop(detailPanel, dy - detailPanel.DesiredSize.Height / 2);
-        DiagramCanvas.Children.Add(detailPanel);
-    }
-
-    // ─────────────────── Draw: Bezier connectors ───────────────────
-
-    /// <summary>
-    /// Subtle Bezier flows from each outer card to the chain step it primarily
-    /// feeds. Mapping:
-    ///   DISCOVERY → centre badge (meta layer: how the candidate showed up)
-    ///   STATIC    → WRITE + LOAD
-    ///   DYNAMIC   → EVIDENCE
-    ///   PRIVESC   → TRIGGER + PRIV
-    /// Connectors that have no backing data (e.g. PRIVESC card empty) are
-    /// rendered at lower opacity so the user sees the slot but reads it as
-    /// "nothing to flow yet".
-    /// </summary>
-    private void DrawConnectors()
-    {
-        var priv = _focus?.Candidate?.Privesc ?? _focus?.Phantom?.Privesc;
-        var hasPrivesc = priv != null && priv.Findings.Count > 0;
-        var ev = _focus?.Candidate?.Evidence ?? _focus?.Phantom?.Evidence;
-        var hasDynamic = ev != null || _focus?.Source == MainWindow.AttackFocusSource.RuntimeTrace;
-        var hasStatic = _focus?.Candidate != null || _focus?.Phantom != null;
-
-        // Card anchor points — edge of card facing the centre.
-        var pDiscovery = new Point(CenterX, 108);   // bottom-centre of N card
-        var pStatic    = new Point(720, CenterY);   // left-centre of E card
-        var pDynamic   = new Point(CenterX, 596);   // top-centre of S card
-        var pPrivesc   = new Point(180, CenterY);   // right-centre of W card
-
-        // Chain step positions on the middle ring.
-        var write    = PolarPoint(0,   RingMiddle);
-        var load     = PolarPoint(72,  RingMiddle);
-        var trigger  = PolarPoint(144, RingMiddle);
-        var priv2    = PolarPoint(216, RingMiddle);
-        var evidence = PolarPoint(288, RingMiddle);
-        var center   = new Point(CenterX, CenterY);
-
-        DrawBezier(pDiscovery, center,   "#00F0A3", active: true);                  // discovery → candidate centre
-        DrawBezier(pStatic,    write,    "#0A72EF", active: hasStatic);             // static → WRITE
-        DrawBezier(pStatic,    load,     "#0A72EF", active: hasStatic);             // static → LOAD
-        DrawBezier(pDynamic,   evidence, "#F9E2AF", active: hasDynamic);            // dynamic → EVIDENCE
-        DrawBezier(pPrivesc,   trigger,  "#FF5B4F", active: hasPrivesc);            // privesc → TRIGGER
-        DrawBezier(pPrivesc,   priv2,    "#FF5B4F", active: hasPrivesc);            // privesc → PRIV
-    }
-
-    private Point PolarPoint(double angleDeg, double radius)
-    {
-        var (x, y) = Polar(CenterX, CenterY, radius, angleDeg);
-        return new Point(x, y);
-    }
-
-    /// <summary>
-    /// Cubic Bezier between two anchors with control points pulled ~30% of the way
-    /// toward the diagram centre. Active connectors render at higher opacity and
-    /// glow; inactive ones are dim enough to read as "slot exists, no flow".
-    /// </summary>
-    private void DrawBezier(Point from, Point to, string colorHex, bool active)
-    {
-        var center = new Point(CenterX, CenterY);
-        var c1 = LerpToward(from, center, 0.35);
-        var c2 = LerpToward(to,   center, 0.35);
-
-        var fig = new PathFigure { StartPoint = from, IsClosed = false };
-        fig.Segments.Add(new BezierSegment(c1, c2, to, true));
-
-        var path = new Shapes.Path
-        {
-            Data = new PathGeometry { Figures = { fig } },
-            Stroke = ParseHex(colorHex),
-            StrokeThickness = active ? 1.5 : 0.8,
-            Opacity = active ? 0.55 : 0.18,
-            StrokeDashArray = active ? null : new DoubleCollection(new[] { 4.0, 3.0 }),
-            IsHitTestVisible = false,
-        };
-        if (active)
-        {
-            path.Effect = new System.Windows.Media.Effects.DropShadowEffect
-            {
-                Color = (Color)ColorConverter.ConvertFromString(colorHex),
-                BlurRadius = 8,
-                ShadowDepth = 0,
-                Opacity = 0.45,
-            };
-        }
-        DiagramCanvas.Children.Add(path);
-    }
-
-    private static Point LerpToward(Point from, Point target, double t) =>
-        new Point(from.X + (target.X - from.X) * t, from.Y + (target.Y - from.Y) * t);
-
-    // ─────────────────── Draw: outer cards (compass) ───────────────────
-
-    private void DrawOuterCards()
-    {
-        // North = Discovery, East = Static, South = Dynamic, West = Privesc.
-        DrawOuterCard("DISCOVERY", "#00F0A3", BuildDiscoveryItems(),
-            x: CenterX - 130, y: 12, w: 260, h: 96,
-            onClick: () => _main.NavigateTo(new ScanPage(_main)));
-        DrawOuterCard("STATIC", "#0A72EF", BuildStaticItems(),
-            x: 720, y: CenterY - 70, w: 168, h: 140,
-            onClick: OpenFocusInAnalyze);
-        DrawOuterCard("DYNAMIC", "#F9E2AF", BuildDynamicItems(),
-            x: CenterX - 130, y: 596, w: 260, h: 96,
-            onClick: () => _main.NavigateTo(new RuntimeTracePage(_main)));
-        DrawOuterCard("PRIVESC", "#FF5B4F", BuildPrivescItems(),
-            x: 12, y: CenterY - 70, w: 168, h: 140,
-            onClick: () => _main.NavigateTo(new PrivescPage(_main)));
-    }
-
-    private void DrawOuterCard(string title, string colorHex, IEnumerable<string> items,
-        double x, double y, double w, double h, Action onClick)
-    {
-        var color = ParseHex(colorHex);
+        var color = ParseHex(phase.ColorHex);
         var card = new Border
         {
-            Width = w,
-            Height = h,
             CornerRadius = new CornerRadius(8),
-            Background = ParseHex("#191919"),
+            Background = ParseHex("#171717"),
             BorderBrush = color,
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(10, 8, 10, 8),
+            Padding = new Thickness(12, 10, 12, 12),
             Cursor = System.Windows.Input.Cursors.Hand,
-            ToolTip = BuildOuterCardTooltip(title, items),
+            ToolTip = BuildPhaseTooltip(phase.Title, phase.Items),
+            Tag = "phase",  // used by AnimateReveal to identify columns
         };
-        var cardGlow = new System.Windows.Media.Effects.DropShadowEffect
+        var glow = new System.Windows.Media.Effects.DropShadowEffect
         {
-            Color = ((SolidColorBrush)color).Color,
-            BlurRadius = 10,
+            Color = color.Color,
+            BlurRadius = 12,
             ShadowDepth = 0,
             Opacity = 0.18,
         };
-        card.Effect = cardGlow;
-        card.MouseLeftButtonUp += (_, _) => onClick();
-        AttachHoverGlow(card, cardGlow, baseline: 0.18, hoverPeak: 0.55);
+        card.Effect = glow;
+        card.MouseLeftButtonUp += (_, _) => phase.OnClick();
+        AttachHoverGlow(card, glow, baseline: 0.18, hoverPeak: 0.55);
 
         var stack = new StackPanel();
-        stack.Children.Add(new TextBlock
+        var header = new Grid();
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var title = new TextBlock
         {
-            Text = title,
-            FontSize = 10,
+            Text = phase.Title,
+            FontSize = 11,
             FontWeight = FontWeights.Bold,
             Foreground = color,
-            Margin = new Thickness(0, 0, 0, 4),
-        });
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+        Grid.SetColumn(title, 0);
+        header.Children.Add(title);
+        // Step number badge (1..5) for the timeline reading order.
+        var stepIdx = phase.Title switch
+        {
+            "DISCOVERY" => "1", "STATIC" => "2", "DYNAMIC" => "3",
+            "PRIVESC" => "4", "SCORE" => "5", _ => "•",
+        };
+        var num = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(color.Color) { Opacity = 0.15 },
+            Padding = new Thickness(6, 0, 6, 0),
+            Margin = new Thickness(0, 0, 0, 6),
+            VerticalAlignment = VerticalAlignment.Top,
+            Child = new TextBlock
+            {
+                Text = stepIdx,
+                FontSize = 9,
+                FontWeight = FontWeights.Bold,
+                Foreground = color,
+            },
+        };
+        Grid.SetColumn(num, 1);
+        header.Children.Add(num);
+        stack.Children.Add(header);
 
-        foreach (var item in items.Take(4))
-        {
-            stack.Children.Add(new TextBlock
-            {
-                Text = "·  " + item,
-                FontSize = 11,
-                Foreground = ParseHex("#EDEDED"),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                Margin = new Thickness(0, 1, 0, 1),
-            });
-        }
-        var total = items.Count();
-        if (total > 4)
-        {
-            stack.Children.Add(new TextBlock
-            {
-                Text = $"+{total - 4} more",
-                FontSize = 10,
-                Foreground = ParseHex("#737373"),
-                Margin = new Thickness(8, 1, 0, 0),
-            });
-        }
-        else if (total == 0)
+        var items = phase.Items.ToList();
+        if (items.Count == 0)
         {
             stack.Children.Add(new TextBlock
             {
@@ -652,12 +225,403 @@ public partial class AttackPathPage : Page
                 Foreground = ParseHex("#737373"),
             });
         }
+        else
+        {
+            // SCORE column gets bar visualisations alongside the text. Other phases
+            // are bullet lines.
+            if (phase.IsScore)
+            {
+                AppendScoreBars(stack);
+            }
+            else
+            {
+                foreach (var item in items)
+                {
+                    stack.Children.Add(new TextBlock
+                    {
+                        Text = "·  " + item,
+                        FontSize = 11,
+                        Foreground = ParseHex("#EDEDED"),
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        Margin = new Thickness(0, 1, 0, 1),
+                    });
+                }
+            }
+        }
 
         card.Child = stack;
-        Canvas.SetLeft(card, x);
-        Canvas.SetTop(card, y);
-        DiagramCanvas.Children.Add(card);
+        return card;
     }
+
+    private void AppendScoreBars(StackPanel stack)
+    {
+        var score = _focus?.Candidate?.Score ?? _focus?.Phantom?.Score;
+        if (score == null)
+        {
+            stack.Children.Add(new TextBlock
+            {
+                Text = "(no scored candidate)",
+                FontSize = 11,
+                FontStyle = FontStyles.Italic,
+                Foreground = ParseHex("#737373"),
+            });
+            return;
+        }
+
+        AppendScoreBar(stack, "EXPLOIT", score.Exploitability, "#00F0A3");
+        AppendScoreBar(stack, "IMPACT",  score.Impact,         "#FF5B4F");
+        AppendScoreBar(stack, "CONF",    score.Confidence,     "#0A72EF");
+
+        // Total + severity, bigger and bolder so it lands as the "headline" of the column.
+        var (bg, fg) = SeverityColors(score.Severity);
+        var totalBox = new Border
+        {
+            CornerRadius = new CornerRadius(4),
+            Background = ParseHex(bg),
+            BorderBrush = ParseHex(fg),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(8, 4, 8, 4),
+            Margin = new Thickness(0, 12, 0, 0),
+            HorizontalAlignment = HAlign.Stretch,
+        };
+        totalBox.Child = new TextBlock
+        {
+            Text = $"TOTAL  {score.Total}/10  ·  {score.Severity.ToUpperInvariant()}",
+            FontSize = 11,
+            FontWeight = FontWeights.Bold,
+            Foreground = ParseHex(fg),
+            HorizontalAlignment = HAlign.Center,
+        };
+        stack.Children.Add(totalBox);
+    }
+
+    private void AppendScoreBar(StackPanel parent, string label, int value, string colorHex)
+    {
+        var color = ParseHex(colorHex);
+        var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(48) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var lbl = new TextBlock
+        {
+            Text = label,
+            FontSize = 9,
+            FontWeight = FontWeights.Bold,
+            Foreground = color,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(lbl, 0);
+        row.Children.Add(lbl);
+
+        // Bar: track + filled segment proportional to value/10
+        var track = new Border
+        {
+            Height = 6,
+            CornerRadius = new CornerRadius(3),
+            Background = ParseHex("#222222"),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var trackGrid = new Grid();
+        trackGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(value, GridUnitType.Star) });
+        trackGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0, 10 - value), GridUnitType.Star) });
+        var fill = new Border
+        {
+            Height = 6,
+            CornerRadius = new CornerRadius(3),
+            Background = color,
+        };
+        Grid.SetColumn(fill, 0);
+        trackGrid.Children.Add(fill);
+        track.Child = trackGrid;
+        Grid.SetColumn(track, 1);
+        row.Children.Add(track);
+
+        var num = new TextBlock
+        {
+            Text = $" {value}/10",
+            FontSize = 10,
+            Foreground = ParseHex("#EDEDED"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        Grid.SetColumn(num, 2);
+        row.Children.Add(num);
+
+        parent.Children.Add(row);
+    }
+
+    // ─────────────────── Attack chain (canvas) ───────────────────
+
+    private record ChainSlot(string Kind, string Color, ChainStepKind StepKind);
+
+    private void LayoutChainCanvas()
+    {
+        ChainCanvas.Children.Clear();
+        var width = ChainCanvas.ActualWidth;
+        if (width < 100) return;  // first pass before layout
+
+        var priv = _focus?.Candidate?.Privesc ?? _focus?.Phantom?.Privesc;
+        var steps = priv?.ChainSteps;
+
+        var slots = new[]
+        {
+            new ChainSlot("WRITE",    "#F9E2AF", ChainStepKind.WritePrimitive),
+            new ChainSlot("LOAD",     "#0A72EF", ChainStepKind.LoadVector),
+            new ChainSlot("TRIGGER",  "#CBA6F7", ChainStepKind.Trigger),
+            new ChainSlot("PRIV",     "#FF5B4F", ChainStepKind.Privilege),
+            new ChainSlot("EVIDENCE", "#00F0A3", ChainStepKind.RuntimeEvidence),
+        };
+
+        // 5 pill slots evenly spaced; pills sized to ~85% of slot, connectors fill the gap.
+        const double yCenter = 60;
+        const double pillH = 78;
+        var slotW = width / slots.Length;
+        var pillW = Math.Max(120, slotW * 0.85);
+
+        // Connectors first so pills paint on top.
+        for (int i = 0; i < slots.Length - 1; i++)
+        {
+            var x1 = (i + 0.5) * slotW + pillW / 2;
+            var x2 = (i + 1.5) * slotW - pillW / 2;
+            DrawChainConnector(x1, x2, yCenter, slots[i].Color, slots[i + 1].Color,
+                hasFlow: steps != null && steps.Any(s => s.Kind == slots[i].StepKind)
+                      && steps.Any(s => s.Kind == slots[i + 1].StepKind));
+        }
+
+        for (int i = 0; i < slots.Length; i++)
+        {
+            var slot = slots[i];
+            var step = steps?.FirstOrDefault(s => s.Kind == slot.StepKind);
+            var x = (i + 0.5) * slotW;
+            DrawChainPill(slot.Kind, slot.Color, step, x, yCenter, pillW, pillH);
+        }
+    }
+
+    private void DrawChainPill(string kind, string colorHex, ChainStep? step,
+        double cx, double cy, double w, double h)
+    {
+        var color = ParseHex(colorHex);
+        var hasContent = step != null;
+
+        var pill = new Border
+        {
+            Width = w,
+            Height = h,
+            CornerRadius = new CornerRadius(10),
+            Background = new SolidColorBrush(color.Color)
+                { Opacity = hasContent ? 0.16 : 0.05 },
+            BorderBrush = hasContent ? color : new SolidColorBrush(color.Color) { Opacity = 0.35 },
+            BorderThickness = new Thickness(1.5),
+            Padding = new Thickness(10, 8, 10, 8),
+            Tag = kind,  // used by AnimateReveal for chain-order stagger
+        };
+
+        if (hasContent)
+        {
+            var glow = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = color.Color,
+                BlurRadius = 14,
+                ShadowDepth = 0,
+                Opacity = 0.45,
+            };
+            pill.Effect = glow;
+            pill.Cursor = System.Windows.Input.Cursors.Hand;
+            pill.ToolTip = BuildChainStepTooltip(kind, step!);
+            pill.MouseLeftButtonUp += (_, _) => OnChainStepClick(kind, step!);
+            AttachHoverGlow(pill, glow, baseline: 0.45, hoverPeak: 1.0);
+
+            if (kind == "EVIDENCE")
+            {
+                _evidencePill = pill;
+                _evidenceGlow = glow;
+            }
+        }
+        else
+        {
+            pill.ToolTip = $"{kind} — no chain step bound (focus has no PrivescContext or this step wasn't built).";
+        }
+
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock
+        {
+            Text = kind,
+            FontSize = 10,
+            FontWeight = FontWeights.Bold,
+            Foreground = hasContent ? color : new SolidColorBrush(color.Color) { Opacity = 0.5 },
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = step?.Label ?? "—",
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = ParseHex(hasContent ? "#EDEDED" : "#5A5A5A"),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 4, 0, 0),
+        });
+        if (!string.IsNullOrEmpty(step?.Detail))
+        {
+            stack.Children.Add(new TextBlock
+            {
+                Text = step.Detail,
+                FontSize = 10,
+                Foreground = ParseHex("#A1A1A1"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap,
+                Margin = new Thickness(0, 2, 0, 0),
+            });
+        }
+        pill.Child = stack;
+
+        Canvas.SetLeft(pill, cx - w / 2);
+        Canvas.SetTop(pill, cy - h / 2);
+        ChainCanvas.Children.Add(pill);
+    }
+
+    private void DrawChainConnector(double x1, double x2, double y, string fromColor, string toColor, bool hasFlow)
+    {
+        // Gradient line + chevron tip. When hasFlow is false we dim and dash so the
+        // user sees the structure but reads it as 'no data flowing here yet'.
+        var gradient = new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0),
+            EndPoint = new Point(1, 0),
+        };
+        gradient.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(fromColor), 0));
+        gradient.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(toColor), 1));
+
+        var line = new Shapes.Line
+        {
+            X1 = x1, Y1 = y, X2 = x2 - 6, Y2 = y,
+            Stroke = gradient,
+            StrokeThickness = hasFlow ? 2 : 1.2,
+            Opacity = hasFlow ? 0.85 : 0.25,
+            StrokeDashArray = hasFlow ? null : new DoubleCollection(new[] { 4.0, 3.0 }),
+            Tag = "connector",
+            IsHitTestVisible = false,
+        };
+        ChainCanvas.Children.Add(line);
+
+        // Arrow tip — small filled triangle pointing right into the next pill.
+        var tip = new Shapes.Polygon
+        {
+            Points = new PointCollection
+            {
+                new Point(x2 - 8, y - 4),
+                new Point(x2 - 8, y + 4),
+                new Point(x2, y),
+            },
+            Fill = ParseHex(toColor),
+            Opacity = hasFlow ? 0.9 : 0.3,
+            Tag = "connector",
+            IsHitTestVisible = false,
+        };
+        ChainCanvas.Children.Add(tip);
+    }
+
+    // ─────────────────── Animation ───────────────────
+
+    /// <summary>
+    /// Reveal: phase columns slide-up + fade left-to-right; chain pills appear in
+    /// chain order; connectors fade in last. Cubic ease-out. Each element gets
+    /// its initial Opacity to 0 (and TranslateTransform.Y to a small positive
+    /// offset for columns/pills) before the storyboard fires.
+    /// </summary>
+    private void AnimateReveal()
+    {
+        // Phase columns — left-to-right stagger.
+        int colIdx = 0;
+        foreach (var child in PhaseGrid.Children.OfType<Border>())
+        {
+            AttachSlideUpFade(child, delayMs: 80 + colIdx * 80);
+            colIdx++;
+        }
+
+        // Chain pills — chain order stagger, starting after phases finish (~520ms).
+        var pillOrder = new Dictionary<string, int>
+        {
+            ["WRITE"] = 0, ["LOAD"] = 1, ["TRIGGER"] = 2, ["PRIV"] = 3, ["EVIDENCE"] = 4,
+        };
+        foreach (var pill in ChainCanvas.Children.OfType<Border>())
+        {
+            if (pill.Tag is string kind && pillOrder.TryGetValue(kind, out var idx))
+                AttachSlideUpFade(pill, delayMs: 540 + idx * 100);
+        }
+
+        // Connectors fade in last.
+        foreach (var conn in ChainCanvas.Children.OfType<UIElement>())
+        {
+            if (conn is Shapes.Line || conn is Shapes.Polygon)
+                AttachOpacityFade(conn, delayMs: 1100);
+        }
+    }
+
+    private static void AttachSlideUpFade(FrameworkElement el, int delayMs)
+    {
+        var transform = new TranslateTransform(0, 14);
+        el.RenderTransform = transform;
+        el.Opacity = 0;
+
+        var ease = new System.Windows.Media.Animation.CubicEase
+            { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+        var begin = TimeSpan.FromMilliseconds(delayMs);
+
+        el.BeginAnimation(UIElement.OpacityProperty,
+            new System.Windows.Media.Animation.DoubleAnimation
+            {
+                From = 0, To = 1,
+                Duration = TimeSpan.FromMilliseconds(380),
+                BeginTime = begin,
+                EasingFunction = ease,
+            });
+        transform.BeginAnimation(TranslateTransform.YProperty,
+            new System.Windows.Media.Animation.DoubleAnimation
+            {
+                From = 14, To = 0,
+                Duration = TimeSpan.FromMilliseconds(380),
+                BeginTime = begin,
+                EasingFunction = ease,
+            });
+    }
+
+    private static void AttachOpacityFade(UIElement el, int delayMs)
+    {
+        var oldOpacity = el.Opacity;
+        el.Opacity = 0;
+        el.BeginAnimation(UIElement.OpacityProperty,
+            new System.Windows.Media.Animation.DoubleAnimation
+            {
+                From = 0, To = oldOpacity == 0 ? 1 : oldOpacity,
+                Duration = TimeSpan.FromMilliseconds(420),
+                BeginTime = TimeSpan.FromMilliseconds(delayMs),
+                EasingFunction = new System.Windows.Media.Animation.CubicEase
+                    { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut },
+            });
+    }
+
+    private void MaybeStartEvidencePulse()
+    {
+        if (_evidenceGlow == null) return;
+        var ev = _focus?.Candidate?.Evidence ?? _focus?.Phantom?.Evidence;
+        if (ev == null && _focus?.Source != MainWindow.AttackFocusSource.RuntimeTrace) return;
+
+        var anim = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            From = 0.45,
+            To = 1.0,
+            Duration = TimeSpan.FromSeconds(1.1),
+            BeginTime = TimeSpan.FromMilliseconds(1400),
+            AutoReverse = true,
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+            EasingFunction = new System.Windows.Media.Animation.SineEase
+                { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut },
+        };
+        _evidenceGlow.BeginAnimation(
+            System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, anim);
+    }
+
+    // ─────────────────── Build*Items helpers ───────────────────
 
     private IEnumerable<string> BuildDiscoveryItems()
     {
@@ -740,121 +704,35 @@ public partial class AttackPathPage : Page
         }
     }
 
-    // ─────────────────── Animation ───────────────────
-
-    /// <summary>
-    /// Staggered fade-in across the diagram so the user reads it in flow order
-    /// rather than all at once. Order: rings (instant) → centre badge → outer
-    /// cards (compass clockwise from N) → score sectors → chain pills (chain
-    /// order WRITE→LOAD→TRIGGER→PRIV→EVIDENCE) → connectors. Each element gets
-    /// its initial opacity to 0 before the storyboard fires so the canvas
-    /// renders blank for one frame and the animation is the first thing the
-    /// user sees.
-    /// </summary>
-    private void AnimateReveal()
+    private IEnumerable<string> BuildScoreItems()
     {
-        // Indexes into kind order so chain pills come in chain-order, not z-order.
-        var pillOrder = new Dictionary<string, int>
-        {
-            ["WRITE"] = 0, ["LOAD"] = 1, ["TRIGGER"] = 2, ["PRIV"] = 3, ["EVIDENCE"] = 4,
-        };
-
-        int cardIdx = 0;
-        foreach (var child in DiagramCanvas.Children.OfType<UIElement>())
-        {
-            // Skip the decorative outer ring ellipses — they fade in instantly with
-            // the canvas itself; animating them adds noise.
-            if (child is Shapes.Ellipse e && e.Fill == null) continue;
-
-            // Pill staggering by chain order.
-            int delayMs = 200; // default for non-categorised elements (sectors, connectors)
-            if (child is Border b && b.Tag is string kind && pillOrder.TryGetValue(kind, out var idx))
-                delayMs = 350 + idx * 90;
-            // Outer cards = Border without Tag, larger than ~150x80 — stagger them.
-            else if (child is Border b2 && b2.Tag == null && b2.Width > 150)
-                delayMs = 100 + (cardIdx++) * 80;
-            // Centre badge: single Ellipse with Fill ≠ null and Stroke ≠ null.
-            else if (child is Shapes.Ellipse el && el.Fill != null) delayMs = 0;
-            // Score sectors and connectors (Path) — slightly later than badge.
-            else if (child is Shapes.Path) delayMs = 250;
-
-            child.Opacity = 0;
-            var anim = new System.Windows.Media.Animation.DoubleAnimation
-            {
-                From = 0,
-                To = 1,
-                Duration = TimeSpan.FromMilliseconds(420),
-                BeginTime = TimeSpan.FromMilliseconds(delayMs),
-                EasingFunction = new System.Windows.Media.Animation.CubicEase
-                    { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut },
-            };
-            child.BeginAnimation(UIElement.OpacityProperty, anim);
-        }
+        // Bullet variant (used in tooltip). The visible card uses bars instead.
+        var s = _focus?.Candidate?.Score ?? _focus?.Phantom?.Score;
+        if (s == null) yield break;
+        yield return $"Exploit: {s.Exploitability}/10";
+        yield return $"Impact:  {s.Impact}/10";
+        yield return $"Conf:    {s.Confidence}/10  ({s.ConfidenceLevel})";
+        yield return $"Total:   {s.Total}/10  [{s.Severity}]";
     }
 
-    /// <summary>
-    /// If the focused candidate has live runtime (or any) evidence, pulse the
-    /// EVIDENCE pill's glow to indicate the chain is dynamically backed.
-    /// Otherwise the pill renders static. The pulse loops until the page is
-    /// navigated away from — Storyboard auto-stops with the visual tree.
-    /// </summary>
-    private void MaybeStartEvidencePulse()
-    {
-        if (_evidenceGlow == null) return;
-        var ev = _focus?.Candidate?.Evidence ?? _focus?.Phantom?.Evidence;
-        if (ev == null && _focus?.Source != MainWindow.AttackFocusSource.RuntimeTrace) return;
+    // ─────────────────── Tooltips / hover / clicks ───────────────────
 
-        var anim = new System.Windows.Media.Animation.DoubleAnimation
-        {
-            From = 0.5,
-            To = 1.0,
-            Duration = TimeSpan.FromSeconds(1.1),
-            AutoReverse = true,
-            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
-            EasingFunction = new System.Windows.Media.Animation.SineEase
-                { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut },
-        };
-        _evidenceGlow.BeginAnimation(
-            System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, anim);
-    }
-
-    // ─────────────────── Hover / tooltip / click helpers ───────────────────
-
-    /// <summary>Bumps the drop-shadow opacity on hover. Reverts on leave.</summary>
-    private static void AttachHoverGlow(
-        FrameworkElement el,
-        System.Windows.Media.Effects.DropShadowEffect glow,
-        double baseline,
-        double hoverPeak)
-    {
-        el.MouseEnter += (_, _) =>
-        {
-            var anim = new System.Windows.Media.Animation.DoubleAnimation
-            {
-                To = hoverPeak,
-                Duration = TimeSpan.FromMilliseconds(180),
-            };
-            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, anim);
-        };
-        el.MouseLeave += (_, _) =>
-        {
-            var anim = new System.Windows.Media.Animation.DoubleAnimation
-            {
-                To = baseline,
-                Duration = TimeSpan.FromMilliseconds(220),
-            };
-            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, anim);
-        };
-    }
-
-    private static string BuildOuterCardTooltip(string title, IEnumerable<string> items)
+    private static string BuildPhaseTooltip(string title, IEnumerable<string> items)
     {
         var lines = new List<string> { title };
         var list = items.ToList();
         if (list.Count == 0) lines.Add("(no signals)");
         else lines.AddRange(list.Select(it => "  · " + it));
         lines.Add("");
-        lines.Add("Click to open the related page.");
+        lines.Add(title switch
+        {
+            "DISCOVERY" => "Click → Scan page",
+            "STATIC"    => "Click → Analyze the DLL",
+            "DYNAMIC"   => "Click → Runtime Trace",
+            "PRIVESC"   => "Click → Privesc Surface",
+            "SCORE"     => "Click → Analyze the DLL",
+            _ => "",
+        });
         return string.Join("\n", lines);
     }
 
@@ -878,28 +756,27 @@ public partial class AttackPathPage : Page
         return string.Join("\n", lines);
     }
 
-    private string BuildBadgeTooltip(ScoreBreakdown? score)
+    /// <summary>Bumps drop-shadow opacity on hover, reverts on leave.</summary>
+    private static void AttachHoverGlow(
+        FrameworkElement el,
+        System.Windows.Media.Effects.DropShadowEffect glow,
+        double baseline,
+        double hoverPeak)
     {
-        var lines = new List<string>
+        el.MouseEnter += (_, _) =>
         {
-            _focus?.DllName ?? "—",
+            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty,
+                new System.Windows.Media.Animation.DoubleAnimation
+                    { To = hoverPeak, Duration = TimeSpan.FromMilliseconds(180) });
         };
-        if (!string.IsNullOrEmpty(_focus?.DllPath)) lines.Add(_focus!.DllPath!);
-        if (score != null)
+        el.MouseLeave += (_, _) =>
         {
-            lines.Add("");
-            lines.Add($"Total {score.Total}/10 — {score.Severity}");
-            lines.Add($"Exploit {score.Exploitability}/10 · Impact {score.Impact}/10 · Conf {score.Confidence}/10");
-        }
-        lines.Add("");
-        lines.Add("Click to open in Analyze.");
-        return string.Join("\n", lines);
+            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty,
+                new System.Windows.Media.Animation.DoubleAnimation
+                    { To = baseline, Duration = TimeSpan.FromMilliseconds(220) });
+        };
     }
 
-    /// <summary>
-    /// Open the focused candidate in Analyze. Existing → load the DLL. Phantom →
-    /// load the importer (phantom slots have no PE on disk).
-    /// </summary>
     private void OpenFocusInAnalyze()
     {
         if (_focus == null) return;
@@ -919,7 +796,6 @@ public partial class AttackPathPage : Page
             _main.NavigateTo(new AnalyzePage(_main));
             return;
         }
-        // Degraded focus (RuntimeTrace + no scan match): just open Analyze with the path.
         if (!string.IsNullOrEmpty(_focus.DllPath))
         {
             _main.CurrentAnalysis = null;
@@ -943,11 +819,30 @@ public partial class AttackPathPage : Page
                 _main.NavigateTo(new PrivescPage(_main));
                 return;
             default:
-                // WRITE: no obvious deep-link — surface the detail in the log instead.
                 _main.Log($"[AttackPath] {kindLabel}: {step.Label} — {step.Detail}");
                 return;
         }
     }
+
+    private void SeverityBadge_Click(object sender, RoutedEventArgs e) => OpenFocusInAnalyze();
+
+    // ─────────────────── Helpers ───────────────────
+
+    private static SolidColorBrush ParseHex(string hex)
+    {
+        var b = (SolidColorBrush)new BrushConverter().ConvertFromString(hex)!;
+        b.Freeze();
+        return b;
+    }
+
+    private static (string Bg, string Fg) SeverityColors(string severity) => severity switch
+    {
+        "Critical" => ("#33FF5B4F", "#FF5B4F"),
+        "High"     => ("#33F5A524", "#F5A524"),
+        "Medium"   => ("#330A72EF", "#0A72EF"),
+        "Low"      => ("#3300CA4E", "#00CA4E"),
+        _          => ("#33737373", "#737373"),
+    };
 
     // ─────────────────── Empty-state nav ───────────────────
 
