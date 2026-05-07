@@ -106,6 +106,9 @@ public partial class AttackPathPage : Page
 
         DrawDecorativeRings();
         DrawScoreSectors();
+        // Connectors run beneath the chain pills + centre badge so the latter
+        // visually "land on top of" their incoming evidence lines.
+        DrawConnectors();
         DrawCenterBadge();
         DrawChainNodes();
         DrawOuterCards();
@@ -435,6 +438,94 @@ public partial class AttackPathPage : Page
         Canvas.SetTop(detailPanel, dy - detailPanel.DesiredSize.Height / 2);
         DiagramCanvas.Children.Add(detailPanel);
     }
+
+    // ─────────────────── Draw: Bezier connectors ───────────────────
+
+    /// <summary>
+    /// Subtle Bezier flows from each outer card to the chain step it primarily
+    /// feeds. Mapping:
+    ///   DISCOVERY → centre badge (meta layer: how the candidate showed up)
+    ///   STATIC    → WRITE + LOAD
+    ///   DYNAMIC   → EVIDENCE
+    ///   PRIVESC   → TRIGGER + PRIV
+    /// Connectors that have no backing data (e.g. PRIVESC card empty) are
+    /// rendered at lower opacity so the user sees the slot but reads it as
+    /// "nothing to flow yet".
+    /// </summary>
+    private void DrawConnectors()
+    {
+        var priv = _focus?.Candidate?.Privesc ?? _focus?.Phantom?.Privesc;
+        var hasPrivesc = priv != null && priv.Findings.Count > 0;
+        var ev = _focus?.Candidate?.Evidence ?? _focus?.Phantom?.Evidence;
+        var hasDynamic = ev != null || _focus?.Source == MainWindow.AttackFocusSource.RuntimeTrace;
+        var hasStatic = _focus?.Candidate != null || _focus?.Phantom != null;
+
+        // Card anchor points — edge of card facing the centre.
+        var pDiscovery = new Point(CenterX, 108);   // bottom-centre of N card
+        var pStatic    = new Point(720, CenterY);   // left-centre of E card
+        var pDynamic   = new Point(CenterX, 596);   // top-centre of S card
+        var pPrivesc   = new Point(180, CenterY);   // right-centre of W card
+
+        // Chain step positions on the middle ring.
+        var write    = PolarPoint(0,   RingMiddle);
+        var load     = PolarPoint(72,  RingMiddle);
+        var trigger  = PolarPoint(144, RingMiddle);
+        var priv2    = PolarPoint(216, RingMiddle);
+        var evidence = PolarPoint(288, RingMiddle);
+        var center   = new Point(CenterX, CenterY);
+
+        DrawBezier(pDiscovery, center,   "#00F0A3", active: true);                  // discovery → candidate centre
+        DrawBezier(pStatic,    write,    "#0A72EF", active: hasStatic);             // static → WRITE
+        DrawBezier(pStatic,    load,     "#0A72EF", active: hasStatic);             // static → LOAD
+        DrawBezier(pDynamic,   evidence, "#F9E2AF", active: hasDynamic);            // dynamic → EVIDENCE
+        DrawBezier(pPrivesc,   trigger,  "#FF5B4F", active: hasPrivesc);            // privesc → TRIGGER
+        DrawBezier(pPrivesc,   priv2,    "#FF5B4F", active: hasPrivesc);            // privesc → PRIV
+    }
+
+    private Point PolarPoint(double angleDeg, double radius)
+    {
+        var (x, y) = Polar(CenterX, CenterY, radius, angleDeg);
+        return new Point(x, y);
+    }
+
+    /// <summary>
+    /// Cubic Bezier between two anchors with control points pulled ~30% of the way
+    /// toward the diagram centre. Active connectors render at higher opacity and
+    /// glow; inactive ones are dim enough to read as "slot exists, no flow".
+    /// </summary>
+    private void DrawBezier(Point from, Point to, string colorHex, bool active)
+    {
+        var center = new Point(CenterX, CenterY);
+        var c1 = LerpToward(from, center, 0.35);
+        var c2 = LerpToward(to,   center, 0.35);
+
+        var fig = new PathFigure { StartPoint = from, IsClosed = false };
+        fig.Segments.Add(new BezierSegment(c1, c2, to, true));
+
+        var path = new Shapes.Path
+        {
+            Data = new PathGeometry { Figures = { fig } },
+            Stroke = ParseHex(colorHex),
+            StrokeThickness = active ? 1.5 : 0.8,
+            Opacity = active ? 0.55 : 0.18,
+            StrokeDashArray = active ? null : new DoubleCollection(new[] { 4.0, 3.0 }),
+            IsHitTestVisible = false,
+        };
+        if (active)
+        {
+            path.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = (Color)ColorConverter.ConvertFromString(colorHex),
+                BlurRadius = 8,
+                ShadowDepth = 0,
+                Opacity = 0.45,
+            };
+        }
+        DiagramCanvas.Children.Add(path);
+    }
+
+    private static Point LerpToward(Point from, Point target, double t) =>
+        new Point(from.X + (target.X - from.X) * t, from.Y + (target.Y - from.Y) * t);
 
     // ─────────────────── Draw: outer cards (compass) ───────────────────
 
