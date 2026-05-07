@@ -126,3 +126,18 @@ dotnet run --project DllSidecar.GUI
 ```
 dotnet test DllSidecar.Core.Tests/DllSidecar.Core.Tests.csproj --configuration Release
 ```
+
+## Disclaimer
+
+DllSidecar is a personal-use research tool built and maintained by the
+author for identifying Windows applications susceptible to DLL
+Sideloading and Proxy Sideloading (CWE-427, CWE-426). It is used in
+day-to-day defensive research to surface potential local privilege
+escalation paths, with the goal of coordinated disclosure to affected
+vendors.
+
+The tool is provided as-is, for lawful security research, authorized
+testing, and educational purposes only. Use against software, systems,
+or environments for which you do not have explicit permission is your
+sole responsibility. The author assumes no liability for misuse or for
+any direct or indirect damage arising from its use.
