@@ -24,8 +24,11 @@ public class AppConfig
 /// </summary>
 public class PayloadConfig
 {
-    public string MessageBoxTitle { get; set; } = "DllSidecar PoC {Researcher}";
-    public string MessageBoxBody { get; set; } = "DLL Sideloading PoC\nResearcher: {Researcher}\nDllSidecar — BugAInters 2026";
+    // {Researcher} placeholder optional — only renders something useful when
+    // ResearcherConfig.Handle is set. Distributed defaults ship without it so
+    // a fresh install doesn't show "Researcher: " with empty trailing space.
+    public string MessageBoxTitle { get; set; } = "DllSidecar PoC";
+    public string MessageBoxBody { get; set; } = "DLL Sideloading PoC\nDllSidecar — BugAInters 2026";
 
     // Reverse-shell default endpoint. Host accepts hostnames or dotted-quad
     // IPv4 (parsed at template time — hostnames are resolved at runtime via

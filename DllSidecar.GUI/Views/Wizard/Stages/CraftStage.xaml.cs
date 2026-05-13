@@ -583,6 +583,8 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             DelayMs = delayMs,
             XorKey = xorKey,
             TargetExport = targetExport,
+            // Researcher attribution from the Configuration page (matches GeneratePage).
+            Researcher = Core.Configuration.ConfigManager.Current.Researcher.Handle ?? "",
 
             WriteProofFile = writeProof,
             PreLaunchDelaySec = Math.Max(0, preDelay),
