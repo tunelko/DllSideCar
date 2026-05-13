@@ -41,9 +41,14 @@ public class PayloadConfig
 /// </summary>
 public class ResearcherConfig
 {
-    public string Name { get; set; } = "Pedro J. Nunez-Cacho Fuentes";
-    public string Handle { get; set; } = "@tunelko";
-    public string Blog { get; set; } = "https://blogs.tunelko.com";
+    // Empty defaults so a fresh install on someone else's machine doesn't
+    // ship with this repo's maintainer identity baked into the binary.
+    // Users fill these in via the Configuration page on first launch; the
+    // post-install reset (App.PerformPostInstallReset) re-clears them on
+    // upgrade so a re-install behaves like a fresh install.
+    public string Name { get; set; } = "";
+    public string Handle { get; set; } = "";
+    public string Blog { get; set; } = "";
     public string Email { get; set; } = "";
     public string PgpFingerprint { get; set; } = "";  // e.g. "ECFE8F52A79544C4D5CEC31D816793CF3167C4D2"
     public string PgpKeyId { get; set; } = "";        // short id, e.g. "816793CF3167C4D2"

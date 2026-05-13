@@ -25,6 +25,13 @@ public partial class App : System.Windows.Application
             }
             catch { }
             Shutdown();
+            return;
         }
+
+        // Runs once per install: wipes per-researcher state (advisories DB,
+        // identity, NVD API key) when the install marker version differs
+        // from the recorded last-launched version. Dev mode has no marker
+        // so this is a no-op there.
+        PostInstallReset.RunIfNeeded();
     }
 }
