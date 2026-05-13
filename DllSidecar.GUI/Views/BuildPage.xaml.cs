@@ -80,10 +80,8 @@ public partial class BuildPage : Page
                 extraObjects.Add(resObj);
         }
 
-        // bin/Debug/net9.0-windows/ → src/  (4 levels up). templates/ lives
-        // inside src/ alongside the .sln so the repo is self-contained.
-        var projectRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", ".."));
-        var templatesDir = Path.Combine(projectRoot, "templates");
+        // AppPaths handles dev (src/templates) vs installed ({app}\templates) layout.
+        var templatesDir = AppPaths.TemplatesDir;
 
         var result = await BuildSystem.CompileDllAsync(
             cFiles[0], defFiles[0], outputFile, arch,

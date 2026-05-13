@@ -24,11 +24,8 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
     private bool _suppressPersist;
     private string? _systemOrigPath;
 
-    // src/DllSidecar.GUI/bin/Debug/net9.0-windows/ → src/  (4 levels up).
-    // The templates/ and output/ dirs both live next to the .sln so the repo
-    // stays self-contained — see GeneratePage's identical constant.
-    private static readonly string ProjectRoot = Path.GetFullPath(
-        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", ".."));
+    // AppPaths handles dev-vs-installed path resolution — see GeneratePage's
+    // identical refactor for the rationale.
 
     // Same sentinel as GeneratePage — first item in the export combo, selected by
     // default. When chosen, TargetExport stays null → template emits pure forwarder
@@ -613,12 +610,12 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
 
         var baseName = Path.GetFileNameWithoutExtension(_target.Filename);
         var modeLabel = _session.CraftMode.ToString().ToLowerInvariant();
-        var outputDir = Path.Combine(ProjectRoot, "output", $"{baseName}_{modeLabel}");
+        var outputDir = Path.Combine(AppPaths.OutputRoot, $"{baseName}_{modeLabel}");
         Directory.CreateDirectory(outputDir);
 
         var files = TemplateEngine.Generate(_target, config);
 
-        var templatesDir = Path.Combine(ProjectRoot, "templates");
+        var templatesDir = AppPaths.TemplatesDir;
 
         // Copy headers used by the evasion options — omitting these breaks the build.
         if (config.DInvoke && File.Exists(Path.Combine(templatesDir, "dinvoke.h")))
