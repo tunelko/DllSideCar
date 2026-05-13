@@ -178,6 +178,30 @@
                                  MinHeight="70" MaxHeight="140"
                                  VerticalScrollBarVisibility="Auto"
                                  ToolTip="Body text. Multi-line is fine — every newline becomes \n in the generated C source."/>
+
+                        <!-- Reverse shell endpoint: stays in Config (not Generate) because
+                             the listener typically doesn't change between PoCs in the same
+                             research session. Both fields parsed/applied at template time. -->
+                        <TextBlock Text="Reverse shell — endpoint" Style="{StaticResource FieldLabel}" Margin="0,16,0,0"/>
+                        <TextBlock Text="Reverse shell connect-back endpoint. Listener side: nc -lvnp PORT. Host accepts dotted-quad IPv4 (compiled inline, no DNS) or a hostname (resolved at runtime via inet_addr)."
+                                   FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,2,0,6" TextWrapping="Wrap"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="1*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Host" Style="{StaticResource FieldLabel}"/>
+                                <TextBox x:Name="RevShellHostBox" FontFamily="{StaticResource FontMono}"
+                                         ToolTip="IPv4 or hostname. Default: 127.0.0.1"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Port" Style="{StaticResource FieldLabel}"/>
+                                <TextBox x:Name="RevShellPortBox" FontFamily="{StaticResource FontMono}"
+                                         ToolTip="TCP port (1-65535). Default: 4444"/>
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
                 </Border>
 

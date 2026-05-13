@@ -38,7 +38,7 @@ public partial class PickStage : System.Windows.Controls.UserControl, IWizardSta
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"Failed to analyze PE: {ex.Message}",
+                MessageBox.Show($"Failed to analyze PE: {ex.Message}",
                     "Wizard", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return Task.FromResult(false);
             }
@@ -46,7 +46,7 @@ public partial class PickStage : System.Windows.Controls.UserControl, IWizardSta
 
         if (Grid.SelectedItem is not Row row)
         {
-            System.Windows.MessageBox.Show("Pick a row from the list before continuing.",
+            MessageBox.Show("Pick a row from the list before continuing.",
                 "No target", MessageBoxButton.OK, MessageBoxImage.Warning);
             return Task.FromResult(false);
         }

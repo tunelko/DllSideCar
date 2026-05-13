@@ -28,14 +28,14 @@ public partial class SurveyStage : System.Windows.Controls.UserControl, IWizardS
     {
         if (_session.ScanResults == null)
         {
-            System.Windows.MessageBox.Show("Survey has not completed yet.",
+            MessageBox.Show("Survey has not completed yet.",
                 "Wizard", MessageBoxButton.OK, MessageBoxImage.Warning);
             return Task.FromResult(false);
         }
         var total = _session.ScanResults.ExistingCount + _session.ScanResults.PhantomCount;
         if (total == 0)
         {
-            var r = System.Windows.MessageBox.Show(
+            var r = MessageBox.Show(
                 "Scan found zero candidates. Continue anyway (you'll have nothing to pick) or pick a different input?",
                 "No candidates", MessageBoxButton.YesNo, MessageBoxImage.Question);
             return Task.FromResult(r == MessageBoxResult.Yes);

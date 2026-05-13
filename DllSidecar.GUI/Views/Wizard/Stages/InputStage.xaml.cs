@@ -1,7 +1,9 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Forms;
+// See BuildPage for rationale: WinForms is referenced fully-qualified to keep
+// the global `MessageBox` alias pointing at AppDialog.
+using WinForms = System.Windows.Forms;
 using Microsoft.Win32;
 using DllSidecar.Core.Models.Wizard;
 
@@ -54,7 +56,7 @@ public partial class InputStage : System.Windows.Controls.UserControl, IWizardSt
         var path = PathBox.Text.Trim();
         if (string.IsNullOrEmpty(path))
         {
-            System.Windows.MessageBox.Show("Drop a file/folder or browse first.",
+            MessageBox.Show("Drop a file/folder or browse first.",
                 "Input required", MessageBoxButton.OK, MessageBoxImage.Warning);
             return Task.FromResult(false);
         }
@@ -63,7 +65,7 @@ public partial class InputStage : System.Windows.Controls.UserControl, IWizardSt
         {
             if (!File.Exists(path))
             {
-                System.Windows.MessageBox.Show($"File does not exist:\n{path}",
+                MessageBox.Show($"File does not exist:\n{path}",
                     "Invalid path", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return Task.FromResult(false);
             }
@@ -77,7 +79,7 @@ public partial class InputStage : System.Windows.Controls.UserControl, IWizardSt
             var isFile = File.Exists(path);
             if (!isDir && !isFile)
             {
-                System.Windows.MessageBox.Show($"Path does not exist:\n{path}",
+                MessageBox.Show($"Path does not exist:\n{path}",
                     "Invalid path", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return Task.FromResult(false);
             }
@@ -125,10 +127,10 @@ public partial class InputStage : System.Windows.Controls.UserControl, IWizardSt
 
     private void BrowseDir_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new FolderBrowserDialog { Description = "Pick an install directory" };
+        var dlg = new WinForms.FolderBrowserDialog { Description = "Pick an install directory" };
         if (!string.IsNullOrWhiteSpace(PathBox.Text) && Directory.Exists(PathBox.Text))
             dlg.SelectedPath = PathBox.Text;
-        if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        if (dlg.ShowDialog() == WinForms.DialogResult.OK)
             PathBox.Text = dlg.SelectedPath;
     }
 

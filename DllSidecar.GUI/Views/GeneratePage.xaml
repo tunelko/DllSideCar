@@ -156,6 +156,8 @@
                                     <ComboBoxItem Content="Shellcode injection"/>
                                     <ComboBoxItem Content="Sandbox escape (AppContainer — Acrobat/Office/Chromium)"
                                                   ToolTip="Cross-process inject into a less-restricted sibling (e.g. AcroCEF) + CreateProcessA on WinSta0\Default so cmd.exe appears on desktop. Required for AppContainer hosts where WinExec is blocked."/>
+                                    <ComboBoxItem Content="Reverse shell (TCP cmd.exe — host/port in Config)"
+                                                  ToolTip="WSASocket → connect → CreateProcessA(&quot;cmd.exe&quot;) with stdin/stdout/stderr piped to the socket. Listener side: nc -lvnp PORT. Configure host/port in Configuration → Payload Defaults."/>
                                 </ComboBox>
                                 <TextBox x:Name="PayloadDataBox" Margin="0,8,0,0"
                                          FontFamily="{StaticResource FontMono}" Visibility="Collapsed"

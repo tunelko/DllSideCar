@@ -130,6 +130,8 @@ public partial class ConfigPage : Page
         // Payload defaults
         MsgBoxTitleBox.Text = cfg.Payload.MessageBoxTitle;
         MsgBoxBodyBox.Text = cfg.Payload.MessageBoxBody;
+        RevShellHostBox.Text = cfg.Payload.ReverseShellHost;
+        RevShellPortBox.Text = cfg.Payload.ReverseShellPort.ToString();
     }
 
     private void GetNvdKey_Click(object sender, RoutedEventArgs e)
@@ -246,6 +248,13 @@ public partial class ConfigPage : Page
             cfg.Payload.MessageBoxTitle = MsgBoxTitleBox.Text;
         if (!string.IsNullOrWhiteSpace(MsgBoxBodyBox.Text))
             cfg.Payload.MessageBoxBody = MsgBoxBodyBox.Text;
+
+        // Reverse-shell endpoint: same guard. Invalid port falls through to
+        // current value so a typo doesn't quietly stomp the saved 4444 with 0.
+        if (!string.IsNullOrWhiteSpace(RevShellHostBox.Text))
+            cfg.Payload.ReverseShellHost = RevShellHostBox.Text.Trim();
+        if (int.TryParse(RevShellPortBox.Text?.Trim(), out int p) && p > 0 && p < 65536)
+            cfg.Payload.ReverseShellPort = p;
     }
 
     private static string? NullIfBlank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
@@ -267,7 +276,7 @@ public partial class ConfigPage : Page
             SaveStatus.Foreground = new System.Windows.Media.SolidColorBrush(
                 System.Windows.Media.Color.FromRgb(0xF3, 0x8B, 0xA8));
             _main.Log($"Config save failed: {result.ErrorMessage}");
-            System.Windows.MessageBox.Show(
+            MessageBox.Show(
                 $"Could not save configuration:\n\n{result.ErrorMessage}",
                 "Save Error", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
@@ -275,7 +284,7 @@ public partial class ConfigPage : Page
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
-        var r = System.Windows.MessageBox.Show(
+        var r = MessageBox.Show(
             "Reset all settings to defaults?", "Reset Config",
             MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (r != MessageBoxResult.Yes) return;

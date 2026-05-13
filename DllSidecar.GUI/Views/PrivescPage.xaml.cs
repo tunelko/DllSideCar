@@ -2,7 +2,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Forms;
+// See BuildPage for rationale: WinForms is referenced fully-qualified to keep
+// the global `MessageBox` alias pointing at AppDialog.
+using WinForms = System.Windows.Forms;
 using System.Windows.Media;
 using DllSidecar.Core.Configuration;
 using DllSidecar.Core.Logging;
@@ -42,10 +44,10 @@ public partial class PrivescPage : Page
 
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new FolderBrowserDialog { Description = "Select directory to analyze for privesc vectors" };
+        var dlg = new WinForms.FolderBrowserDialog { Description = "Select directory to analyze for privesc vectors" };
         if (!string.IsNullOrWhiteSpace(DirPathBox.Text) && Directory.Exists(DirPathBox.Text))
             dlg.SelectedPath = DirPathBox.Text;
-        if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        if (dlg.ShowDialog() == WinForms.DialogResult.OK)
             DirPathBox.Text = dlg.SelectedPath;
     }
 
@@ -240,7 +242,7 @@ public partial class PrivescPage : Page
         catch (Exception ex)
         {
             _main.Log($"Service audit failed: {ex.GetType().Name}: {ex.Message}");
-            System.Windows.MessageBox.Show($"{ex.GetType().Name}: {ex.Message}\n\n{ex.StackTrace}",
+            MessageBox.Show($"{ex.GetType().Name}: {ex.Message}\n\n{ex.StackTrace}",
                 "Service audit error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
