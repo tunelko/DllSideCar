@@ -26,6 +26,12 @@ public class PayloadConfig
 {
     public string MessageBoxTitle { get; set; } = "DllSidecar PoC {Researcher}";
     public string MessageBoxBody { get; set; } = "DLL Sideloading PoC\nResearcher: {Researcher}\nDllSidecar — BugAInters 2026";
+
+    // Reverse-shell default endpoint. Host accepts hostnames or dotted-quad
+    // IPv4 (parsed at template time — hostnames are resolved at runtime via
+    // gethostbyname). 4444 is the canonical msfvenom/nc default.
+    public string ReverseShellHost { get; set; } = "127.0.0.1";
+    public int ReverseShellPort { get; set; } = 4444;
 }
 
 /// <summary>

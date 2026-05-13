@@ -72,3 +72,6 @@ spike-*/
 **/AdvisoryLibrary.db*
 attachments/
 results/
+# Output of the PoC generator (regenerated on demand from the GUI).
+# templates/ — the .h headers consumed by every generated PoC — IS tracked.
+output/

@@ -2,7 +2,12 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Forms;
+// Intentional: do NOT import System.Windows.Forms at file scope — it would pull
+// System.Windows.Forms.MessageBox into the unqualified-name space and shadow
+// (or at least race against) the `global using MessageBox = AppDialog` alias.
+// We need exactly one WinForms type here (FolderBrowserDialog); reference it
+// fully-qualified so `MessageBox.Show(...)` always lands on the themed dialog.
+using WinForms = System.Windows.Forms;
 using DllSidecar.Core.Configuration;
 using DllSidecar.Core.Services;
 
@@ -29,8 +34,8 @@ public partial class BuildPage : Page
 
     private void BrowseDir_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new FolderBrowserDialog { Description = "Select generated project directory" };
-        if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        var dlg = new WinForms.FolderBrowserDialog { Description = "Select generated project directory" };
+        if (dlg.ShowDialog() == WinForms.DialogResult.OK)
             DirBox.Text = dlg.SelectedPath;
     }
 
@@ -75,7 +80,9 @@ public partial class BuildPage : Page
                 extraObjects.Add(resObj);
         }
 
-        var projectRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", ".."));
+        // bin/Debug/net9.0-windows/ → src/  (4 levels up). templates/ lives
+        // inside src/ alongside the .sln so the repo is self-contained.
+        var projectRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", ".."));
         var templatesDir = Path.Combine(projectRoot, "templates");
 
         var result = await BuildSystem.CompileDllAsync(

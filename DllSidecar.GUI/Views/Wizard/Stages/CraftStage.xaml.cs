@@ -24,8 +24,11 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
     private bool _suppressPersist;
     private string? _systemOrigPath;
 
+    // src/DllSidecar.GUI/bin/Debug/net9.0-windows/ → src/  (4 levels up).
+    // The templates/ and output/ dirs both live next to the .sln so the repo
+    // stays self-contained — see GeneratePage's identical constant.
     private static readonly string ProjectRoot = Path.GetFullPath(
-        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", ".."));
+        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", ".."));
 
     // Same sentinel as GeneratePage — first item in the export combo, selected by
     // default. When chosen, TargetExport stays null → template emits pure forwarder
@@ -164,14 +167,14 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
     {
         if (_target == null)
         {
-            System.Windows.MessageBox.Show("No target resolved — go back to Pick.",
+            MessageBox.Show("No target resolved — go back to Pick.",
                 "Wizard", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
 
         if (_session.CraftMode == GenerationMode.Proxy && _target.NamedExports == 0)
         {
-            System.Windows.MessageBox.Show("Proxy requires named exports. Switch to Sideload.",
+            MessageBox.Show("Proxy requires named exports. Switch to Sideload.",
                 "Wizard", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
@@ -225,7 +228,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         catch (Exception ex)
         {
             Log.Error("wizard.craft", "Generation failed", ex);
-            System.Windows.MessageBox.Show($"Generation failed: {ex.Message}",
+            MessageBox.Show($"Generation failed: {ex.Message}",
                 "Wizard", MessageBoxButton.OK, MessageBoxImage.Error);
             return false;
         }
@@ -413,6 +416,42 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         if (SandboxTargetsPanel != null)
             SandboxTargetsPanel.Visibility = PayloadCombo.SelectedIndex == 3
                 ? Visibility.Visible : Visibility.Collapsed;
+
+        // ReverseShell-safe defaults — see GeneratePage for the same logic.
+        // Winsock + CreateProcess under the DllMain loader lock deadlocks; the
+        // new-thread mode runs do_payload after DllMain returns, and the proof
+        // file leaves a breadcrumb when the listener side never hears anything.
+        // _suppressPersist gates the user-facing dialog so it doesn't fire when
+        // the session restore in the ctor flips the combo on page load.
+        if (PayloadCombo.SelectedIndex == 4)
+        {
+            if (ThreadCombo != null) ThreadCombo.SelectedIndex = 1;
+            if (ChkWriteProof != null) ChkWriteProof.IsChecked = true;
+            if (!_suppressPersist) ShowReverseShellAdvisory();
+        }
+    }
+
+    /// <summary>
+    /// One-shot informational modal explaining the auto-applied defaults when
+    /// the user picks ReverseShell in the wizard's Craft stage. Mirrors the
+    /// non-wizard GeneratePage helper of the same name.
+    /// </summary>
+    private static void ShowReverseShellAdvisory()
+    {
+        MessageBox.Show(
+            "Reverse shell selected — safe defaults applied:\n\n" +
+            "  • Thread mode → New thread (CreateThread)\n" +
+            "      Required: Winsock + CreateProcessA under the DllMain loader\n" +
+            "      lock deadlocks the host. A separate thread runs do_payload()\n" +
+            "      after DllMain returns.\n\n" +
+            "  • Write proof file → ON\n" +
+            "      Leaves %TEMP%\\dllsidecar_proof_<PID>.txt at payload entry so\n" +
+            "      you can confirm execution even if the listener never sees a\n" +
+            "      connection (firewall, missing nc -lvnp, AV block).\n\n" +
+            "Host / port come from Configuration → Payload Defaults.\n" +
+            "Don't forget the listener: nc -lvnp <port>  (or ncat).",
+            "Reverse shell — defaults applied",
+            MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void BrowseHost_Click(object sender, RoutedEventArgs e)
@@ -567,6 +606,10 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         var payloadCfg = ConfigManager.Current.Payload;
         config.MessageBoxTitle = payloadCfg.MessageBoxTitle;
         config.MessageBoxBody = payloadCfg.MessageBoxBody;
+
+        // ReverseShell endpoint — same source-of-truth as MessageBox text.
+        config.ReverseShellHost = payloadCfg.ReverseShellHost;
+        config.ReverseShellPort = payloadCfg.ReverseShellPort;
 
         var baseName = Path.GetFileNameWithoutExtension(_target.Filename);
         var modeLabel = _session.CraftMode.ToString().ToLowerInvariant();

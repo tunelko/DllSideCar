@@ -9,11 +9,25 @@
         WindowStyle="None"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
-        Background="{StaticResource Base}">
+        AllowsTransparency="True"
+        Background="Transparent">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="32" ResizeBorderThickness="0"
                             GlassFrameThickness="0" CornerRadius="0"/>
     </shell:WindowChrome.WindowChrome>
+
+    <!-- Outer frame: 14px transparent margin reserves room for the drop shadow,
+         so the dialog reads as "lifted" over whatever main-window content sits
+         behind it. The inner Border carries the actual dialog chrome + accent
+         ring; Mantle (#111111) is a step above Base so the modal does not vanish
+         into the page background. -->
+    <Border Margin="14" CornerRadius="6"
+            Background="{StaticResource Mantle}"
+            BorderBrush="{StaticResource RingStrong}"
+            BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect Color="Black" BlurRadius="28" ShadowDepth="0" Opacity="0.65"/>
+        </Border.Effect>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="32"/>       <!-- 0: title strip (Crust band) -->
@@ -23,7 +37,8 @@
         </Grid.RowDefinitions>
 
         <!-- Custom title strip (matches MainWindow chrome) -->
-        <Border Grid.Row="0" Background="{StaticResource Crust}">
+        <Border Grid.Row="0" Background="{StaticResource Crust}"
+                CornerRadius="6,6,0,0">
             <DockPanel>
                 <Button DockPanel.Dock="Right" x:Name="CloseStripBtn"
                         Style="{StaticResource HudWindowCloseButton}"
@@ -63,4 +78,5 @@
         <StackPanel Grid.Row="3" x:Name="ButtonStrip" Orientation="Horizontal"
                     HorizontalAlignment="Right" Margin="20,16,20,18"/>
     </Grid>
+    </Border>
 </Window>

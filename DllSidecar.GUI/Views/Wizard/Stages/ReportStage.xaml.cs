@@ -156,7 +156,7 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"Save failed: {ex.Message}", "Error",
+            MessageBox.Show($"Save failed: {ex.Message}", "Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -166,7 +166,7 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
         var chromium = FindChromium();
         if (chromium == null)
         {
-            System.Windows.MessageBox.Show("Chrome or Edge not found — required for PDF export.",
+            MessageBox.Show("Chrome or Edge not found — required for PDF export.",
                 "Wizard", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -195,7 +195,7 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
         catch (Exception ex)
         {
             Log.Error("wizard.report.pdf", "PDF export failed", ex);
-            System.Windows.MessageBox.Show($"PDF export failed: {ex.Message}", "Error",
+            MessageBox.Show($"PDF export failed: {ex.Message}", "Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally { _shell.HideOverlay(); }

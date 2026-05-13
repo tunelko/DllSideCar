@@ -159,10 +159,40 @@ public partial class MainWindow : Window
         Log("DllSidecar GUI started");
     }
 
-    /// <summary>Persist console panel height so the user's drag-resize choice
-    /// (or the collapsed default) survives across sessions.</summary>
+    // Suppresses the exit confirmation when we already asked the user once
+    // in this close cycle (Cancel-then-no path) or when the close is being
+    // forced programmatically. Reset implicit because the window is disposed
+    // after a successful close, so there's no "next time" within this process.
+    private bool _exitConfirmed;
+
+    /// <summary>
+    /// Two responsibilities on close:
+    ///   1. Ask the user to confirm — accidental Alt+F4 / red-X clicks have
+    ///      eaten enough in-progress wizard/scan state to warrant a prompt.
+    ///   2. Persist the console panel height so the drag-resize choice (or
+    ///      the collapsed default) survives across sessions.
+    /// Confirmation runs first because there's no point persisting if the
+    /// user is going to cancel and keep working.
+    /// </summary>
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        if (!_exitConfirmed)
+        {
+            var r = MessageBox.Show(this,
+                "Are you sure you want to exit?\n\n" +
+                "Unsaved scan results, wizard progress, and runtime trace events " +
+                "will be lost. Configuration (paths, defaults) is already persisted.",
+                "Exit DllSidecar",
+                MessageBoxButton.YesNo, MessageBoxImage.Question,
+                MessageBoxResult.No);
+            if (r != MessageBoxResult.Yes)
+            {
+                e.Cancel = true;
+                return;
+            }
+            _exitConfirmed = true;
+        }
+
         try
         {
             // GridLength.Value is "*" weight or pixels. We always use absolute
