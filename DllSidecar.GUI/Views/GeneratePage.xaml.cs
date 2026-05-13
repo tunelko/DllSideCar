@@ -35,11 +35,10 @@ public partial class GeneratePage : Page
     // values into the controls (otherwise every programmatic set fires a save).
     private bool _suppressPersist;
 
-    // src/DllSidecar.GUI/bin/Debug/net9.0-windows/ → src/  (4 levels up).
-    // The templates/ and output/ dirs both live next to the .sln so the repo
-    // stays self-contained — no external D:\…\DllSidecar\templates dependency.
-    private static readonly string ProjectRoot = Path.GetFullPath(
-        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", ".."));
+    // AppPaths centralises dev-vs-installed resolution. In dev TemplatesDir =
+    // src/templates and OutputRoot = src/output; in installed mode templates
+    // live next to the exe (bundled by setup.iss) and output drops into
+    // %LOCALAPPDATA%\DllSidecar\output (writable without admin).
 
     /// <summary>
     /// Convenience overload — callers (Scan / Analyze) hand off a recommended technique
@@ -608,7 +607,7 @@ public partial class GeneratePage : Page
 
         var baseName = Path.GetFileNameWithoutExtension(_analysis.Filename);
         var modeLabel = _mode.ToString().ToLowerInvariant();
-        var outputDir = Path.Combine(ProjectRoot, "output", $"{baseName}_{modeLabel}");
+        var outputDir = Path.Combine(AppPaths.OutputRoot, $"{baseName}_{modeLabel}");
         Directory.CreateDirectory(outputDir);
 
         _main.Log($"Generating {_mode} for {_analysis.Filename}...");
@@ -616,7 +615,7 @@ public partial class GeneratePage : Page
         var files = TemplateEngine.Generate(_analysis, config);
 
         // Copy headers
-        var templatesDir = Path.Combine(ProjectRoot, "templates");
+        var templatesDir = AppPaths.TemplatesDir;
         if (config.DInvoke && File.Exists(Path.Combine(templatesDir, "dinvoke.h")))
             File.Copy(Path.Combine(templatesDir, "dinvoke.h"), Path.Combine(outputDir, "dinvoke.h"), true);
         if (config.DirectSyscalls && File.Exists(Path.Combine(templatesDir, "syscalls.h")))

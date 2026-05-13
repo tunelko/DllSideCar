@@ -1120,8 +1120,13 @@ public static class TemplateEngine
         bool isX64 = analysis.Arch == "x64";
         var gccPrefix = isX64 ? "x86_64-w64-mingw32" : "i686-w64-mingw32";
         var mingwPath = isX64 ? @"C:\msys64\mingw64\bin" : @"C:\msys64\mingw32\bin";
+        // The required .h files are copied alongside the generated .c/.def into
+        // outputDir before the .bat runs (GeneratePage / CraftStage do the copy).
+        // `-I.` works in both dev and installed layouts — the previous
+        // `-I../../templates` resolved to `C:\templates` in installed mode
+        // (4-up from `C:\Program Files\DllSidecar\output\...` saturated at C:\).
         var needsHeaders = config.DInvoke || config.EncryptStrings || config.DirectSyscalls;
-        var incFlag = needsHeaders ? "-I../../templates" : "";
+        var incFlag = needsHeaders ? "-I." : "";
 
         var sb = new StringBuilder();
         sb.Append("@echo off\r\nsetlocal\r\n");
