@@ -35,8 +35,11 @@ public partial class GeneratePage : Page
     // values into the controls (otherwise every programmatic set fires a save).
     private bool _suppressPersist;
 
+    // src/DllSidecar.GUI/bin/Debug/net9.0-windows/ → src/  (4 levels up).
+    // The templates/ and output/ dirs both live next to the .sln so the repo
+    // stays self-contained — no external D:\…\DllSidecar\templates dependency.
     private static readonly string ProjectRoot = Path.GetFullPath(
-        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", ".."));
+        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", ".."));
 
     /// <summary>
     /// Convenience overload — callers (Scan / Analyze) hand off a recommended technique
