@@ -83,10 +83,14 @@ public partial class BuildPage : Page
         // AppPaths handles dev (src/templates) vs installed ({app}\templates) layout.
         var templatesDir = AppPaths.TemplatesDir;
 
+        // BuildPage doesn't know the payload type — link ws2_32 unconditionally
+        // so reverse-shell sources compile here too. The extra import is a few
+        // bytes in the PE and only loads if winsock symbols are actually referenced.
         var result = await BuildSystem.CompileDllAsync(
             cFiles[0], defFiles[0], outputFile, arch,
             includeDirs: [templatesDir, dir],
             extraObjects: extraObjects.Count > 0 ? extraObjects : null,
+            extraLibs: new[] { "ws2_32" },
             progress: progress);
 
         if (result.Success)

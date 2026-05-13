@@ -679,6 +679,10 @@ public partial class GeneratePage : Page
             }
 
             var buildProgress = new Progress<string>(msg => _main.Log($"  {msg}"));
+            // ws2_32 needed when the reverse-shell payload's trace code calls
+            // WSAGetLastError() directly (not through a GetProcAddress pointer).
+            var extraLibs = config.Payload == Core.Models.PayloadType.ReverseShell
+                ? new[] { "ws2_32" } : null;
             var result = await BuildSystem.CompileDllAsync(
                 Path.Combine(outputDir, cFile),
                 Path.Combine(outputDir, defFile),
@@ -686,6 +690,7 @@ public partial class GeneratePage : Page
                 _analysis.Arch,
                 includeDirs: [templatesDir, outputDir],
                 extraObjects: extraObjects.Count > 0 ? extraObjects : null,
+                extraLibs: extraLibs,
                 progress: buildProgress);
 
             if (result.Success)

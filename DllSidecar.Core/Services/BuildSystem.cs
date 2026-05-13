@@ -65,6 +65,7 @@ public static class BuildSystem
         string sourceFile, string defFile, string outputFile, string arch,
         IEnumerable<string>? includeDirs = null,
         IEnumerable<string>? extraObjects = null,
+        IEnumerable<string>? extraLibs = null,
         IProgress<string>? progress = null)
     {
         var gcc = FindGcc(arch);
@@ -80,7 +81,14 @@ public static class BuildSystem
             foreach (var inc in includeDirs)
                 args.AddRange(new[] { "-I", inc });
 
-        args.AddRange(new[] { "-luser32", "-lkernel32", "-ladvapi32", "-Os", "-s", "-w" });
+        // user32/kernel32/advapi32 cover almost every payload. extraLibs lets
+        // callers tack on payload-specific imports (e.g. ws2_32 for ReverseShell
+        // when the trace code calls WSAGetLastError directly, not via GetProcAddress).
+        args.AddRange(new[] { "-luser32", "-lkernel32", "-ladvapi32" });
+        if (extraLibs != null)
+            foreach (var lib in extraLibs)
+                args.Add($"-l{lib}");
+        args.AddRange(new[] { "-Os", "-s", "-w" });
 
         progress?.Report($"Compiling: {Path.GetFileName(sourceFile)} -> {Path.GetFileName(outputFile)} ({arch})");
 
