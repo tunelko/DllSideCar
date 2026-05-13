@@ -11,7 +11,11 @@ public class TemplateConfig
     public string? TargetExport { get; set; }
     public ThreadMode Thread { get; set; } = ThreadMode.Calling;
     public byte XorKey { get; set; } = (byte)Random.Shared.Next(0x10, 0xFE);
-    public string Researcher { get; set; } = "@tunelko";
+    // Empty default so the distributed installer ships with no maintainer
+    // identity in the generated PoCs. GeneratePage / CraftStage populate this
+    // from ConfigManager.Current.Researcher.Handle when the user has filled
+    // the Configuration page; emit sites skip the attribution when empty.
+    public string Researcher { get; set; } = "";
     public bool CloneMetadata { get; set; }
     public bool StompTimestamps { get; set; }
     public GenerationMode Mode { get; set; } = GenerationMode.Proxy;
@@ -53,10 +57,11 @@ public class TemplateConfig
 
     // MessageBox payload — editable title + body so the researcher can stamp
     // the popup with a session/case identifier without hand-patching the
-    // generated C. {Researcher} placeholder is substituted at template time.
+    // generated C. {Researcher} placeholder is substituted at template time
+    // (only renders something useful when ResearcherConfig.Handle is set).
     // Newlines and quotes are escaped for C string literal embedding.
-    public string MessageBoxTitle { get; set; } = "DllSidecar PoC {Researcher}";
-    public string MessageBoxBody { get; set; } = "DLL Sideloading PoC\nResearcher: {Researcher}\nDllSidecar — BugAInters 2026";
+    public string MessageBoxTitle { get; set; } = "DllSidecar PoC";
+    public string MessageBoxBody { get; set; } = "DLL Sideloading PoC\nDllSidecar — BugAInters 2026";
 
     // ReverseShell payload — connect-back TCP cmd.exe pipe. Host accepts
     // hostnames or dotted-quad IPv4; Port is the listener port the researcher
