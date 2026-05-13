@@ -6,8 +6,8 @@ public partial class App : System.Windows.Application
 {
     protected override void OnStartup(System.Windows.StartupEventArgs e)
     {
-        base.OnStartup(e);
-
+        // Elevation check FIRST. If we're not elevated we relaunch via runas
+        // and shut this instance down before WPF does anything else.
         if (!Helpers.Elevation.IsElevated)
         {
             try
@@ -32,6 +32,14 @@ public partial class App : System.Windows.Application
         // identity, NVD API key) when the install marker version differs
         // from the recorded last-launched version. Dev mode has no marker
         // so this is a no-op there.
+        //
+        // MUST run BEFORE base.OnStartup — WPF processes StartupUri inside
+        // base.OnStartup, which constructs MainWindow, which opens
+        // library.db via SqliteConnection. Once the SQLite connection holds
+        // the file, File.Delete throws IOException and the swallowed catch
+        // silently keeps the old DB. Order matters here.
         PostInstallReset.RunIfNeeded();
+
+        base.OnStartup(e);
     }
 }
