@@ -1186,9 +1186,20 @@ public partial class AdvisoryLibraryPage : Page
         // The chip surfaces the renderer id so the row reads unambiguously without
         // having to open each file. INCIBE keeps its .txt extension but gets a chip
         // for visual consistency.
-        public string FormatLabel =>
-            (DllSidecar.Core.Services.Advisory.Rendering.AdvisoryRenderers.ById(Artifact.TemplateId)?.Id
-                ?? Artifact.TemplateId ?? "").ToUpperInvariant();
+        public string FormatLabel
+        {
+            get
+            {
+                // Coalesce null/blank up-front so AdvisoryRenderers.ById never sees null
+                // (signature is non-nullable). The artifact's TemplateId can be empty when
+                // the row predates the per-template wiring; falling back to "" keeps the
+                // chip blank rather than throwing.
+                var id = Artifact.TemplateId ?? "";
+                if (id.Length == 0) return "";
+                return (DllSidecar.Core.Services.Advisory.Rendering.AdvisoryRenderers.ById(id)?.Id
+                        ?? id).ToUpperInvariant();
+            }
+        }
     }
 
 
