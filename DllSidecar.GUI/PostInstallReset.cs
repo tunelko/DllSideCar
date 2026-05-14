@@ -16,7 +16,7 @@ namespace DllSidecar.GUI;
 ///   · config.Tools.NvdApiKey  — researcher-specific NVD API key cleared
 ///
 /// Preserved (these are environment, not identity):
-///   · Tools paths (sysinternals, procmon, sigcheck, 7-Zip, innounp, x64dbg …)
+///   · Tools paths (sysinternals, procmon, sigcheck, x64dbg …)
 ///   · MSYS / MinGW paths
 ///   · UI state (last paths, window sizes, console height …)
 ///   · XOR preset keys

@@ -60,9 +60,6 @@ any direct or indirect damage arising from its use.
   command-line filtering for svchost group disambiguation, a Service
   Picker that auto-fills Watch-by-Name, and a pulsing REC indicator
   while a session is live.
-- **Installer extraction**: statically unpacks `.msi`, Inno Setup,
-  NSIS, and 7-Zip self-extracting executables without execution.
-
 ### Privilege escalation surface
 
 - **Service DLL Audit modal**: enumerates installed services, surfaces
@@ -103,8 +100,7 @@ any direct or indirect damage arising from its use.
   resource files into a final DLL. Supports timestamp stomping for
   binary cosmetic mimicry.
 - **Toolkit health check**: detects and validates ProcMon, sigcheck,
-  Dependencies, x64dbg, x32dbg, 7-Zip, InnoUnp, MinGW, and the NVD
-  API key state.
+  Dependencies, x64dbg, x32dbg, MinGW, and the NVD API key state.
 
 ### Advisory authoring
 
@@ -167,8 +163,6 @@ be promoted to an advisory record in the persisted library.
   - MinGW-w64 (via MSYS2): required to compile generated PoC DLLs
   - Sysinternals suite: required for ProcMon CSV ingest and
     sigcheck-based signature verification
-  - 7-Zip and/or InnoUnp: required to extract MSI / NSIS / Inno
-    Setup installers without executing them
 
 DllSidecar performs a toolchain probe on every launch and surfaces a
 modal warning when the MinGW compilers are not detected, so an empty

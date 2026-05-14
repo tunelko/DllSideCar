@@ -54,29 +54,10 @@ public partial class SurveyStage : System.Windows.Controls.UserControl, IWizardS
 
         try
         {
-            // Stage: Input can be Installer / Directory / SinglePe
+            // Stage: Input is Directory / SinglePe (Installer was removed).
             string? rootDir = _session.InputPath;
 
-            if (_session.InputKind == WizardInputKind.Installer)
-            {
-                _shell.ShowOverlay("Extracting installer", $"Unpacking {Path.GetFileName(_session.InputPath)}...");
-                var extract = await InstallerExtractor.ExtractAsync(
-                    _session.InputPath!, null, new Progress<string>(_ => { }), CancellationToken.None);
-                _shell.HideOverlay();
-
-                if (!extract.Success || string.IsNullOrEmpty(extract.OutputDir))
-                {
-                    StatusLine.Text = $"Extraction failed: {extract.ErrorMessage ?? "unknown"}";
-                    StatusLine.Foreground = new System.Windows.Media.SolidColorBrush(
-                        System.Windows.Media.Color.FromRgb(0xFF, 0x5B, 0x4F));
-                    return;
-                }
-                rootDir = extract.OutputDir;
-                _session.ExtractionPerformed = true;
-                _session.ExtractionMethod = extract.MethodUsed.ToString();
-                _shell.LogInfo($"Wizard extracted {_session.InputPath} → {rootDir} via {extract.MethodUsed}");
-            }
-            else if (_session.InputKind == WizardInputKind.SinglePe)
+            if (_session.InputKind == WizardInputKind.SinglePe)
             {
                 // Single PE — no scan needed; skip to Pick with a synthetic candidate
                 _session.ScanResults = new ScanResults();
@@ -152,7 +133,6 @@ public partial class SurveyStage : System.Windows.Controls.UserControl, IWizardS
         CandidatesGrid.ItemsSource = rows;
 
         StatusLine.Text = $"Surveyed {_session.SurveyRootDir}" +
-            (_session.ExtractionPerformed ? $" (extracted via {_session.ExtractionMethod})" : "") +
             $" · {rows.Count} candidate(s)" +
             (markedTop > 0 ? $" · {markedTop} top highlighted." : "");
         _shell.RefreshChrome();

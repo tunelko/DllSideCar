@@ -236,7 +236,6 @@ public partial class MainWindow : Window
             ScanPage                   => NavBtnScan,
             ProcmonPage                => NavBtnProcmon,
             RuntimeTracePage           => NavBtnRuntime,
-            InstallerPage              => NavBtnInstaller,
             PrivescPage                => NavBtnPrivesc,
             AttackPathPage             => NavBtnAttackPath,
             GeneratePage               => NavBtnDllTechniques,
@@ -247,7 +246,7 @@ public partial class MainWindow : Window
         System.Windows.Controls.Button[] all =
         [
             NavBtnWizard, NavBtnAnalyze, NavBtnScan, NavBtnProcmon, NavBtnRuntime,
-            NavBtnInstaller, NavBtnPrivesc, NavBtnAttackPath, NavBtnDllTechniques, NavBtnAdvisory, NavBtnAdvisoryLibrary
+            NavBtnPrivesc, NavBtnAttackPath, NavBtnDllTechniques, NavBtnAdvisory, NavBtnAdvisoryLibrary
         ];
         foreach (var b in all) b.Tag = ReferenceEquals(b, active) ? "active" : null;
     }
@@ -336,7 +335,6 @@ public partial class MainWindow : Window
     private void NavAnalyze_Click(object sender, RoutedEventArgs e) => NavigateTo(new AnalyzePage(this));
     private void NavScan_Click(object sender, RoutedEventArgs e) => NavigateTo(new ScanPage(this));
     private void NavProcmon_Click(object sender, RoutedEventArgs e) => NavigateTo(new ProcmonPage(this));
-    private void NavInstaller_Click(object sender, RoutedEventArgs e) => NavigateTo(new InstallerPage(this));
     private void NavDllTechniques_Click(object sender, RoutedEventArgs e) => NavigateTo(new GeneratePage(this));
     private void NavBuild_Click(object sender, RoutedEventArgs e) { ToolsPopup.IsOpen = false; NavigateTo(new BuildPage(this)); }
     private void NavPrivesc_Click(object sender, RoutedEventArgs e) => NavigateTo(new PrivescPage(this));

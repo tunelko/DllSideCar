@@ -117,15 +117,10 @@
                                    VerticalAlignment="Center"/>
                         <TextBox Grid.Column="1" x:Name="HostExeBox" FontFamily="{StaticResource FontMono}"
                                  FontSize="11" Padding="6,4"
-                                 TextChanged="HostExeBox_Changed"
                                  ToolTip="EXE launched after deploy. Default = IAT importer. Change to the upstream launcher if the importer is an internal binary that doesn't run standalone."/>
                         <Button Grid.Column="2" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
                                 Margin="6,0,0,0" Click="BrowseHost_Click" ToolTip="Browse for Host EXE"/>
                     </Grid>
-                    <TextBlock x:Name="HostWarning" Visibility="Collapsed" Margin="70,4,0,0"
-                               Foreground="{StaticResource Yellow}" FontSize="10.5"
-                               FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"
-                               Text="⚠ Looks like a temp-extracted path. The real launcher (portable EXE / installer / parent) probably lives elsewhere — override above."/>
                 </StackPanel>
                 <Button Grid.Column="1" Content="Clear" Style="{StaticResource GhostButton}"
                         Click="ClearDeploy_Click" VerticalAlignment="Top" Margin="10,0,0,0"

@@ -245,12 +245,6 @@
                                 <TextBlock Text="Runtime Trace" Style="{StaticResource NavLabel}"/>
                             </StackPanel>
                         </Button>
-                        <Button x:Name="NavBtnInstaller" Style="{StaticResource NavButton}" Click="NavInstaller_Click" ToolTip="Installer Extract — statically unpack .msi/.exe without running it">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x1F4E5;" Style="{StaticResource NavIcon}"/>
-                                <TextBlock Text="Installer Extract" Style="{StaticResource NavLabel}"/>
-                            </StackPanel>
-                        </Button>
                         <Button x:Name="NavBtnPrivesc" Style="{StaticResource NavButton}" Click="NavPrivesc_Click" ToolTip="Privesc Surface — map SYSTEM services, tasks, autoElevate manifests">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x1F510;" Style="{StaticResource NavIcon}"/>

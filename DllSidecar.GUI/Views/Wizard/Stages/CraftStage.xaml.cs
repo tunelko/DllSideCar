@@ -465,9 +465,6 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
 
     private void HostExeBox_Changed(object sender, TextChangedEventArgs e)
     {
-        if (HostWarning == null) return;
-        HostWarning.Visibility = IsTempLikePath(HostExeBox.Text)
-            ? Visibility.Visible : Visibility.Collapsed;
         // When the Host path points at an existing PE, pull vendor from its version info
         // (CompanyName normalized) into the session so ReportStage + Library get the right
         // vendor even for phantom-only advisories where the target DLL has no CompanyName.
@@ -485,21 +482,6 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             _session.Vendor = vendor;
             _shell.RefreshChrome();
         }
-    }
-
-    private static bool IsTempLikePath(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path)) return false;
-        try
-        {
-            var full = Path.GetFullPath(path);
-            var userTemp = Path.GetFullPath(Path.GetTempPath());
-            if (full.StartsWith(userTemp, StringComparison.OrdinalIgnoreCase)) return true;
-        }
-        catch { }
-        return path.Contains(@"\AppData\Local\Temp\", StringComparison.OrdinalIgnoreCase)
-            || path.Contains(@"\Local Settings\Temp\", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith(@"C:\Windows\Temp\", StringComparison.OrdinalIgnoreCase);
     }
 
     private void WaitStrategy_Changed(object sender, RoutedEventArgs e)

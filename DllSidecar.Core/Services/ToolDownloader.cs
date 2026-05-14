@@ -239,8 +239,6 @@ public static class ToolDownloader
                     case "DependenciesGuiPath": tools.DependenciesGuiPath = full; break;
                     case "X64DbgPath":      tools.X64DbgPath = full;      break;
                     case "X32DbgPath":      tools.X32DbgPath = full;      break;
-                    case "SevenZipPath":    tools.SevenZipPath = full;    break;
-                    case "InnoUnpPath":     tools.InnoUnpPath = full;     break;
                     default: Log.Warn("download", $"Unknown config key in def: {key}"); break;
                 }
                 result.ResolvedBinaries[key] = full;

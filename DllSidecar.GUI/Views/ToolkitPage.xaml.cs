@@ -56,7 +56,7 @@ public partial class ToolkitPage : Page
     private async Task RefreshAsync()
     {
         Overlay.Show("Probing toolkit",
-            "Running version checks on gcc, windres, Procmon, sigcheck, 7-Zip...");
+            "Running version checks on gcc, windres, Procmon, sigcheck...");
         ToolkitReport report;
         try { report = await ToolkitChecker.CheckAllAsync(); }
         finally { Overlay.Hide(); }

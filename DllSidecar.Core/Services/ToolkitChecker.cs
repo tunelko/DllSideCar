@@ -119,28 +119,6 @@ public static class ToolkitChecker
             DownloadUrl = "https://x64dbg.com/",
         });
 
-        // 7-Zip — installer extraction
-        var sevenZip = ResolveTool(cfg.Tools.SevenZipPath, ["7z.exe"]);
-        report.Tools.Add(new ToolStatus
-        {
-            Name = "7-Zip",
-            Purpose = "Extract MSI / NSIS / InnoSetup installers without executing them",
-            Required = false,
-            ResolvedPath = sevenZip,
-            DownloadUrl = "https://www.7-zip.org/",
-        });
-
-        // InnoUnp — Inno Setup-specific extractor
-        var innounp = ResolveTool(cfg.Tools.InnoUnpPath, ["innounp.exe"]);
-        report.Tools.Add(new ToolStatus
-        {
-            Name = "InnoUnp",
-            Purpose = "Extract Inno Setup installers (.exe) when 7-Zip fails",
-            Required = false,
-            ResolvedPath = innounp,
-            DownloadUrl = "https://innounp.sourceforge.net/",
-        });
-
         return report;
     }
 
@@ -199,8 +177,6 @@ public static class ToolkitChecker
             @"C:\Tools",
             @"C:\Sysinternals",
             @"C:\Program Files\Sysinternals",
-            @"C:\Program Files\7-Zip",
-            @"C:\Program Files (x86)\7-Zip",
             @"C:\Program Files\x64dbg",
         ];
         foreach (var root in commonRoots)

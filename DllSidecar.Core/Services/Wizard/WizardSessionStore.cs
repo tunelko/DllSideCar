@@ -19,8 +19,6 @@ public sealed class WizardSessionSnapshot
     public string? InputPath { get; set; }
 
     public string? SurveyRootDir { get; set; }
-    public bool ExtractionPerformed { get; set; }
-    public string? ExtractionMethod { get; set; }
 
     public string? ProcmonCsvPath { get; set; }
 
@@ -96,8 +94,6 @@ public static class WizardSessionStore
                 HuntingGoal = session.HuntingGoal,
                 InputPath = session.InputPath,
                 SurveyRootDir = session.SurveyRootDir,
-                ExtractionPerformed = session.ExtractionPerformed,
-                ExtractionMethod = session.ExtractionMethod,
                 ProcmonCsvPath = session.ProcmonCsvPath,
                 ChosenExistingFilename = session.ChosenExisting?.Dll.Filename,
                 ChosenExistingPath = session.ChosenExisting?.Dll.Path,
@@ -167,8 +163,6 @@ public static class WizardSessionStore
         target.HuntingGoal = snap.HuntingGoal;
         target.InputPath = snap.InputPath;
         target.SurveyRootDir = snap.SurveyRootDir;
-        target.ExtractionPerformed = snap.ExtractionPerformed;
-        target.ExtractionMethod = snap.ExtractionMethod;
         target.ProcmonCsvPath = snap.ProcmonCsvPath;
         target.CraftMode = snap.CraftMode;
         target.TargetExport = snap.TargetExport;
