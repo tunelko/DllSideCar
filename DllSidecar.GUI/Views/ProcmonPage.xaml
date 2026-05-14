@@ -163,7 +163,7 @@
                             <DataGridTextColumn Header="Risk" Binding="{Binding Risk}" Width="60"/>
                             <DataGridTextColumn Header="Mode" Binding="{Binding ModeLabel}" Width="110"
                                                 SortMemberPath="ModeLabel"/>
-                            <DataGridTextColumn Header="Dir" Binding="{Binding WritabilityLabel}" Width="100"
+                            <DataGridTextColumn Header="Writable" Binding="{Binding WritabilityLabel}" Width="100"
                                                 SortMemberPath="WritabilityLabel">
                                 <DataGridTextColumn.ElementStyle>
                                     <!-- Inlined here on purpose. DataGridColumn isn't in the visual
