@@ -44,6 +44,14 @@ public partial class MainWindow : Window
     // the user explicitly re-parses a different CSV.
     public DllSidecar.Core.Services.ProcmonParser.ParseResult? LastProcmonResult { get; set; }
     public string? LastProcmonCsvPath { get; set; }
+
+    // Last AnalyzePage outputs — kept here so the page can rebuild its
+    // 3-card display + Exploitability verdict + Exports table when the
+    // user navigates away and comes back, without re-running PeAnalyzer
+    // and CallsiteScanner (the latter can be expensive on large PEs).
+    // Both clear implicitly when the user analyzes a different file.
+    public DllSidecar.Core.Models.CallsiteScanResult? LastCallsiteResult { get; set; }
+    public DllSidecar.Core.Services.Exploitability.BinaryVerdict? LastBinaryVerdict { get; set; }
     // Last EXE path the user typed/picked in RuntimeTrace's Launch mode. Persisted here
     // so the field survives navigation away and back (same pattern as LastScanDir).
     public string? LastRuntimeLaunchExe { get; set; }
