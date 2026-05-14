@@ -616,8 +616,20 @@ public partial class AdvisoryLibraryPage : Page
         const double DragThreshold = 16.0;
         if (Math.Abs(delta.X) < DragThreshold && Math.Abs(delta.Y) < DragThreshold) return;
 
-        // Only advisories and vendors are draggable. Skip vendors currently in rename mode.
-        if (_dragCandidate is AdvisoryNode || (_dragCandidate is VendorNode v && !v.IsEditing))
+        // Draggable: advisories (Trash), vendors (not in rename mode), AND file leaves
+        // that know their owning advisory (main tree). FileLeaf drag has always had a
+        // CanDrop case + a Tree_Drop handler that moves the whole owning advisory, but
+        // the move-initiation check above was missing the case — so a file row stayed
+        // un-grabbable in practice. Fixed here so "drag a file to a vendor folder"
+        // matches the behaviour the comment block above promises.
+        bool draggable = _dragCandidate switch
+        {
+            AdvisoryNode => true,
+            VendorNode v => !v.IsEditing,
+            FileLeafNode leaf => leaf.Owner != null,
+            _ => false,
+        };
+        if (draggable)
         {
             _dragStart = null;
             var data = new System.Windows.DataObject(DragDataFormat, _dragCandidate);
