@@ -209,10 +209,18 @@
             </Border>
         </Grid>
 
-        <!-- Footer: status only — Copy/Export moved to the search bar above the grid -->
-        <TextBlock Grid.Row="5" x:Name="Status" Foreground="{StaticResource Overlay}" FontSize="12"
-                   Margin="0,10,0,0"
-                   Text="Ready. Export from ProcMon with File → Save → CSV after applying your filter."/>
+        <!-- Footer: status left, post-parse actions right (mirrors ScanPage layout) -->
+        <Grid Grid.Row="5" Margin="0,10,0,0">
+            <TextBlock x:Name="Status" HorizontalAlignment="Left" VerticalAlignment="Center"
+                       Foreground="{StaticResource Overlay}" FontSize="12" TextTrimming="CharacterEllipsis"
+                       Text="Ready. Export from ProcMon with File → Save → CSV after applying your filter."/>
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                <Button x:Name="PromoteBtn" VerticalAlignment="Center"
+                        Content="&#x2197;  Promote to DLL Techniques" Style="{StaticResource AccentButton}"
+                        Margin="6,0,0,0" Click="Promote_Click" IsEnabled="False"
+                        ToolTip="Hand the selected row off to DLL Techniques in Proxy or Sideload mode depending on whether a canonical system copy exists"/>
+            </StackPanel>
+        </Grid>
     </Grid>
     <ctrl:LoadingOverlay x:Name="Overlay"/>
     </Grid>

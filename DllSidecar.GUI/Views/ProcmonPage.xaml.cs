@@ -230,11 +230,18 @@ public partial class ProcmonPage : Page
         {
             DetailsEmpty.Visibility = Visibility.Visible;
             DetailsContent.Visibility = Visibility.Collapsed;
+            PromoteBtn.IsEnabled = false;
             return;
         }
 
         DetailsEmpty.Visibility = Visibility.Collapsed;
         DetailsContent.Visibility = Visibility.Visible;
+        // Promotion is meaningful for everything EXCEPT KnownDLLs (Windows
+        // always loads those from System32, classic sideload cannot intercept).
+        // Resolvable AND Phantom rows both promote — Resolvable gets Proxy mode
+        // with real exports, Phantom gets Sideload mode with a synthetic
+        // PeAnalysis. The Promote handler decides the actual mode at click time.
+        PromoteBtn.IsEnabled = row.Mode != ProcmonRowMode.KnownDll;
 
         DetailTitle.Text = $"{row.DllName}  —  {row.Aggregation.EventCount} events  —  risk: {row.Risk}";
         DetailProcesses.Text = string.Join("\n", row.Aggregation.Processes.OrderBy(p => p));
@@ -258,6 +265,90 @@ public partial class ProcmonPage : Page
         if (string.IsNullOrEmpty(dir)) return false;
         var lower = dir.ToLowerInvariant();
         return !lower.StartsWith(@"c:\windows") && !lower.StartsWith(@"c:\program files");
+    }
+
+    /// <summary>
+    /// Hand the selected ProcMon row off to DLL Techniques. Mirrors the
+    /// phantom-from-Scan flow (<c>ScanPage.GenerateSideloadForPhantom</c>):
+    /// pick an arch, look up the canonical system DLL via
+    /// <see cref="SystemDllResolver"/>, synthesize a <see cref="PeAnalysis"/>
+    /// so GeneratePage has the export table it needs for Proxy generation,
+    /// fill <c>PendingDeployContext</c> with the searched-dir as the deploy
+    /// slot, then navigate. The auto-mode is Proxy when exports exist on the
+    /// canonical (forward-chain works), Sideload otherwise.
+    /// </summary>
+    private void Promote_Click(object sender, RoutedEventArgs e)
+    {
+        if (DllGrid.SelectedItem is not DllRow row || _lastResult == null)
+        {
+            SetStatus("Select a row to promote.", StatusKind.Warn);
+            return;
+        }
+        if (row.Mode == ProcmonRowMode.KnownDll)
+        {
+            SetStatus("KnownDLLs always load from System32 — cannot be sideloaded.", StatusKind.Warn);
+            return;
+        }
+
+        // ProcMon CSV records process names but not full executable paths, so we
+        // can't probe each importer's PE header for arch the way ScanPage does.
+        // Default to x64 — the dominant target on modern Windows; the user can
+        // override the arch radio buttons in GeneratePage if a 32-bit host is
+        // intended. SystemDllResolver will fall through to null when no x64
+        // canonical exists, dropping us into Sideload mode automatically.
+        const string arch = "x64";
+        var resolved = Core.Services.SystemDllResolver.Resolve(row.DllName, arch);
+        var exports = resolved?.Analysis.Exports ?? new List<ExportEntry>();
+        var autoMode = exports.Count > 0
+            ? Core.Models.GenerationMode.Proxy
+            : Core.Models.GenerationMode.Sideload;
+
+        // Pick the first user-writable searched dir as the deploy slot. ProcMon
+        // emitted these because the loader looked there and couldn't find the
+        // DLL — they're literally the slots where dropping a sideloaded copy
+        // would intercept. Fall back to the first dir if every entry is in a
+        // locked location (the user can still inspect / override in GeneratePage).
+        var deployDir = row.Aggregation.SearchedDirs
+            .FirstOrDefault(d => IsLikelyUserSpace(d))
+            ?? row.Aggregation.SearchedDirs.FirstOrDefault()
+            ?? "";
+
+        var synth = new PeAnalysis
+        {
+            Path = string.IsNullOrEmpty(deployDir)
+                ? row.DllName
+                : Path.Combine(deployDir, row.DllName),
+            Filename = row.DllName,
+            Arch = arch,
+            IsDll = true,
+            FileSize = 0,
+            ProductName = "",
+            FileVersion = "",
+            OriginalFilename = row.DllName,
+            Exports = exports,
+            NamedExports = resolved?.Analysis.NamedExports ?? 0,
+            OrdinalOnlyExports = resolved?.Analysis.OrdinalOnlyExports ?? 0,
+        };
+
+        _main.CurrentAnalysis = synth;
+        _main.CurrentDllPath = synth.Path;
+
+        // HostExePath is left empty: ProcMon gives us process NAMES but not the
+        // launcher path, and by the time the user opens DllSidecar the original
+        // process may be long gone. GeneratePage shows the field blank with a
+        // hint so the researcher fills it themselves (or accepts Compile-only).
+        _main.PendingDeployContext = new MainWindow.DeployContext(
+            TargetDir: deployDir,
+            TargetName: row.DllName,
+            HostExePath: "",
+            SystemOrigPath: resolved?.Path,
+            AutoMode: autoMode,
+            AutoExportCount: exports.Count);
+
+        var modeLabel = autoMode == Core.Models.GenerationMode.Proxy ? "Proxy" : "Sideload";
+        var sysTag = resolved != null ? $"sys={resolved.Path}" : "no system match";
+        _main.Log($"Promote ProcMon row '{row.DllName}' → DLL Techniques in {modeLabel} mode (arch={arch}, exports={exports.Count}, {sysTag}, deploy={deployDir})");
+        _main.NavigateTo(new GeneratePage(_main, autoMode));
     }
 
     private void LaunchProcmon_Click(object sender, RoutedEventArgs e)
