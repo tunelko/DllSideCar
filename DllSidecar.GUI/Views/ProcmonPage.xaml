@@ -161,6 +161,18 @@
                         </DataGrid.ColumnHeaderStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Risk" Binding="{Binding Risk}" Width="60"/>
+                            <DataGridTemplateColumn Header="Verdict" Width="135"
+                                                    SortMemberPath="VerdictSortKey">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <!-- Same VerdictBadge used by AnalyzePage and ScanPage —
+                                             collapses Mode + Writability into the unified tier. -->
+                                        <ctrl:VerdictBadge Verdict="{Binding Verdict}"
+                                                           VerticalAlignment="Center"
+                                                           HorizontalAlignment="Left"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Mode" Binding="{Binding ModeLabel}" Width="110"
                                                 SortMemberPath="ModeLabel"/>
                             <DataGridTextColumn Header="Writable" Binding="{Binding WritabilityLabel}" Width="100"

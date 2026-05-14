@@ -1,6 +1,7 @@
 <Page x:Class="DllSidecar.GUI.Views.AnalyzePage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ctrl="clr-namespace:DllSidecar.GUI.Controls"
       Background="{StaticResource Base}">
     <Grid Margin="28,20,28,16">
         <Grid.RowDefinitions>
@@ -242,20 +243,13 @@
                 <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
                            Text="EXPLOITABILITY" Style="{StaticResource SectionHeader}"/>
 
-                <!-- Left: tier badge + score, vertically centred against the factors list -->
+                <!-- Left: unified VerdictBadge — same control rendered on ScanPage,
+                     ProcmonPage and RuntimeTracePage so the chip vocabulary stays
+                     identical across surfaces. Tooltip carries pros/cons/blocker. -->
                 <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="0,4,24,0">
-                    <Border x:Name="VerdictTierBadge" CornerRadius="3" Padding="14,4" HorizontalAlignment="Left">
-                        <TextBlock x:Name="VerdictTierText" FontSize="14" FontWeight="Bold"
-                                   FontFamily="{StaticResource FontBadge}"/>
-                    </Border>
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0" HorizontalAlignment="Left">
-                        <TextBlock x:Name="VerdictScoreNum" FontSize="28" FontWeight="Bold"
-                                   Foreground="{StaticResource Text}"/>
-                        <TextBlock Text="/10" FontSize="14" Foreground="{StaticResource Overlay}"
-                                   VerticalAlignment="Bottom" Margin="2,0,0,5"/>
-                    </StackPanel>
+                    <ctrl:VerdictBadge x:Name="VerdictBadgeControl"/>
                     <TextBlock x:Name="VerdictBlocker" FontSize="11" Foreground="{StaticResource Red}"
-                               TextWrapping="Wrap" MaxWidth="160" Margin="0,4,0,0"
+                               TextWrapping="Wrap" MaxWidth="200" Margin="0,8,0,0"
                                Visibility="Collapsed"/>
                 </StackPanel>
 

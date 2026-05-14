@@ -7,6 +7,7 @@ using Microsoft.Win32;
 using DllSidecar.Core.Configuration;
 using DllSidecar.Core.Models;
 using DllSidecar.Core.Services;
+using DllSidecar.Core.Services.Exploitability;
 
 namespace DllSidecar.GUI.Views;
 
@@ -469,6 +470,7 @@ public partial class ProcmonPage : Page
             Mode = classification.Mode;
             CanonicalPath = classification.CanonicalPath;
             Writability = ProcmonRowWritabilityClassifier.Classify(a.SearchedDirs, dirAcl);
+            Verdict = ExploitabilityVerdict.For.ProcmonRow(a, Mode, Writability);
         }
 
         public string Risk => Aggregation.RiskHeuristic;
@@ -493,5 +495,12 @@ public partial class ProcmonPage : Page
             ProcmonDirWritability.AllLocked          => "LOCKED",
             _ => "—",
         };
+
+        // Unified ExploitabilityVerdict (Phase 4) — same record the VerdictBadge
+        // control consumes on AnalyzePage and ScanPage. Combines Mode + Writability
+        // into a single tier + score so the row reads at-a-glance without forcing
+        // the researcher to mentally cross both columns.
+        public ExploitabilityVerdict Verdict { get; }
+        public int VerdictSortKey => Verdict.Score;
     }
 }

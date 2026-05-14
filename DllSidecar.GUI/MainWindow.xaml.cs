@@ -51,7 +51,7 @@ public partial class MainWindow : Window
     // and CallsiteScanner (the latter can be expensive on large PEs).
     // Both clear implicitly when the user analyzes a different file.
     public DllSidecar.Core.Models.CallsiteScanResult? LastCallsiteResult { get; set; }
-    public DllSidecar.Core.Services.Exploitability.BinaryVerdict? LastBinaryVerdict { get; set; }
+    public DllSidecar.Core.Services.Exploitability.ExploitabilityVerdict? LastExploitabilityVerdict { get; set; }
     // Last EXE path the user typed/picked in RuntimeTrace's Launch mode. Persisted here
     // so the field survives navigation away and back (same pattern as LastScanDir).
     public string? LastRuntimeLaunchExe { get; set; }

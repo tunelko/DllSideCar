@@ -31,7 +31,7 @@ public partial class AnalyzePage : Page
         // doesn't trigger another disassembly pass.
         if (_main.CurrentAnalysis != null && _main.CurrentDllPath != null)
             RenderAnalysis(_main.CurrentAnalysis, _main.CurrentDllPath,
-                _main.LastCallsiteResult, _main.LastBinaryVerdict);
+                _main.LastCallsiteResult, _main.LastExploitabilityVerdict);
     }
 
     private void SetActionsEnabled(bool enabled)
@@ -72,7 +72,7 @@ public partial class AnalyzePage : Page
             _main.CurrentDllPath = path;
 
             // Run the callsite scan in-line for the exploitability verdict. Iced only
-            // supports x86/x64 so arm64 falls through with null callsites — BinaryVerdict
+            // supports x86/x64 so arm64 falls through with null callsites — ExploitabilityVerdict
             // handles that branch and tiers it as Theoretical with the arch as the blocker.
             CallsiteScanResult? callsites = null;
             if (analysis.Arch is "x86" or "x64")
@@ -80,12 +80,12 @@ public partial class AnalyzePage : Page
                 try { callsites = CallsiteScanner.Scan(path); }
                 catch (Exception scanEx) { _main.Log($"Callsite scan failed: {scanEx.Message}"); }
             }
-            var verdict = BinaryVerdict.For(analysis, callsites);
+            var verdict = ExploitabilityVerdict.For.Binary(analysis, callsites);
 
             // Cache verdict + callsite result so rehydrating the page after a
             // navigation round-trip doesn't have to re-run the disassembler.
             _main.LastCallsiteResult = callsites;
-            _main.LastBinaryVerdict = verdict;
+            _main.LastExploitabilityVerdict = verdict;
 
             RenderAnalysis(analysis, path, callsites, verdict);
 
@@ -106,7 +106,7 @@ public partial class AnalyzePage : Page
     /// and forgetting to repopulate a card.
     /// </summary>
     private void RenderAnalysis(PeAnalysis analysis, string path,
-        CallsiteScanResult? callsites, BinaryVerdict? verdict)
+        CallsiteScanResult? callsites, ExploitabilityVerdict? verdict)
     {
         // File path box mirrors the canonical path so the user sees what's loaded.
         FilePathBox.Text = path;
@@ -156,7 +156,7 @@ public partial class AnalyzePage : Page
         // Verdict card. When restoring without a cached verdict (e.g. a previous
         // session that predated Phase 2), recompute from whatever callsites we
         // have — the cost is one disassembly pass at most.
-        verdict ??= BinaryVerdict.For(analysis, callsites);
+        verdict ??= ExploitabilityVerdict.For.Binary(analysis, callsites);
         RenderVerdict(verdict);
     }
 
@@ -277,27 +277,15 @@ public partial class AnalyzePage : Page
     }
 
     /// <summary>
-    /// Paint the exploitability card. Colors come from theme resources — phosphor /
-    /// yellow / red / overlay keyed off the tier so the badge reads consistently
-    /// with the ScanPage Total chip and the ProcmonPage Writable column.
+    /// Paint the exploitability card. Delegates the chip + tooltip rendering to
+    /// the reusable VerdictBadge control so AnalyzePage / ScanPage /
+    /// ProcmonPage / RuntimeTracePage all share the visual vocabulary. We only
+    /// own the pros/cons lists and the blocker line here.
     /// </summary>
-    private void RenderVerdict(BinaryVerdict verdict)
+    private void RenderVerdict(ExploitabilityVerdict verdict)
     {
         ExploitabilityPanel.Visibility = Visibility.Visible;
-
-        VerdictTierText.Text = verdict.TierLabel;
-        var (bg, fg) = verdict.Tier switch
-        {
-            ExploitabilityTier.Real          => ("Phosphor", "Base"),
-            ExploitabilityTier.Likely        => ("Yellow",   "Base"),
-            ExploitabilityTier.Theoretical   => ("Overlay",  "Text"),
-            ExploitabilityTier.NotApplicable => ("Red",      "Base"),
-            _ => ("Overlay", "Text"),
-        };
-        VerdictTierBadge.Background = (System.Windows.Media.Brush)FindResource(bg);
-        VerdictTierText.Foreground  = (System.Windows.Media.Brush)FindResource(fg);
-        VerdictScoreNum.Text = verdict.Score.ToString();
-
+        VerdictBadgeControl.Verdict = verdict;
         VerdictProsList.ItemsSource = verdict.Pros.ToList();
         VerdictConsList.ItemsSource = verdict.Cons.ToList();
 

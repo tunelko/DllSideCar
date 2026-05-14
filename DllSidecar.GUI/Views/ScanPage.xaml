@@ -1,6 +1,7 @@
 <Page x:Class="DllSidecar.GUI.Views.ScanPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ctrl="clr-namespace:DllSidecar.GUI.Controls"
       Background="{StaticResource Base}">
     <Page.Resources>
         <!-- Axis cell styles — one accent colour per axis so the eye can parse
@@ -272,20 +273,19 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Blocker" Binding="{Binding BlockerLabel}" Width="125"
-                                            SortMemberPath="BlockerSortKey"
-                                            ToolTipService.ToolTip="Top blocker that drags this candidate below Total 5 — empty cell means no dominant blocker (candidate is actionable)">
-                            <DataGridTextColumn.ElementStyle>
-                                <!-- Inline so the column-scope StaticResource lookup stays bulletproof
-                                     (DataGridColumns aren't in the visual tree). Red so the blocker
-                                     reads as a downgrade alongside the green Total/axis cells. -->
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{StaticResource Red}"/>
-                                    <Setter Property="FontWeight" Value="SemiBold"/>
-                                    <Setter Property="ToolTip" Value="{Binding BlockerTooltip}"/>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
+                        <DataGridTemplateColumn Header="Verdict" Width="135"
+                                                SortMemberPath="VerdictSortKey">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <!-- Same VerdictBadge used by AnalyzePage and ProcmonPage —
+                                         tier chip + score with full pros/cons tooltip on hover.
+                                         Empty when the row has no scoring breakdown. -->
+                                    <ctrl:VerdictBadge Verdict="{Binding Verdict}"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Left"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTextColumn Header="DLL" Binding="{Binding Filename}" Width="*"/>
                         <DataGridTextColumn Header="Arch" Binding="{Binding Arch}" Width="55"/>
                         <DataGridTextColumn Header="Writable" Binding="{Binding WritableText}" Width="85"/>

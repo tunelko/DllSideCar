@@ -1215,27 +1215,23 @@ public partial class ScanPage : Page
         public string ConfidenceText => ConfidenceValue.ToString();
         public string Severity => Score?.Severity ?? "?";
 
-        // Dominant blocker for this candidate (Phase 3 of the exploitability roadmap).
-        // Computed once via BlockerInference so the column cell + tooltip stay in sync
-        // and so we don't recompute on every WPF binding refresh.
-        private Core.Services.Exploitability.CandidateBlocker? _blocker;
-        private bool _blockerComputed;
-        private Core.Services.Exploitability.CandidateBlocker? Blocker
+        // Cross-surface ExploitabilityVerdict (Phase 4) — same record the
+        // VerdictBadge control consumes on AnalyzePage / ProcmonPage / Runtime.
+        // Computed lazily so we don't re-evaluate on every binding refresh.
+        private Core.Services.Exploitability.ExploitabilityVerdict? _verdict;
+        private bool _verdictComputed;
+        public Core.Services.Exploitability.ExploitabilityVerdict? Verdict
         {
             get
             {
-                if (_blockerComputed) return _blocker;
-                _blockerComputed = true;
-                if (Score != null) _blocker = Core.Services.Exploitability.BlockerInference.Resolve(Score);
-                return _blocker;
+                if (_verdictComputed) return _verdict;
+                _verdictComputed = true;
+                if (Existing != null) _verdict = Core.Services.Exploitability.ExploitabilityVerdict.For.Candidate(Existing);
+                else if (Phantom != null) _verdict = Core.Services.Exploitability.ExploitabilityVerdict.For.Phantom(Phantom);
+                return _verdict;
             }
         }
-        public string BlockerLabel => Blocker?.Label ?? "";
-        public string BlockerTooltip => Blocker?.Reason ?? "";
-        public string BlockerSortKey =>
-            // Sort: actionable rows (no blocker) first, then by label alphabetically
-            // so equal-blocker groups cluster together.
-            Blocker == null ? " " : Blocker.Label;
+        public int VerdictSortKey => Verdict?.Score ?? 0;
         public string Filename => Existing?.Dll.Filename ?? Phantom?.DllName ?? "?";
         public string Arch => Existing?.Dll.Arch ?? "—";
 
