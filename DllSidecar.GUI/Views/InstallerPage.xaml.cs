@@ -50,24 +50,17 @@ public partial class InstallerPage : Page
         Overlay.Show("Extracting installer", $"Processing {Path.GetFileName(path)}");
 
         _cts = new CancellationTokenSource();
-        // Progress lines from InstallerExtractor land here. They drive THREE
-        // sinks at once: the page-level log (full audit trail), the overlay
-        // subtitle (single-line live status so the user sees forward motion
-        // mid-extraction), and a file-counter that turns 7-Zip's per-file
-        // "- path/to/file" stream into a friendly count.
-        int extractedFiles = 0;
+        // InstallerExtractor pre-filters its progress reports: tool-internal
+        // syntax (the per-file "- path" stream, "[7z err] ..." prefixes, exit
+        // codes) is kept inside result.Logs for debugging and never reaches
+        // this callback. The lines that DO arrive here are user-meaningful
+        // status — "Extracting installer...", "Extracted 250 files...",
+        // "Trying alternate method..." — so they go straight to both the
+        // audit log AND the overlay subtitle for live visibility.
         var progress = new Progress<string>(m =>
         {
             AppendLog(m);
-            if (m.StartsWith("- ", StringComparison.Ordinal))
-            {
-                extractedFiles++;
-                Overlay.UpdateSubtitle($"Extracted {extractedFiles} files — {Path.GetFileName(m.AsSpan(2).ToString())}");
-            }
-            else
-            {
-                Overlay.UpdateSubtitle(m);
-            }
+            Overlay.UpdateSubtitle(m);
         });
         InstallerExtractionResult result;
         try
@@ -86,7 +79,14 @@ public partial class InstallerPage : Page
         }
 
         _lastResult = result;
-        foreach (var line in result.Logs) AppendLog(line);
+        // Only dump the raw technical log (per-tool stdout/stderr, internal
+        // stage markers like "[stage 1] 7-Zip", exit codes) when something
+        // went wrong. On success the user already saw the clean progress
+        // stream and doesn't need 1000 lines of "- path/to/file" appended
+        // afterwards — that contradicts the "transparent extraction"
+        // intent.
+        if (!result.Success)
+            foreach (var line in result.Logs) AppendLog(line);
 
         if (result.Success)
         {

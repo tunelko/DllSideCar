@@ -44,60 +44,106 @@ public static class InstallerExtractor
         var ext = Path.GetExtension(installerPath).ToLowerInvariant();
         var tools = ConfigManager.Current.Tools;
 
-        progress?.Report($"Target: {outDir}");
-        progress?.Report($"Input:  {installerPath} ({ext})");
+        progress?.Report($"Output: {outDir}");
+        progress?.Report($"Input:  {Path.GetFileName(installerPath)} ({ext})");
         result.Logs.Add($"Input: {installerPath}");
         result.Logs.Add($"Output: {outDir}");
 
         // Attempt 1: 7-Zip
+        // Tool-brand names are kept ONLY in result.Logs (technical detail) — the
+        // user-facing progress messages are deliberately generic so the workflow
+        // reads as "Extracting installer..." instead of "Trying 7-Zip...". This
+        // is what the researcher asked for: the underlying tool is an
+        // implementation detail, not part of the UX vocabulary.
         if (!string.IsNullOrWhiteSpace(tools.SevenZipPath) && File.Exists(tools.SevenZipPath))
         {
-            progress?.Report("Trying 7-Zip...");
+            progress?.Report("Extracting installer...");
+            result.Logs.Add("[stage 1] 7-Zip");
             if (await TryExtractWith7ZipAsync(tools.SevenZipPath, installerPath, outDir, result, progress, ct))
             {
-                result.Success = true;
-                result.MethodUsed = ExtractionMethod.SevenZip;
                 PopulateStats(result);
-                return result;
+                // 7-Zip happily returns exit 0 even when it cannot find an
+                // archive inside a self-extracting PE (e.g. InstallShield /
+                // Wise / custom packers). Without this guard the UI shows
+                // "Success — 0 files" which is the bug the user reported.
+                // Treat 0 files as failure and fall through to the next
+                // method so the researcher gets either a real extraction
+                // or an actionable "all methods failed" error.
+                if (result.FilesExtracted > 0)
+                {
+                    result.Success = true;
+                    result.MethodUsed = ExtractionMethod.SevenZip;
+                    return result;
+                }
+                progress?.Report("Primary method produced no files — trying alternate...");
+                result.Logs.Add("[stage 1] 7-Zip returned exit 0 but produced 0 files (unknown archive format inside PE)");
             }
-            progress?.Report("7-Zip failed");
+            else
+            {
+                progress?.Report("Primary method failed — trying alternate...");
+                result.Logs.Add("[stage 1] 7-Zip failed");
+            }
         }
         else
         {
-            progress?.Report("7-Zip not configured — skipping");
+            progress?.Report("Primary extractor not configured — falling back...");
             result.Logs.Add("(7-Zip not configured — would have been tried first)");
         }
 
         // Attempt 2: msiexec /a for .msi
         if (ext == ".msi")
         {
-            progress?.Report("Trying msiexec /a (admin install)...");
+            progress?.Report("Trying MSI admin install...");
+            result.Logs.Add("[stage 2] msiexec /a");
             if (await TryExtractWithMsiExecAsync(installerPath, outDir, result, progress, ct))
             {
-                result.Success = true;
-                result.MethodUsed = ExtractionMethod.MsiExec;
                 PopulateStats(result);
-                return result;
+                if (result.FilesExtracted > 0)
+                {
+                    result.Success = true;
+                    result.MethodUsed = ExtractionMethod.MsiExec;
+                    return result;
+                }
+                progress?.Report("MSI admin install produced no files — trying alternate...");
+                result.Logs.Add("[stage 2] msiexec returned exit 0 but produced 0 files");
             }
-            progress?.Report("msiexec failed");
+            else
+            {
+                progress?.Report("MSI admin install failed — trying alternate...");
+                result.Logs.Add("[stage 2] msiexec failed");
+            }
         }
 
         // Attempt 3: innounp
         if (!string.IsNullOrWhiteSpace(tools.InnoUnpPath) && File.Exists(tools.InnoUnpPath))
         {
-            progress?.Report("Trying innounp (Inno Setup)...");
+            progress?.Report("Trying Inno Setup unpacker...");
+            result.Logs.Add("[stage 3] innounp");
             if (await TryExtractWithInnoUnpAsync(tools.InnoUnpPath, installerPath, outDir, result, progress, ct))
             {
-                result.Success = true;
-                result.MethodUsed = ExtractionMethod.InnoUnp;
                 PopulateStats(result);
-                return result;
+                if (result.FilesExtracted > 0)
+                {
+                    result.Success = true;
+                    result.MethodUsed = ExtractionMethod.InnoUnp;
+                    return result;
+                }
+                progress?.Report("Inno Setup unpacker produced no files");
+                result.Logs.Add("[stage 3] innounp returned exit 0 but produced 0 files");
             }
-            progress?.Report("innounp failed");
+            else
+            {
+                progress?.Report("Inno Setup unpacker failed");
+                result.Logs.Add("[stage 3] innounp failed");
+            }
         }
 
-        result.ErrorMessage = "All extraction methods failed or unavailable";
-        progress?.Report(result.ErrorMessage);
+        result.ErrorMessage =
+            "Could not extract this installer. None of the static-extraction methods (7-Zip, MSI admin install, " +
+            "Inno Setup unpacker) recognized the format. The installer may use a custom packer such as " +
+            "InstallShield, Wise, or a proprietary self-extracting wrapper. Check the extraction log for the " +
+            "raw output from each attempted method.";
+        progress?.Report("Could not extract this installer — see log for details.");
         // Clean up empty dir
         try { if (Directory.Exists(outDir) && !Directory.EnumerateFileSystemEntries(outDir).Any()) Directory.Delete(outDir); }
         catch (IOException ex) { Log.Warn("installer", $"Cleanup failed for {outDir}", ex); }
@@ -196,17 +242,33 @@ public static class InstallerExtractor
                 return false;
             }
 
+            // 7-Zip with -bb1 emits one "- path/to/file" line per extracted entry.
+            // We must NOT echo every line to the UI: a mid-size installer produces
+            // thousands of lines, and surfacing each one through the WPF progress
+            // pump (a) overloads the UI thread, (b) exposes tool-internal syntax
+            // (the leading "- " is 7-Zip vocabulary), and (c) makes the live
+            // status unreadable. Instead, count file-prefix lines and emit a
+            // milestone report every 10 files. Full raw output is preserved in
+            // result.Logs for post-mortem debugging.
+            int extractedSoFar = 0;
             p.OutputDataReceived += (_, e) =>
             {
                 if (e.Data == null) return;
                 stdoutLines.Add(e.Data);
-                progress?.Report(e.Data);
+                if (e.Data.StartsWith("- ", StringComparison.Ordinal))
+                {
+                    extractedSoFar++;
+                    if (extractedSoFar % 10 == 0)
+                        progress?.Report($"Extracted {extractedSoFar} files...");
+                }
             };
             p.ErrorDataReceived += (_, e) =>
             {
                 if (e.Data == null) return;
                 stderrLines.Add(e.Data);
-                progress?.Report($"[{label} err] {e.Data}");
+                // Stderr is rare and meaningful — surface it as a generic warning
+                // without the tool label so the user-facing log stays brand-free.
+                progress?.Report($"Extractor warning: {e.Data}");
             };
             p.BeginOutputReadLine();
             p.BeginErrorReadLine();
@@ -223,7 +285,6 @@ public static class InstallerExtractor
             if (stderrLines.Count > 0) result.Logs.Add($"[{label}] stderr:\n{string.Join("\n", stderrLines)}");
 
             var ok = p.ExitCode == 0;
-            progress?.Report(ok ? $"{label} exited 0 (success)" : $"{label} exited {p.ExitCode}");
             if (!ok) result.Logs.Add($"[{label}] exit code {p.ExitCode}");
             return ok;
         }
