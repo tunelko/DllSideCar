@@ -169,6 +169,51 @@ be promoted to an advisory record in the persisted library.
     sigcheck-based signature verification
   - Python 3.10+: required for installer extraction helpers
 
+DllSidecar performs a toolchain probe on every launch and surfaces a
+modal warning when the MinGW compilers are not detected, so an empty
+MSYS2 install (or a missing PATH entry) is caught before the user
+spends time on a PoC that cannot be built. Analysis-only features
+remain usable without the compiler.
+
+### Compiler setup (MSYS2 / MinGW)
+
+The code-generation pipeline emits portable C source that is compiled
+into the proxy / sideload DLL by `gcc` from a MinGW-w64 toolchain. The
+recommended way to obtain it on Windows is MSYS2.
+
+1. **Install MSYS2.** Download the installer from
+   [https://www.msys2.org/](https://www.msys2.org/) and accept the
+   default install location (`C:\msys64`). The Inno Setup-style wizard
+   takes about a minute.
+2. **Open the MSYS2 UCRT64 (or MSYS2 MSYS) shell** from the Start
+   menu. Bring the base system up to date first:
+   ```bash
+   pacman -Syu
+   ```
+   Re-open the shell if `pacman` asks to close the terminal after
+   updating its own core packages, then run `pacman -Syu` once more to
+   finish the upgrade.
+3. **Install the 64-bit and 32-bit toolchains.** A single command
+   installs both architectures plus `windres` (resource compiler used
+   for metadata cloning):
+   ```bash
+   pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-i686-gcc
+   ```
+4. **Confirm the binaries exist.** DllSidecar probes the default MSYS2
+   layout (`C:\msys64\mingw64\bin` and `C:\msys64\mingw32\bin`)
+   automatically, but you can verify by listing them:
+   ```
+   C:\msys64\mingw64\bin\x86_64-w64-mingw32-gcc.exe --version
+   C:\msys64\mingw32\bin\i686-w64-mingw32-gcc.exe --version
+   ```
+5. **Override the paths** in DllSidecar's *Configuration → MinGW*
+   section only if you installed MSYS2 to a non-default location. The
+   defaults match a vanilla `C:\msys64` install.
+
+Once the compilers resolve, the startup warning disappears and the
+status bar at the top of the main window shows `GCC X64 — OK` /
+`WINDRES — OK` in green.
+
 ### Commands
 
 ```

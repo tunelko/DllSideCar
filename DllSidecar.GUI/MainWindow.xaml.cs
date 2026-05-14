@@ -157,6 +157,15 @@ public partial class MainWindow : Window
             windres != null ? Color.FromRgb(0x00, 0xCA, 0x4E) : Color.FromRgb(0xFF, 0x5B, 0x4F));
 
         Log("DllSidecar GUI started");
+
+        // Proactive MinGW toolchain check. Fires once per session AFTER the
+        // shell is visible so the warning dialog has a real owner. No-op
+        // when both gcc x64 and x86 resolve; otherwise pops a modal that
+        // links to the README's compiler-setup section. Researchers using
+        // analysis-only features (Analyze, Scan, ETW, Advisories) can
+        // dismiss and proceed — only Generate/Build paths actually need it.
+        Dispatcher.BeginInvoke(new Action(() => CompilerHealthCheck.WarnIfMissing(this)),
+            System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
     // Suppresses the exit confirmation when we already asked the user once
