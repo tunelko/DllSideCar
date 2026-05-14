@@ -73,11 +73,17 @@
                 <ColumnDefinition Width="2*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Left: Explorer-style tree — vendor → advisory (future: → format → file) -->
+            <!-- Left: Explorer-style tree — flat Vendor → File hierarchy.
+                 The previous Vendor → FormatFolder → File grouping was dropped
+                 because the intermediate format folders added click cost without
+                 carrying information the filename itself didn't already convey
+                 (DLL_SIDELOADING_ADVISORY_NNNN.md vs .txt). Trash keeps the
+                 per-advisory grouping (one AdvisoryNode per trashed record)
+                 because Restore acts on the WHOLE advisory, not a single file. -->
             <Border Grid.Column="0" Style="{StaticResource SectionCard}" Padding="2" Margin="0,0,6,0">
                 <TreeView x:Name="RecordsTree"
                           Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
-                          FontFamily="{StaticResource FontSans}" FontSize="13"
+                          FontFamily="{StaticResource FontSans}" FontSize="14"
                           VerticalContentAlignment="Center"
                           SelectedItemChanged="RecordsTree_SelectionChanged"
                           PreviewMouseLeftButtonDown="Tree_PreviewMouseLeftButtonDown"
@@ -108,20 +114,21 @@
                                     </Style>
                                 </Border.Style>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#x1F5D1;" FontSize="15" Margin="0,0,8,0"
+                                    <TextBlock Text="&#x1F5D1;" FontSize="16" Margin="0,0,8,0"
                                                Foreground="{StaticResource Overlay}" VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding Name}" Foreground="{StaticResource Subtext}"
-                                               FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"/>
-                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="13" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding Count}" Foreground="{StaticResource Overlay}" FontSize="13" VerticalAlignment="Center"/>
+                                               FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"/>
+                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="14" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Count}" Foreground="{StaticResource Overlay}" FontSize="14" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                         </HierarchicalDataTemplate>
 
                         <!-- Vendor-level template: yellow folder glyph + name + count. Green selection background.
-                             Double-click anywhere on the row enters rename mode without toggling expansion. -->
+                             Double-click anywhere on the row enters rename mode without toggling expansion.
+                             Children are file leaves directly — no intermediate format-folder grouping. -->
                         <HierarchicalDataTemplate DataType="{x:Type local:AdvisoryLibraryPage+VendorNode}"
-                                                  ItemsSource="{Binding Folders}">
+                                                  ItemsSource="{Binding Files}">
                             <Border CornerRadius="4" Padding="6,3"
                                     MouseDown="Vendor_MouseDown">
                                 <Border.Style>
@@ -135,25 +142,25 @@
                                     </Style>
                                 </Border.Style>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#x1F4C1;" FontSize="15" Margin="0,0,8,0"
+                                    <TextBlock Text="&#x1F4C1;" FontSize="16" Margin="0,0,8,0"
                                                Foreground="{StaticResource Yellow}" VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding Name}" Foreground="{StaticResource Text}"
-                                               FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"
+                                               FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"
                                                Visibility="{Binding ViewVisibility}"/>
                                     <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
                                              Visibility="{Binding EditVisibility}"
-                                             MinWidth="180" FontSize="13" FontWeight="SemiBold"
+                                             MinWidth="180" FontSize="14" FontWeight="SemiBold"
                                              Padding="4,1" VerticalAlignment="Center"
                                              KeyDown="VendorEdit_KeyDown"
                                              LostKeyboardFocus="VendorEdit_LostFocus"
                                              Loaded="VendorEdit_Loaded"/>
-                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="13" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding Count}" Foreground="{StaticResource Subtext}" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="14" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Count}" Foreground="{StaticResource Subtext}" FontSize="14" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                         </HierarchicalDataTemplate>
 
-                        <!-- Gray selection style reused by advisory/folder/file levels -->
+                        <!-- Gray selection style reused by advisory/file levels -->
                         <Style x:Key="TreeRowBorder" TargetType="Border">
                             <Setter Property="CornerRadius" Value="4"/>
                             <Setter Property="Padding" Value="6,3"/>
@@ -165,87 +172,50 @@
                             </Style.Triggers>
                         </Style>
 
-                        <!-- Advisory-level template: status pill + title + meta; now hierarchical over format folders -->
+                        <!-- Advisory-level template (used inside Trash only). Status chip + title + date.
+                             Children are file leaves — no per-format folder intermediate. -->
                         <HierarchicalDataTemplate DataType="{x:Type local:AdvisoryLibraryPage+AdvisoryNode}"
-                                                  ItemsSource="{Binding Folders}">
+                                                  ItemsSource="{Binding Files}">
                             <Border Style="{StaticResource TreeRowBorder}">
                                 <StackPanel Orientation="Horizontal">
-                                    <Border Background="{Binding StatusBg}" CornerRadius="999"
+                                    <Border Background="{Binding StatusBg}" CornerRadius="3"
                                             Padding="10,2" Margin="0,0,10,0" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding StatusLabel}" Foreground="{Binding StatusFg}"
-                                                   FontSize="10" FontWeight="Bold"
+                                                   FontSize="11" FontWeight="Bold"
                                                    FontFamily="{StaticResource FontBadge}"/>
                                     </Border>
                                     <TextBlock Text="{Binding Title}" Foreground="{StaticResource Text}"
-                                               FontSize="13" VerticalAlignment="Center"
+                                               FontSize="14" VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis" MaxWidth="420"/>
-                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="12" VerticalAlignment="Center"/>
+                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="13" VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding UpdatedText}" Foreground="{StaticResource Subtext}"
-                                               FontSize="11" VerticalAlignment="Center"/>
+                                               FontSize="12" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                         </HierarchicalDataTemplate>
 
-                        <!-- Format-folder template (per-advisory, used inside the Trash group) -->
-                        <HierarchicalDataTemplate DataType="{x:Type local:AdvisoryLibraryPage+FormatFolderNode}"
-                                                  ItemsSource="{Binding Files}">
-                            <Border Style="{StaticResource TreeRowBorder}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#x1F4C1;" FontSize="13" Margin="0,0,6,0"
-                                               Foreground="{Binding FolderBrush}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding DisplayName}" Foreground="{Binding NameBrush}"
-                                               FontSize="12" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="11" VerticalAlignment="Center"
-                                               Visibility="{Binding CountVisibility}"/>
-                                    <TextBlock Text="{Binding CountText}" Foreground="{StaticResource Subtext}"
-                                               FontSize="11" VerticalAlignment="Center"
-                                               Visibility="{Binding CountVisibility}"/>
-                                </StackPanel>
-                            </Border>
-                        </HierarchicalDataTemplate>
-
-                        <!-- Vendor-format-folder template (per-vendor, used in the main tree).
-                             Same visual as FormatFolderNode but bound to its own DataType so
-                             the TreeView can pick the right ItemsSource for each level. -->
-                        <HierarchicalDataTemplate DataType="{x:Type local:AdvisoryLibraryPage+VendorFormatFolderNode}"
-                                                  ItemsSource="{Binding Files}">
-                            <Border Style="{StaticResource TreeRowBorder}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#x1F4C1;" FontSize="13" Margin="0,0,6,0"
-                                               Foreground="{Binding FolderBrush}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding DisplayName}" Foreground="{Binding NameBrush}"
-                                               FontSize="12" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="11" VerticalAlignment="Center"
-                                               Visibility="{Binding CountVisibility}"/>
-                                    <TextBlock Text="{Binding CountText}" Foreground="{StaticResource Subtext}"
-                                               FontSize="11" VerticalAlignment="Center"
-                                               Visibility="{Binding CountVisibility}"/>
-                                </StackPanel>
-                            </Border>
-                        </HierarchicalDataTemplate>
-
-                        <!-- File-leaf template: status pill + filename + advisory title.
-                             Status pill / title only show when the leaf knows its owning advisory
+                        <!-- File-leaf template: status chip + filename + owner advisory title.
+                             Status chip / title only show when the leaf knows its owning advisory
                              (main tree); under Trash the leaf falls back to file/date display. -->
                         <DataTemplate DataType="{x:Type local:AdvisoryLibraryPage+FileLeafNode}">
                             <Border Style="{StaticResource TreeRowBorder}">
                                 <StackPanel Orientation="Horizontal">
-                                    <Border Background="{Binding StatusBg}" CornerRadius="999"
+                                    <Border Background="{Binding StatusBg}" CornerRadius="3"
                                             Padding="8,1" Margin="0,0,8,0" VerticalAlignment="Center"
                                             Visibility="{Binding StatusVisibility}">
                                         <TextBlock Text="{Binding StatusLabel}" Foreground="{Binding StatusFg}"
-                                                   FontSize="9" FontWeight="Bold"
+                                                   FontSize="10" FontWeight="Bold"
                                                    FontFamily="{StaticResource FontBadge}"/>
                                     </Border>
-                                    <TextBlock Text="&#x1F4C4;" FontSize="12" Margin="0,0,6,0"
+                                    <TextBlock Text="&#x1F4C4;" FontSize="13" Margin="0,0,6,0"
                                                Foreground="{StaticResource Subtext}" VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding Filename}" Foreground="{StaticResource Text}"
-                                               FontSize="12" FontFamily="{StaticResource FontMono}"
+                                               FontSize="13" FontFamily="{StaticResource FontMono}"
                                                VerticalAlignment="Center"/>
-                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="11" VerticalAlignment="Center"
+                                    <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="12" VerticalAlignment="Center"
                                                Visibility="{Binding OwnerTitleVisibility}"/>
                                     <TextBlock Text="{Binding OwnerTitle}" Foreground="{StaticResource Subtext}"
-                                               FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                               FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                                MaxWidth="320" Visibility="{Binding OwnerTitleVisibility}"/>
                                 </StackPanel>
                             </Border>
@@ -255,7 +225,7 @@
                         <Style TargetType="TreeViewItem">
                             <Setter Property="IsExpanded" Value="True"/>
                             <Setter Property="Padding" Value="3,2"/>
-                            <Setter Property="MinHeight" Value="26"/>
+                            <Setter Property="MinHeight" Value="28"/>
                         </Style>
                     </TreeView.ItemContainerStyle>
                 </TreeView>
@@ -410,12 +380,6 @@
                         </ScrollViewer>
                     </DockPanel>
 
-                    <!-- Folder-hint pane — shown when a format folder node is selected -->
-                    <StackPanel x:Name="FolderHintPanel" Visibility="Collapsed" DockPanel.Dock="Top">
-                        <TextBlock x:Name="FolderHintText" Foreground="{StaticResource Overlay}" FontSize="12"
-                                   TextWrapping="Wrap" Margin="0,8,0,0"/>
-                    </StackPanel>
-
                     <!-- File-preview pane — shown when a rendered file leaf is selected -->
                     <DockPanel x:Name="FilePreviewPanel" Visibility="Collapsed">
                         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
@@ -459,7 +423,7 @@
 
                             <!-- Status + CVSS row -->
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                <Border x:Name="DetailStatusBadge" Background="#1F0A72EF" CornerRadius="999" Padding="10,3" Margin="0,0,8,0">
+                                <Border x:Name="DetailStatusBadge" Background="#1F0A72EF" CornerRadius="3" Padding="10,3" Margin="0,0,8,0">
                                     <TextBlock x:Name="DetailStatusText" Foreground="{StaticResource Blue}"
                                                FontSize="11" FontWeight="Bold" FontFamily="{StaticResource FontBadge}"/>
                                 </Border>
@@ -500,7 +464,7 @@
                                                 Padding="10,6" Margin="0,0,0,4">
                                             <StackPanel>
                                                 <StackPanel Orientation="Horizontal">
-                                                    <Border Background="{Binding KindBg}" CornerRadius="999" Padding="6,1" VerticalAlignment="Center">
+                                                    <Border Background="{Binding KindBg}" CornerRadius="3" Padding="6,1" VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding KindLabel}" Foreground="{Binding KindFg}"
                                                                    FontSize="9" FontWeight="Bold" FontFamily="{StaticResource FontBadge}"/>
                                                     </Border>
