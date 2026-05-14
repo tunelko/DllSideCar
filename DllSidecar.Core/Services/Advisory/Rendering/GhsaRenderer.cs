@@ -4,21 +4,24 @@ using DllSidecar.Core.Models.Advisory;
 namespace DllSidecar.Core.Services.Advisory.Rendering;
 
 /// <summary>
-/// Renders to the GitHub Security Advisory (GHSA) format used in the
-/// https://github.com/github/advisory-database repository: YAML front-matter with the
-/// structured metadata followed by a Markdown body.
+/// Renders the GHSA (GitHub Security Advisory) format the researcher pastes into
+/// the GitHub web editor at https://github.com/&lt;owner&gt;/&lt;repo&gt;/security/advisories/new.
 ///
-/// Note: GHSA's "affected" array expects a package ecosystem (npm, nuget, maven, rubygems,
-/// composer, pip, go, rust). For DLL-sideloading findings against proprietary Windows
-/// binaries there is no matching ecosystem — we emit a descriptive placeholder and the
-/// researcher edits it if publishing on a GitHub project whose source is open-source.
+/// Output is pure Markdown — the canonical four sections GitHub pre-fills (Impact /
+/// Patches / Workarounds / References) plus the contextual blocks reviewers always ask
+/// for (Affected component, Technical details, CVE, Credits). The old OSV YAML
+/// front-matter (schema-version, ecosystem, affected ranges …) was removed in
+/// v1.1.9 — it duplicated the body, confused the preview, and only mattered for
+/// direct PRs into github/advisory-database, a workflow DllSidecar's researcher
+/// does not use (the central DB is fed automatically by GitHub once a published
+/// repo advisory gets an assigned CVE).
 /// </summary>
 public sealed class GhsaRenderer : IAdvisoryRenderer
 {
     public string Id => "ghsa";
     public string DisplayName => "GHSA (GitHub Advisory)";
-    public string FileExtension => ".yaml";
-    public string DefaultFilename => "advisory.yaml";
+    public string FileExtension => ".md";
+    public string DefaultFilename => "advisory.md";
 
     public IReadOnlyCollection<AdvisoryField> FieldHints { get; } = new[]
     {
@@ -31,81 +34,15 @@ public sealed class GhsaRenderer : IAdvisoryRenderer
 
     public string Render(AdvisoryContext ctx)
     {
-        var sb = new StringBuilder();
         var title = ctx.Title
             .Replace("{Product}", ctx.Product ?? "Unknown product")
             .Replace("{Filename}", ctx.PeFilename ?? "target.dll")
             .Replace("{Vendor}", ctx.Vendor ?? "");
 
-        var severity = MapSeverity(ctx.CvssScore > 0 ? ctx.CvssScore : ctx.CvssV4Score);
-        var cveLine = ctx.CveDedup?.HasExactMatch == true
-            ? $"  - type: CVE\n    value: {ctx.CveDedup.Matches[0].CveId}"
-            : "";
-
-        // YAML frontmatter
-        sb.AppendLine("---");
-        sb.AppendLine($"schema-version: \"1.4.0\"");
-        sb.AppendLine($"id: GHSA-xxxx-xxxx-xxxx   # replaced by GitHub on publish");
-        sb.AppendLine("modified: " + DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"));
-        // published is left blank until disclosure date is set — emitting an empty
-        // value is valid YAML and avoids the previous bug where a null
-        // DisclosedOn produced "published: " (trailing space, no value, no quoting).
-        sb.AppendLine(ctx.DisclosedOn.HasValue
-            ? $"published: {ctx.DisclosedOn.Value.ToUniversalTime():yyyy-MM-ddTHH:mm:ssZ}"
-            : "published:");
-        // Aliases carries the CVE when a coordinated ID is already assigned —
-        // the GitHub Security Advisory database joins on this so the entry isn't
-        // counted as a separate finding.
-        if (ctx.CveDedup?.HasExactMatch == true)
-        {
-            sb.AppendLine("aliases:");
-            sb.AppendLine($"  - {ctx.CveDedup.Matches[0].CveId}");
-        }
-        else sb.AppendLine("aliases: []");
-        sb.AppendLine($"summary: {Yaml(title)}");
-        sb.AppendLine($"details: |-");
-        var body = ComposeBody(ctx);
-        foreach (var line in body.Split('\n')) sb.AppendLine("  " + line.TrimEnd('\r'));
-        sb.AppendLine();
-        sb.AppendLine("severity:");
-        sb.AppendLine($"  - type: CVSS_V3");
-        sb.AppendLine($"    score: {ctx.Cvss.VectorString}");
-        if (ctx.CvssV4Score > 0)
-        {
-            sb.AppendLine($"  - type: CVSS_V4");
-            sb.AppendLine($"    score: {ctx.CvssV4.VectorString}");
-        }
-        sb.AppendLine("affected:");
-        sb.AppendLine("  - package:");
-        sb.AppendLine($"      ecosystem: \"other\"");
-        sb.AppendLine($"      name: {Yaml(ctx.Product ?? ctx.PeFilename ?? "unknown")}");
-        sb.AppendLine("    ranges:");
-        sb.AppendLine("      - type: ECOSYSTEM");
-        sb.AppendLine("        events:");
-        sb.AppendLine($"          - introduced: \"0\"");
-        if (!string.IsNullOrWhiteSpace(ctx.Version))
-            sb.AppendLine($"          - last_affected: {Yaml(ctx.Version)}");
-        sb.AppendLine("database-specific:");
-        sb.AppendLine($"  cwe-ids:");
-        sb.AppendLine($"    - {ctx.Cwe}");
-        sb.AppendLine($"  severity: {severity}");
-        sb.AppendLine("references:");
-        foreach (var r in ctx.References) sb.AppendLine($"  - type: WEB\n    url: {Yaml(r)}");
-        if (!string.IsNullOrEmpty(cveLine))
-        {
-            sb.AppendLine(cveLine);
-        }
-        sb.AppendLine("credits:");
-        sb.AppendLine("  - type: finder");
-        sb.AppendLine($"    value: {Yaml(ctx.ResearcherName + " " + ctx.ResearcherHandle)}");
-        sb.AppendLine("---");
-        sb.AppendLine();
-
-        // Markdown body repeated outside frontmatter for GitHub web rendering
+        var sb = new StringBuilder();
         sb.AppendLine($"# {title}");
         sb.AppendLine();
-        sb.AppendLine(body);
-
+        sb.AppendLine(ComposeBody(ctx));
         return sb.ToString();
     }
 
@@ -229,21 +166,4 @@ public sealed class GhsaRenderer : IAdvisoryRenderer
         return idx > 0 ? trimmed[..idx].Trim() : trimmed;
     }
 
-    /// <summary>Quote a YAML scalar only when necessary; keeps simple values unquoted.</summary>
-    private static string Yaml(string raw)
-    {
-        if (string.IsNullOrEmpty(raw)) return "\"\"";
-        if (raw.Contains(':') || raw.Contains('#') || raw.Contains('"') || raw.StartsWith("- ") || raw.StartsWith(" ") || raw.EndsWith(" "))
-            return "\"" + raw.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
-        return raw;
-    }
-
-    private static string MapSeverity(double score) => score switch
-    {
-        0 => "LOW",
-        < 4 => "LOW",
-        < 7 => "MODERATE",
-        < 9 => "HIGH",
-        _ => "CRITICAL",
-    };
 }

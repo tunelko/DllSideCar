@@ -212,6 +212,14 @@
                                     <TextBlock Text="{Binding Filename}" Foreground="{StaticResource Text}"
                                                FontSize="13" FontFamily="{StaticResource FontMono}"
                                                VerticalAlignment="Center"/>
+                                    <!-- Format chip — distinguishes Markdown vs GHSA when both share .md.
+                                         Subtle (Surface1 bg + Subtext fg) so it reads as metadata not status. -->
+                                    <Border Background="{StaticResource Surface1}" CornerRadius="3"
+                                            Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding FormatLabel}" Foreground="{StaticResource Subtext}"
+                                                   FontSize="9" FontWeight="Bold"
+                                                   FontFamily="{StaticResource FontBadge}"/>
+                                    </Border>
                                     <TextBlock Text="  ·  " Foreground="{StaticResource Overlay}" FontSize="12" VerticalAlignment="Center"
                                                Visibility="{Binding OwnerTitleVisibility}"/>
                                     <TextBlock Text="{Binding OwnerTitle}" Foreground="{StaticResource Subtext}"

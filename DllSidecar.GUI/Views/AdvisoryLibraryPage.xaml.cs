@@ -1180,6 +1180,15 @@ public partial class AdvisoryLibraryPage : Page
             get { var (_, fg) = StatusColors(Artifact.Status); return new SolidColorBrush(fg); }
         }
         public Visibility StatusVisibility => Owner == null ? Visibility.Collapsed : Visibility.Visible;
+
+        // Format chip — Markdown and GHSA now share the .md extension, so the filename
+        // alone is ambiguous in the flat tree (one advisory can have two .md siblings).
+        // The chip surfaces the renderer id so the row reads unambiguously without
+        // having to open each file. INCIBE keeps its .txt extension but gets a chip
+        // for visual consistency.
+        public string FormatLabel =>
+            (DllSidecar.Core.Services.Advisory.Rendering.AdvisoryRenderers.ById(Artifact.TemplateId)?.Id
+                ?? Artifact.TemplateId ?? "").ToUpperInvariant();
     }
 
 
