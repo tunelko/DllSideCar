@@ -220,6 +220,12 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
                 ? $"Built: {_session.BuiltDllPath}"
                 : $"Generated: {_session.GeneratedOutputDir} (compile disabled)";
             _shell.RefreshChrome();
+            // Post-build success modal — on the UI thread, after Task.Run returns.
+            // Calling from inside GenerateAndBuild crashed with the WPF
+            // cross-thread guard ("subproceso ... otro subproceso"). Only fires
+            // when the compile actually ran AND produced a DLL.
+            if (_session.BuiltDllPath != null)
+                Helpers.BuildCompleteDialog.Show(Window.GetWindow(this), _session.BuiltDllPath);
             return true;
         }
         catch (Exception ex)
@@ -674,11 +680,9 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         }
 
         Log.Info("wizard.craft", $"Built: {dllOutput} ({result.OutputSize:N0} bytes)");
-
-        // Same post-build modal the BuildPage / GeneratePage code paths show.
-        // The wizard's stage indicator is silent on output paths, so without
-        // this the researcher only sees BuiltDllPath in the next stage's
-        // summary line and has no one-click way to open the artifact.
-        Helpers.BuildCompleteDialog.Show(Window.GetWindow(this), dllOutput);
+        // Modal pop-up happens after Task.Run returns to the UI thread in the
+        // caller — we can't open a WPF dialog from this background thread
+        // (`InvalidOperationException: subproceso ... otro subproceso`).
+        // BuiltDllPath on the session is the handoff.
     }
 }
