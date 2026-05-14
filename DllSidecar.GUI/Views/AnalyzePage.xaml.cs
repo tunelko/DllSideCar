@@ -6,6 +6,7 @@ using Microsoft.Win32;
 using DllSidecar.Core.Helpers;
 using DllSidecar.Core.Models;
 using DllSidecar.Core.Services;
+using DllSidecar.Core.Services.Exploitability;
 
 namespace DllSidecar.GUI.Views;
 
@@ -104,7 +105,19 @@ public partial class AnalyzePage : Page
             // Disabled buttons show a tooltip explaining WHY they're disabled.
             ApplyGenerationAvailability(analysis, isKnown);
 
-            _main.Log($"Analysis complete: {analysis.Filename} ({analysis.Arch}, {analysis.Exports.Count} exports, security {sec.Score}/7)");
+            // Run the callsite scan in-line for the exploitability verdict. Iced only
+            // supports x86/x64 so arm64 falls through with null callsites — BinaryVerdict
+            // handles that branch and tiers it as Theoretical with the arch as the blocker.
+            CallsiteScanResult? callsites = null;
+            if (analysis.Arch is "x86" or "x64")
+            {
+                try { callsites = CallsiteScanner.Scan(path); }
+                catch (Exception scanEx) { _main.Log($"Callsite scan failed: {scanEx.Message}"); }
+            }
+            var verdict = BinaryVerdict.For(analysis, callsites);
+            RenderVerdict(verdict);
+
+            _main.Log($"Analysis complete: {analysis.Filename} ({analysis.Arch}, {analysis.Exports.Count} exports, security {sec.Score}/7, verdict {verdict.TierLabel} {verdict.Score}/10)");
         }
         catch (Exception ex)
         {
@@ -227,5 +240,41 @@ public partial class AnalyzePage : Page
             Owner = Window.GetWindow(this)
         };
         dlg.ShowDialog();
+    }
+
+    /// <summary>
+    /// Paint the exploitability card. Colors come from theme resources — phosphor /
+    /// yellow / red / overlay keyed off the tier so the badge reads consistently
+    /// with the ScanPage Total chip and the ProcmonPage Writable column.
+    /// </summary>
+    private void RenderVerdict(BinaryVerdict verdict)
+    {
+        ExploitabilityPanel.Visibility = Visibility.Visible;
+
+        VerdictTierText.Text = verdict.TierLabel;
+        var (bg, fg) = verdict.Tier switch
+        {
+            ExploitabilityTier.Real          => ("Phosphor", "Base"),
+            ExploitabilityTier.Likely        => ("Yellow",   "Base"),
+            ExploitabilityTier.Theoretical   => ("Overlay",  "Text"),
+            ExploitabilityTier.NotApplicable => ("Red",      "Base"),
+            _ => ("Overlay", "Text"),
+        };
+        VerdictTierBadge.Background = (System.Windows.Media.Brush)FindResource(bg);
+        VerdictTierText.Foreground  = (System.Windows.Media.Brush)FindResource(fg);
+        VerdictScoreNum.Text = verdict.Score.ToString();
+
+        VerdictProsList.ItemsSource = verdict.Pros.ToList();
+        VerdictConsList.ItemsSource = verdict.Cons.ToList();
+
+        if (!string.IsNullOrEmpty(verdict.BlockingFactor))
+        {
+            VerdictBlocker.Text = "Blocker: " + verdict.BlockingFactor;
+            VerdictBlocker.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            VerdictBlocker.Visibility = Visibility.Collapsed;
+        }
     }
 }
