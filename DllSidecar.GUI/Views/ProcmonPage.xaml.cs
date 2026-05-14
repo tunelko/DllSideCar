@@ -16,6 +16,10 @@ public partial class ProcmonPage : Page
     private ProcmonParser.ParseResult? _lastResult;
     // Master list — never mutated after parse. View grid binds to filtered projection.
     private readonly List<DllRow> _allRows = [];
+    // Per-page ACL cache so the writability gate doesn't re-probe the same
+    // directories thousands of times when a CSV references the same paths
+    // from many rows. Lives with the page — cleared if the user reparses.
+    private readonly DirAclCache _dirAcl = new();
 
     public ProcmonPage(MainWindow main)
     {
@@ -44,7 +48,7 @@ public partial class ProcmonPage : Page
             CsvPathBox.Text = _main.LastProcmonCsvPath;
 
         _allRows.Clear();
-        foreach (var a in _lastResult.ByDll) _allRows.Add(new DllRow(a));
+        foreach (var a in _lastResult.ByDll) _allRows.Add(new DllRow(a, _dirAcl));
 
         StatTotal.Text  = _lastResult.TotalRows.ToString();
         StatEvents.Text = _lastResult.FilteredRows.ToString();
@@ -64,6 +68,7 @@ public partial class ProcmonPage : Page
         ChkOnlyUserSpace.IsChecked = s.OnlyUserSpace;
         ChkOnlyHighRisk.IsChecked  = s.OnlyHighRisk;
         ChkHideKnownDlls.IsChecked = s.HideKnownDlls;
+        ChkHideLockedDirs.IsChecked = s.HideLockedDirs;
     }
 
     private void WirePersistence()
@@ -73,6 +78,7 @@ public partial class ProcmonPage : Page
         ChkOnlyUserSpace.Checked += Save; ChkOnlyUserSpace.Unchecked += Save;
         ChkOnlyHighRisk.Checked  += Save; ChkOnlyHighRisk.Unchecked  += Save;
         ChkHideKnownDlls.Checked += Save; ChkHideKnownDlls.Unchecked += Save;
+        ChkHideLockedDirs.Checked += Save; ChkHideLockedDirs.Unchecked += Save;
     }
 
     private void PersistState()
@@ -83,6 +89,7 @@ public partial class ProcmonPage : Page
         s.OnlyUserSpace  = ChkOnlyUserSpace.IsChecked == true;
         s.OnlyHighRisk   = ChkOnlyHighRisk.IsChecked == true;
         s.HideKnownDlls  = ChkHideKnownDlls.IsChecked == true;
+        s.HideLockedDirs = ChkHideLockedDirs.IsChecked == true;
         ConfigManager.Save();
     }
 
@@ -154,17 +161,28 @@ public partial class ProcmonPage : Page
 
         SetStatus($"Parsing {path}...", StatusKind.Info);
         Overlay.Show("Parsing CSV", $"Reading {Path.GetFileName(path)}...");
-        try { _lastResult = await Task.Run(() => ProcmonParser.Parse(path)); }
+        _dirAcl.Clear();   // fresh ACL view per parse (target install may have changed between runs)
+        List<DllRow> built;
+        try
+        {
+            _lastResult = await Task.Run(() => ProcmonParser.Parse(path));
+            if (!string.IsNullOrEmpty(_lastResult.Error))
+            {
+                Overlay.Hide();
+                SetStatus(_lastResult.Error, StatusKind.Err);
+                return;
+            }
+            // Row construction triggers ACL probes (one File.WriteAllText per
+            // unique dir on first hit). Off the UI thread so 5000-row CSVs
+            // don't freeze the window for the 1-2s the probes can take.
+            Overlay.UpdateSubtitle($"Checking ACLs on {_lastResult.ByDll.SelectMany(a => a.SearchedDirs).Distinct(StringComparer.OrdinalIgnoreCase).Count()} unique dirs...");
+            built = await Task.Run(() =>
+                _lastResult.ByDll.Select(a => new DllRow(a, _dirAcl)).ToList());
+        }
         finally { Overlay.Hide(); }
 
-        if (!string.IsNullOrEmpty(_lastResult.Error))
-        {
-            SetStatus(_lastResult.Error, StatusKind.Err);
-            return;
-        }
-
         _allRows.Clear();
-        foreach (var a in _lastResult.ByDll) _allRows.Add(new DllRow(a));
+        _allRows.AddRange(built);
 
         StatTotal.Text = _lastResult.TotalRows.ToString();
         StatEvents.Text = _lastResult.FilteredRows.ToString();
@@ -211,6 +229,13 @@ public partial class ProcmonPage : Page
         // by default keeps the grid focused on actually-exploitable rows.
         if (ChkHideKnownDlls.IsChecked == true)
             view = view.Where(r => r.Mode != ProcmonRowMode.KnownDll);
+
+        // Writability gate — when every searched directory requires admin to
+        // write, planting a sideloaded DLL already needs elevation, which
+        // collapses the threat model. Hide them by default; rows with at
+        // least one user-writable slot (or Unknown verdict) stay visible.
+        if (ChkHideLockedDirs.IsChecked == true)
+            view = view.Where(r => r.Writability != ProcmonDirWritability.AllLocked);
 
         var q = DllSearchBox?.Text?.Trim();
         if (!string.IsNullOrEmpty(q))
@@ -288,6 +313,30 @@ public partial class ProcmonPage : Page
         {
             SetStatus("KnownDLLs always load from System32 — cannot be sideloaded.", StatusKind.Warn);
             return;
+        }
+
+        // Writability gate — warn (don't block) when every searched dir
+        // requires admin to write. The PoC will still compile fine, but
+        // dropping it into one of those slots would already need elevation,
+        // which collapses the classic CWE-427 threat model. Researcher
+        // confirms before we hand off, so the limitation is visible.
+        if (row.Writability == ProcmonDirWritability.AllLocked)
+        {
+            var dirsBlock = string.Join("\n  ", row.Aggregation.SearchedDirs.OrderBy(d => d, StringComparer.OrdinalIgnoreCase));
+            var r = AppDialog.Show(
+                Window.GetWindow(this),
+                $"None of the NAME-NOT-FOUND directories for '{row.DllName}' are writable by low-privilege users:\n\n  {dirsBlock}\n\n" +
+                $"Dropping a sideloaded copy into any of these slots already requires admin rights. The classic CWE-427 threat model collapses without low-priv write access — the resulting PoC would only fire from an already-elevated context.\n\n" +
+                $"Promote anyway?",
+                "Locked search paths",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No);
+            if (r != MessageBoxResult.Yes)
+            {
+                SetStatus("Promote cancelled — every searched dir is locked.", StatusKind.Warn);
+                return;
+            }
         }
 
         // ProcMon CSV records process names but not full executable paths, so we
@@ -406,12 +455,20 @@ public partial class ProcmonPage : Page
         public ProcmonRowMode Mode { get; }
         public string? CanonicalPath { get; }
 
-        public DllRow(ProcmonAggregation a)
+        // Writability tier across this row's SearchedDirs. Computed at row
+        // construction by probing each dir through DirAclCache (cache keeps
+        // bulk parses fast). Drives the Dir column color, the Hide locked
+        // filter, and the warning shown by Promote when no writable slot
+        // exists.
+        public ProcmonDirWritability Writability { get; }
+
+        public DllRow(ProcmonAggregation a, DirAclCache dirAcl)
         {
             Aggregation = a;
             var classification = ProcmonRowClassifier.Classify(a.DllName);
             Mode = classification.Mode;
             CanonicalPath = classification.CanonicalPath;
+            Writability = ProcmonRowWritabilityClassifier.Classify(a.SearchedDirs, dirAcl);
         }
 
         public string Risk => Aggregation.RiskHeuristic;
@@ -427,6 +484,14 @@ public partial class ProcmonPage : Page
             ProcmonRowMode.Resolvable => "RESOLVABLE",
             ProcmonRowMode.Phantom    => "PHANTOM",
             _ => "?",
+        };
+
+        public string WritabilityLabel => Writability switch
+        {
+            ProcmonDirWritability.AllLowPrivWritable => "WRITABLE",
+            ProcmonDirWritability.Mixed              => "MIXED",
+            ProcmonDirWritability.AllLocked          => "LOCKED",
+            _ => "—",
         };
     }
 }

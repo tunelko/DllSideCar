@@ -62,6 +62,10 @@
                                   Content="Hide KnownDLLs"
                                   Checked="Filter_Changed" Unchecked="Filter_Changed"
                                   ToolTip="KnownDLLs (kernel32, ntdll, user32 …) always load from System32 regardless of sideload — never explotable, just noise"/>
+                        <CheckBox x:Name="ChkHideLockedDirs" Style="{StaticResource SegmentedCheck}"
+                                  Content="Hide locked dirs"
+                                  Checked="Filter_Changed" Unchecked="Filter_Changed"
+                                  ToolTip="Rows where every searched directory requires admin to write — sideload would already need elevation"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -146,6 +150,26 @@
                               SelectionMode="Single" RowHeight="26"
                               SelectionChanged="DllGrid_SelectionChanged"
                               VerticalScrollBarVisibility="Auto">
+                        <DataGrid.Resources>
+                            <!-- Tints the Dir column by writability tier so the exploitability gate
+                                 reads at a glance: green when low-priv users can plant a DLL there,
+                                 amber when the slot mix is partial, red when every searched dir
+                                 requires admin (effectively un-exploitable without prior elevation). -->
+                            <Style x:Key="WritabilityCellStyle" TargetType="TextBlock">
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Style.Triggers>
+                                    <Trigger Property="Text" Value="WRITABLE">
+                                        <Setter Property="Foreground" Value="{StaticResource Phosphor}"/>
+                                    </Trigger>
+                                    <Trigger Property="Text" Value="MIXED">
+                                        <Setter Property="Foreground" Value="{StaticResource Yellow}"/>
+                                    </Trigger>
+                                    <Trigger Property="Text" Value="LOCKED">
+                                        <Setter Property="Foreground" Value="{StaticResource Red}"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.Resources>
                         <DataGrid.ColumnHeaderStyle>
                             <Style TargetType="DataGridColumnHeader">
                                 <Setter Property="Background" Value="{StaticResource Surface1}"/>
@@ -159,6 +183,9 @@
                             <DataGridTextColumn Header="Risk" Binding="{Binding Risk}" Width="60"/>
                             <DataGridTextColumn Header="Mode" Binding="{Binding ModeLabel}" Width="110"
                                                 SortMemberPath="ModeLabel"/>
+                            <DataGridTextColumn Header="Dir" Binding="{Binding WritabilityLabel}" Width="100"
+                                                SortMemberPath="WritabilityLabel"
+                                                ElementStyle="{StaticResource WritabilityCellStyle}"/>
                             <DataGridTextColumn Header="DLL" Binding="{Binding DllName}" Width="200"/>
                             <DataGridTextColumn Header="Procs" Binding="{Binding ProcessCount}" Width="60"/>
                             <DataGridTextColumn Header="Events" Binding="{Binding EventCount}" Width="80"/>
