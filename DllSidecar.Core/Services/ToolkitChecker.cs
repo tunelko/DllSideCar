@@ -119,21 +119,6 @@ public static class ToolkitChecker
             DownloadUrl = "https://x64dbg.com/",
         });
 
-        // Python + pefile — for legacy scripts
-        var python = ResolveTool(cfg.Tools.PythonPath, ["python.exe", "python3.exe"]);
-        var pythonVersion = python != null ? RunVersion(python, "--version") : null;
-        var hasPefile = python != null && HasPythonPackage(python, "pefile");
-        report.Tools.Add(new ToolStatus
-        {
-            Name = "Python + pefile",
-            Purpose = "Run legacy analysis scripts (scan_imports.py, analyze_dll.py, parse_procmon.py)",
-            Required = false,
-            ResolvedPath = python,
-            Version = hasPefile ? $"{pythonVersion} (pefile OK)" : pythonVersion,
-            DownloadUrl = "https://www.python.org/",
-            Notes = hasPefile ? null : (python != null ? "Run: pip install pefile" : null),
-        });
-
         // 7-Zip — installer extraction
         var sevenZip = ResolveTool(cfg.Tools.SevenZipPath, ["7z.exe"]);
         report.Tools.Add(new ToolStatus
@@ -217,10 +202,6 @@ public static class ToolkitChecker
             @"C:\Program Files\7-Zip",
             @"C:\Program Files (x86)\7-Zip",
             @"C:\Program Files\x64dbg",
-            @"C:\Program Files\Python3",
-            @"C:\Python3",
-            @"C:\Python312",
-            @"C:\Python311",
         ];
         foreach (var root in commonRoots)
             foreach (var name in defaultNames)
@@ -271,46 +252,4 @@ public static class ToolkitChecker
         }
     }
 
-    private static bool HasPythonPackage(string python, string pkg)
-    {
-        // Validate package name to block injection — Python identifiers only
-        if (!System.Text.RegularExpressions.Regex.IsMatch(pkg, @"^[A-Za-z_][A-Za-z0-9_.]*$"))
-        {
-            Log.Warn("toolkit", $"Rejected suspicious package name: {pkg}");
-            return false;
-        }
-
-        var psi = new ProcessStartInfo
-        {
-            FileName = python,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        psi.ArgumentList.Add("-c");
-        psi.ArgumentList.Add($"import {pkg}");
-
-        Process? p = null;
-        try
-        {
-            p = Process.Start(psi);
-            if (p == null) return false;
-            if (!p.WaitForExit(3000))
-            {
-                try { p.Kill(entireProcessTree: true); } catch (Exception kx) { Log.Warn("toolkit", "Failed to kill python probe", kx); }
-                return false;
-            }
-            return p.ExitCode == 0;
-        }
-        catch (System.ComponentModel.Win32Exception ex)
-        {
-            Log.Debug("toolkit", $"Python package probe failed for {pkg}", ex);
-            return false;
-        }
-        finally
-        {
-            p?.Dispose();
-        }
-    }
 }

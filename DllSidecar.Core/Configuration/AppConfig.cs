@@ -179,7 +179,6 @@ public class ToolsConfig
     public string? DependenciesGuiPath { get; set; }     // lucasg Dependencies
     public string? X64DbgPath { get; set; }
     public string? X32DbgPath { get; set; }
-    public string? PythonPath { get; set; }
     public string? SevenZipPath { get; set; }            // 7z.exe — installer extraction
     public string? InnoUnpPath { get; set; }             // innounp.exe — Inno Setup extraction
 

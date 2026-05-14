@@ -103,8 +103,8 @@ any direct or indirect damage arising from its use.
   resource files into a final DLL. Supports timestamp stomping for
   binary cosmetic mimicry.
 - **Toolkit health check**: detects and validates ProcMon, sigcheck,
-  Dependencies, x64dbg, x32dbg, Python, 7-Zip, InnoUnp, MinGW, and
-  the NVD API key state.
+  Dependencies, x64dbg, x32dbg, 7-Zip, InnoUnp, MinGW, and the NVD
+  API key state.
 
 ### Advisory authoring
 
@@ -167,7 +167,8 @@ be promoted to an advisory record in the persisted library.
   - MinGW-w64 (via MSYS2): required to compile generated PoC DLLs
   - Sysinternals suite: required for ProcMon CSV ingest and
     sigcheck-based signature verification
-  - Python 3.10+: required for installer extraction helpers
+  - 7-Zip and/or InnoUnp: required to extract MSI / NSIS / Inno
+    Setup installers without executing them
 
 DllSidecar performs a toolchain probe on every launch and surfaces a
 modal warning when the MinGW compilers are not detected, so an empty
