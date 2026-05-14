@@ -34,7 +34,11 @@ public class NvdClient : IDisposable
         {
             Timeout = TimeSpan.FromSeconds(TimeoutSeconds),
         };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("DllSidecar-Research/1.0 (+https://blogs.tunelko.com)");
+        // User-Agent identifies the application + a contact URL that NIST can use
+        // if NVD operators ever need to reach the source. Kept generic on purpose —
+        // the project repo is the canonical contact point, not any single
+        // researcher's personal blog.
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("DllSidecar-Research/1.0 (+https://github.com/tunelko/DllSideCar)");
 
         var key = ConfigManager.Current.Tools.NvdApiKey;
         if (!string.IsNullOrWhiteSpace(key))

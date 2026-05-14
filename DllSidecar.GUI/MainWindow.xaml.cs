@@ -44,6 +44,14 @@ public partial class MainWindow : Window
     // the user explicitly re-parses a different CSV.
     public DllSidecar.Core.Services.ProcmonParser.ParseResult? LastProcmonResult { get; set; }
     public string? LastProcmonCsvPath { get; set; }
+
+    // Last AnalyzePage outputs — kept here so the page can rebuild its
+    // 3-card display + Exploitability verdict + Exports table when the
+    // user navigates away and comes back, without re-running PeAnalyzer
+    // and CallsiteScanner (the latter can be expensive on large PEs).
+    // Both clear implicitly when the user analyzes a different file.
+    public DllSidecar.Core.Models.CallsiteScanResult? LastCallsiteResult { get; set; }
+    public DllSidecar.Core.Services.Exploitability.ExploitabilityVerdict? LastExploitabilityVerdict { get; set; }
     // Last EXE path the user typed/picked in RuntimeTrace's Launch mode. Persisted here
     // so the field survives navigation away and back (same pattern as LastScanDir).
     public string? LastRuntimeLaunchExe { get; set; }
@@ -151,6 +159,15 @@ public partial class MainWindow : Window
         var saved = ConfigManager.Current.UiState.ConsoleHeight;
         if (saved >= 32 && saved < ActualHeight) // sanity bound
             LogRow.Height = new GridLength(saved);
+
+        // Sidebar attribution — prefix with the configured researcher handle when set
+        // ("@johndoe · BugAInters 2026"), otherwise drop the prefix so a fresh install
+        // doesn't show the maintainer's identity. The project name stays as the
+        // anchor in either case.
+        var handle = ConfigManager.Current.Researcher.Handle?.Trim();
+        SidebarAttribution.Text = string.IsNullOrEmpty(handle)
+            ? "BugAInters 2026"
+            : $"{handle} · BugAInters 2026";
 
         var gcc64 = BuildSystem.FindGcc("x64");
         var gcc32 = BuildSystem.FindGcc("x86");

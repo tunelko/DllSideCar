@@ -807,6 +807,14 @@ public partial class RuntimeTracePage : Page
         public bool IsWritable { get; }
         public string WritableLabel => IsWritable ? "Y" : "";
 
+        // Cross-surface ExploitabilityVerdict — same record AnalyzePage /
+        // ScanPage / ProcmonPage feed into the VerdictBadge control. The
+        // tier collapses Mode (derived from the DLL name via the standard
+        // classifier) + Writability (single-dir tier in Runtime's case
+        // because each row represents one (proc, dll, dir) tuple).
+        public Core.Services.Exploitability.ExploitabilityVerdict Verdict { get; }
+        public int VerdictSortKey => Verdict.Score;
+
         public TraceRow(string proc, string dll, string dir, int events, bool writable)
         {
             ProcessName = Path.GetFileName(proc);
@@ -814,6 +822,12 @@ public partial class RuntimeTracePage : Page
             Directory = dir;
             EventCount = events;
             IsWritable = writable;
+
+            var mode = Core.Services.ProcmonRowClassifier.Classify(dll).Mode;
+            var writTier = writable
+                ? Core.Services.ProcmonDirWritability.AllLowPrivWritable
+                : Core.Services.ProcmonDirWritability.AllLocked;
+            Verdict = Core.Services.Exploitability.ExploitabilityVerdict.For.ProcmonRow(mode, writTier);
         }
     }
 

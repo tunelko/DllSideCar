@@ -62,6 +62,10 @@
                                   Content="Hide KnownDLLs"
                                   Checked="Filter_Changed" Unchecked="Filter_Changed"
                                   ToolTip="KnownDLLs (kernel32, ntdll, user32 …) always load from System32 regardless of sideload — never explotable, just noise"/>
+                        <CheckBox x:Name="ChkHideLockedDirs" Style="{StaticResource SegmentedCheck}"
+                                  Content="Hide locked dirs"
+                                  Checked="Filter_Changed" Unchecked="Filter_Changed"
+                                  ToolTip="Rows where every searched directory requires admin to write — sideload would already need elevation"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -157,8 +161,44 @@
                         </DataGrid.ColumnHeaderStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Risk" Binding="{Binding Risk}" Width="60"/>
+                            <DataGridTemplateColumn Header="Verdict" Width="135"
+                                                    SortMemberPath="VerdictSortKey">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <!-- Same VerdictBadge used by AnalyzePage and ScanPage —
+                                             collapses Mode + Writability into the unified tier. -->
+                                        <ctrl:VerdictBadge Verdict="{Binding Verdict}"
+                                                           VerticalAlignment="Center"
+                                                           HorizontalAlignment="Left"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Mode" Binding="{Binding ModeLabel}" Width="110"
                                                 SortMemberPath="ModeLabel"/>
+                            <DataGridTextColumn Header="Writable" Binding="{Binding WritabilityLabel}" Width="100"
+                                                SortMemberPath="WritabilityLabel">
+                                <DataGridTextColumn.ElementStyle>
+                                    <!-- Inlined here on purpose. DataGridColumn isn't in the visual
+                                         tree, so resources lifted into DataGrid.Resources or
+                                         Page.Resources sometimes silently fail to resolve from
+                                         column-level {StaticResource} references depending on the
+                                         WPF build. Inline keeps the lookup local and bulletproof. -->
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="Text" Value="WRITABLE">
+                                                <Setter Property="Foreground" Value="{StaticResource Phosphor}"/>
+                                            </Trigger>
+                                            <Trigger Property="Text" Value="MIXED">
+                                                <Setter Property="Foreground" Value="{StaticResource Yellow}"/>
+                                            </Trigger>
+                                            <Trigger Property="Text" Value="LOCKED">
+                                                <Setter Property="Foreground" Value="{StaticResource Red}"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                             <DataGridTextColumn Header="DLL" Binding="{Binding DllName}" Width="200"/>
                             <DataGridTextColumn Header="Procs" Binding="{Binding ProcessCount}" Width="60"/>
                             <DataGridTextColumn Header="Events" Binding="{Binding EventCount}" Width="80"/>

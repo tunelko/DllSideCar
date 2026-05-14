@@ -1214,6 +1214,24 @@ public partial class ScanPage : Page
         public string ImpactText => ImpactValue.ToString();
         public string ConfidenceText => ConfidenceValue.ToString();
         public string Severity => Score?.Severity ?? "?";
+
+        // Cross-surface ExploitabilityVerdict (Phase 4) — same record the
+        // VerdictBadge control consumes on AnalyzePage / ProcmonPage / Runtime.
+        // Computed lazily so we don't re-evaluate on every binding refresh.
+        private Core.Services.Exploitability.ExploitabilityVerdict? _verdict;
+        private bool _verdictComputed;
+        public Core.Services.Exploitability.ExploitabilityVerdict? Verdict
+        {
+            get
+            {
+                if (_verdictComputed) return _verdict;
+                _verdictComputed = true;
+                if (Existing != null) _verdict = Core.Services.Exploitability.ExploitabilityVerdict.For.Candidate(Existing);
+                else if (Phantom != null) _verdict = Core.Services.Exploitability.ExploitabilityVerdict.For.Phantom(Phantom);
+                return _verdict;
+            }
+        }
+        public int VerdictSortKey => Verdict?.Score ?? 0;
         public string Filename => Existing?.Dll.Filename ?? Phantom?.DllName ?? "?";
         public string Arch => Existing?.Dll.Arch ?? "—";
 

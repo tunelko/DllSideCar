@@ -1,6 +1,7 @@
 <Page x:Class="DllSidecar.GUI.Views.ScanPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ctrl="clr-namespace:DllSidecar.GUI.Controls"
       Background="{StaticResource Base}">
     <Page.Resources>
         <!-- Axis cell styles — one accent colour per axis so the eye can parse
@@ -259,20 +260,6 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTemplateColumn Header="CVE" Width="60" SortMemberPath="CveSortKey">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <Border Background="{Binding CveBg}" CornerRadius="4"
-                                            Padding="6,1" HorizontalAlignment="Left" VerticalAlignment="Center"
-                                            ToolTip="{Binding CveTooltip}">
-                                        <TextBlock Text="{Binding CveLabel}" Foreground="{Binding CveFg}"
-                                                   FontSize="10" FontWeight="Bold"
-                                                   FontFamily="{StaticResource FontMono}"/>
-                                    </Border>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Dyn" Binding="{Binding DynLabel}" Width="55"/>
                         <DataGridTemplateColumn Header="Reported" Width="80" SortMemberPath="ReportedLabel">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
@@ -286,12 +273,22 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="DLL" Binding="{Binding Filename}" Width="200"/>
+                        <DataGridTemplateColumn Header="Verdict" Width="135"
+                                                SortMemberPath="VerdictSortKey">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <!-- Same VerdictBadge used by AnalyzePage and ProcmonPage —
+                                         tier chip + score with full pros/cons tooltip on hover.
+                                         Empty when the row has no scoring breakdown. -->
+                                    <ctrl:VerdictBadge Verdict="{Binding Verdict}"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Left"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="DLL" Binding="{Binding Filename}" Width="*"/>
                         <DataGridTextColumn Header="Arch" Binding="{Binding Arch}" Width="55"/>
-                        <DataGridTextColumn Header="DLL sig" Binding="{Binding DllSig}" Width="70"/>
-                        <DataGridTextColumn Header="Importers" Binding="{Binding ImportersText}" Width="85"/>
                         <DataGridTextColumn Header="Writable" Binding="{Binding WritableText}" Width="85"/>
-                        <DataGridTextColumn Header="Path" Binding="{Binding ShortPath}" Width="*"/>
                     </DataGrid.Columns>
                 </DataGrid>
                 </DockPanel>

@@ -368,6 +368,18 @@
                         </Style>
                     </DataGrid.ColumnHeaderStyle>
                     <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="Verdict" Width="135"
+                                                SortMemberPath="VerdictSortKey">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <!-- Same VerdictBadge as the other three pages —
+                                         tier chip + score with full pros/cons tooltip. -->
+                                    <ctrl:VerdictBadge Verdict="{Binding Verdict}"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Left"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTextColumn Header="DLL" Binding="{Binding DllName}" Width="160"/>
                         <DataGridTextColumn Header="Process" Binding="{Binding ProcessName}" Width="130"/>
                         <DataGridTextColumn Header="Evts" Binding="{Binding EventCount}" Width="50"/>

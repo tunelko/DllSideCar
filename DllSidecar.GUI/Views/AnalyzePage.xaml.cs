@@ -6,6 +6,7 @@ using Microsoft.Win32;
 using DllSidecar.Core.Helpers;
 using DllSidecar.Core.Models;
 using DllSidecar.Core.Services;
+using DllSidecar.Core.Services.Exploitability;
 
 namespace DllSidecar.GUI.Views;
 
@@ -22,6 +23,15 @@ public partial class AnalyzePage : Page
             FilePathBox.Text = _main.CurrentDllPath;
 
         SetActionsEnabled(false);
+
+        // Restore prior analysis if the user is returning to this page —
+        // CurrentAnalysis already lived on MainWindow for the generation flow,
+        // so we just have to re-render the cards from it. The verdict +
+        // callsite result are cached on MainWindow so the rehydrate path
+        // doesn't trigger another disassembly pass.
+        if (_main.CurrentAnalysis != null && _main.CurrentDllPath != null)
+            RenderAnalysis(_main.CurrentAnalysis, _main.CurrentDllPath,
+                _main.LastCallsiteResult, _main.LastExploitabilityVerdict);
     }
 
     private void SetActionsEnabled(bool enabled)
@@ -61,56 +71,93 @@ public partial class AnalyzePage : Page
             _main.CurrentAnalysis = analysis;
             _main.CurrentDllPath = path;
 
-            InfoFilename.Text = $"Filename: {analysis.Filename}";
-            InfoArch.Text     = $"Architecture: {analysis.Arch} (0x{analysis.Machine:X4})";
-            InfoType.Text     = $"Type: {(analysis.IsDll ? "DLL" : "EXE")}";
-            InfoSize.Text     = $"Size: {analysis.FileSize:N0} bytes";
-            InfoProduct.Text  = $"Product: {(string.IsNullOrEmpty(analysis.ProductName) ? "—" : analysis.ProductName)}";
-            InfoVersion.Text  = $"Version: {(string.IsNullOrEmpty(analysis.FileVersion) ? "—" : analysis.FileVersion)}";
+            // Run the callsite scan in-line for the exploitability verdict. Iced only
+            // supports x86/x64 so arm64 falls through with null callsites — ExploitabilityVerdict
+            // handles that branch and tiers it as Theoretical with the arch as the blocker.
+            CallsiteScanResult? callsites = null;
+            if (analysis.Arch is "x86" or "x64")
+            {
+                try { callsites = CallsiteScanner.Scan(path); }
+                catch (Exception scanEx) { _main.Log($"Callsite scan failed: {scanEx.Message}"); }
+            }
+            var verdict = ExploitabilityVerdict.For.Binary(analysis, callsites);
 
-            var isKnown = KnownDlls.IsKnown(analysis.Filename);
-            InfoKnownDll.Text = isKnown
-                ? "KnownDLL: YES — not a sideload target"
-                : "KnownDLL: NO — potential sideload target";
-            InfoKnownDll.Foreground = new SolidColorBrush(
-                isKnown ? Color.FromRgb(0xFF, 0x5B, 0x4F) : Color.FromRgb(0x00, 0xCA, 0x4E));
-            InfoKnownDllHint.Text = isKnown
-                ? "Windows always resolves this from System32 via the KnownDLLs cache before consulting any search path."
-                : "Not in the KnownDLLs cache — the loader follows the normal search order, so file-replacement in the install dir is a valid attack vector (subject to directory ACL and importer manifest).";
+            // Cache verdict + callsite result so rehydrating the page after a
+            // navigation round-trip doesn't have to re-run the disassembler.
+            _main.LastCallsiteResult = callsites;
+            _main.LastExploitabilityVerdict = verdict;
 
-            var sec = analysis.Security;
-            SetFlag(FlagAslr, "ASLR", sec.Aslr);
-            SetFlag(FlagHighEntropy, "High Entropy ASLR", sec.HighEntropyAslr);
-            SetFlag(FlagDep, "DEP/NX", sec.Dep);
-            SetFlag(FlagCfg, "Control Flow Guard", sec.Cfg);
-            SetFlag(FlagForceIntegrity, "Force Integrity", sec.ForceIntegrity);
-            SetFlag(FlagAuthenticode, "Authenticode", sec.Authenticode);
-            FlagDepLoad.Text = $"DependentLoadFlags: 0x{sec.DependentLoadFlags:X4}";
-            FlagScore.Text = $"Security score: {sec.Score}/7";
+            RenderAnalysis(analysis, path, callsites, verdict);
 
-            ExportTitle.Text = $"EXPORTS — {analysis.Exports.Count} total ({analysis.NamedExports} named, {analysis.OrdinalOnlyExports} ordinal-only)";
-            ExportsGrid.ItemsSource = analysis.Exports;
-
-            ResultsPanel.Visibility = Visibility.Visible;
-            ExportsPanel.Visibility = Visibility.Visible;
-
-            // Secondary actions: always available after analysis
-            ActScanParent.IsEnabled = true;
-            ActCopyPath.IsEnabled = true;
-            ActCheckCves.IsEnabled = true;
-            ActCallsites.IsEnabled = true;
-
-            // Primary generation buttons: enable based on what's technically possible.
-            // Disabled buttons show a tooltip explaining WHY they're disabled.
-            ApplyGenerationAvailability(analysis, isKnown);
-
-            _main.Log($"Analysis complete: {analysis.Filename} ({analysis.Arch}, {analysis.Exports.Count} exports, security {sec.Score}/7)");
+            _main.Log($"Analysis complete: {analysis.Filename} ({analysis.Arch}, {analysis.Exports.Count} exports, security {analysis.Security.Score}/7, verdict {verdict.TierLabel} {verdict.Score}/10)");
         }
         catch (Exception ex)
         {
             _main.Log($"Error: {ex.Message}");
             MessageBox.Show(ex.Message, "Analysis Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    /// <summary>
+    /// Paint every analysis-derived widget on the page. Called from both
+    /// Analyze_Click (after a fresh probe) and the ctor (when restoring from
+    /// MainWindow.CurrentAnalysis after a navigation round-trip). Keeping the
+    /// render logic in one place stops the two entry points from drifting
+    /// and forgetting to repopulate a card.
+    /// </summary>
+    private void RenderAnalysis(PeAnalysis analysis, string path,
+        CallsiteScanResult? callsites, ExploitabilityVerdict? verdict)
+    {
+        // File path box mirrors the canonical path so the user sees what's loaded.
+        FilePathBox.Text = path;
+
+        InfoFilename.Text = $"Filename: {analysis.Filename}";
+        InfoArch.Text     = $"Architecture: {analysis.Arch} (0x{analysis.Machine:X4})";
+        InfoType.Text     = $"Type: {(analysis.IsDll ? "DLL" : "EXE")}";
+        InfoSize.Text     = $"Size: {analysis.FileSize:N0} bytes";
+        InfoProduct.Text  = $"Product: {(string.IsNullOrEmpty(analysis.ProductName) ? "—" : analysis.ProductName)}";
+        InfoVersion.Text  = $"Version: {(string.IsNullOrEmpty(analysis.FileVersion) ? "—" : analysis.FileVersion)}";
+
+        var isKnown = KnownDlls.IsKnown(analysis.Filename);
+        InfoKnownDll.Text = isKnown
+            ? "KnownDLL: YES — not a sideload target"
+            : "KnownDLL: NO — potential sideload target";
+        InfoKnownDll.Foreground = new SolidColorBrush(
+            isKnown ? Color.FromRgb(0xFF, 0x5B, 0x4F) : Color.FromRgb(0x00, 0xCA, 0x4E));
+        InfoKnownDllHint.Text = isKnown
+            ? "Windows always resolves this from System32 via the KnownDLLs cache before consulting any search path."
+            : "Not in the KnownDLLs cache — the loader follows the normal search order, so file-replacement in the install dir is a valid attack vector (subject to directory ACL and importer manifest).";
+
+        var sec = analysis.Security;
+        SetFlag(FlagAslr, "ASLR", sec.Aslr);
+        SetFlag(FlagHighEntropy, "High Entropy ASLR", sec.HighEntropyAslr);
+        SetFlag(FlagDep, "DEP/NX", sec.Dep);
+        SetFlag(FlagCfg, "Control Flow Guard", sec.Cfg);
+        SetFlag(FlagForceIntegrity, "Force Integrity", sec.ForceIntegrity);
+        SetFlag(FlagAuthenticode, "Authenticode", sec.Authenticode);
+        FlagDepLoad.Text = $"DependentLoadFlags: 0x{sec.DependentLoadFlags:X4}";
+        FlagScore.Text = $"Security score: {sec.Score}/7";
+
+        ExportTitle.Text = $"EXPORTS — {analysis.Exports.Count} total ({analysis.NamedExports} named, {analysis.OrdinalOnlyExports} ordinal-only)";
+        ExportsGrid.ItemsSource = analysis.Exports;
+
+        ResultsPanel.Visibility = Visibility.Visible;
+        ExportsPanel.Visibility = Visibility.Visible;
+
+        // Secondary actions: always available after analysis
+        ActScanParent.IsEnabled = true;
+        ActCopyPath.IsEnabled = true;
+        ActCheckCves.IsEnabled = true;
+        ActCallsites.IsEnabled = true;
+
+        // Primary generation buttons: enable based on what's technically possible.
+        ApplyGenerationAvailability(analysis, isKnown);
+
+        // Verdict card. When restoring without a cached verdict (e.g. a previous
+        // session that predated Phase 2), recompute from whatever callsites we
+        // have — the cost is one disassembly pass at most.
+        verdict ??= ExploitabilityVerdict.For.Binary(analysis, callsites);
+        RenderVerdict(verdict);
     }
 
     private static void SetFlag(TextBlock tb, string name, bool enabled)
@@ -227,5 +274,29 @@ public partial class AnalyzePage : Page
             Owner = Window.GetWindow(this)
         };
         dlg.ShowDialog();
+    }
+
+    /// <summary>
+    /// Paint the exploitability card. Delegates the chip + tooltip rendering to
+    /// the reusable VerdictBadge control so AnalyzePage / ScanPage /
+    /// ProcmonPage / RuntimeTracePage all share the visual vocabulary. We only
+    /// own the pros/cons lists and the blocker line here.
+    /// </summary>
+    private void RenderVerdict(ExploitabilityVerdict verdict)
+    {
+        ExploitabilityPanel.Visibility = Visibility.Visible;
+        VerdictBadgeControl.Verdict = verdict;
+        VerdictProsList.ItemsSource = verdict.Pros.ToList();
+        VerdictConsList.ItemsSource = verdict.Cons.ToList();
+
+        if (!string.IsNullOrEmpty(verdict.BlockingFactor))
+        {
+            VerdictBlocker.Text = "Blocker: " + verdict.BlockingFactor;
+            VerdictBlocker.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            VerdictBlocker.Visibility = Visibility.Collapsed;
+        }
     }
 }

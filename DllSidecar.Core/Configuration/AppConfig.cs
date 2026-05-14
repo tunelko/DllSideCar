@@ -141,6 +141,11 @@ public class ProcmonPageState
     // sideload attempts, so they're never useful targets. Showing them just
     // clutters the grid.
     public bool HideKnownDlls { get; set; } = true;
+    // On by default — when every searched dir for a row requires admin to
+    // write, planting a sideloaded DLL would already need elevation, which
+    // collapses the threat model. Hiding those rows keeps the grid focused
+    // on the genuinely exploitable surface; toggle off to see the full picture.
+    public bool HideLockedDirs { get; set; } = true;
 }
 
 public class MingwConfig

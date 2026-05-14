@@ -97,6 +97,7 @@ public partial class BuildPage : Page
         {
             ResultText.Text = $"[+] Success: {dllName}\n    Size: {result.OutputSize:N0} bytes\n    Exports: {result.ExportCount}\n    Arch: {arch}\n\n    Path: {outputFile}";
             SetStatus($"Built {dllName} ({result.OutputSize:N0} bytes)", true);
+            Helpers.BuildCompleteDialog.Show(Window.GetWindow(this), outputFile);
         }
         else
         {

@@ -1,9 +1,11 @@
 <Page x:Class="DllSidecar.GUI.Views.AnalyzePage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ctrl="clr-namespace:DllSidecar.GUI.Controls"
       Background="{StaticResource Base}">
     <Grid Margin="28,20,28,16">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -221,8 +223,90 @@
             </Border>
         </Grid>
 
+        <!-- Exploitability verdict (single-PE perspective). Composes KnownDLL +
+             arch + loader-API imports + callsite scan results into a tiered
+             verdict so the researcher sees the binary-level go/no-go before
+             stepping out to ScanPage (which will add the filesystem ACL context). -->
+        <Border Grid.Row="3" x:Name="ExploitabilityPanel" Style="{StaticResource SectionCard}"
+                Visibility="Collapsed" Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Section header spans both columns -->
+                <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                           Text="EXPLOITABILITY" Style="{StaticResource SectionHeader}"/>
+
+                <!-- Left: unified VerdictBadge — same control rendered on ScanPage,
+                     ProcmonPage and RuntimeTracePage so the chip vocabulary stays
+                     identical across surfaces. Tooltip carries pros/cons/blocker. -->
+                <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="0,4,24,0">
+                    <ctrl:VerdictBadge x:Name="VerdictBadgeControl"/>
+                    <TextBlock x:Name="VerdictBlocker" FontSize="11" Foreground="{StaticResource Red}"
+                               TextWrapping="Wrap" MaxWidth="200" Margin="0,8,0,0"
+                               Visibility="Collapsed"/>
+                </StackPanel>
+
+                <!-- Right: pros / cons lists side-by-side -->
+                <Grid Grid.Row="1" Grid.Column="1" Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                        <TextBlock Text="PROS" Foreground="{StaticResource Phosphor}"
+                                   FontWeight="Bold" FontSize="10" Margin="0,0,0,4"/>
+                        <ItemsControl x:Name="VerdictProsList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="&#x2713;" Foreground="{StaticResource Phosphor}"
+                                                   FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Top"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Text}"
+                                                   Foreground="{StaticResource Text}" FontSize="11"
+                                                   TextWrapping="Wrap"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                        <TextBlock Text="CONS" Foreground="{StaticResource Red}"
+                                   FontWeight="Bold" FontSize="10" Margin="0,0,0,4"/>
+                        <ItemsControl x:Name="VerdictConsList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="&#x2715;" Foreground="{StaticResource Red}"
+                                                   FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Top"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Text}"
+                                                   Foreground="{StaticResource Subtext}" FontSize="11"
+                                                   TextWrapping="Wrap"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+
         <!-- Exports table (fills remaining space) -->
-        <Border Grid.Row="3" x:Name="ExportsPanel" Style="{StaticResource SectionCard}" Visibility="Collapsed">
+        <Border Grid.Row="4" x:Name="ExportsPanel" Style="{StaticResource SectionCard}" Visibility="Collapsed">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Top" x:Name="ExportTitle" Text="EXPORTS"
                            Style="{StaticResource SectionHeader}" Margin="0,0,0,12"/>
