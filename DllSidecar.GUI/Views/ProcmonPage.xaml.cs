@@ -63,6 +63,7 @@ public partial class ProcmonPage : Page
         if (!string.IsNullOrEmpty(s.LastCsvPath)) CsvPathBox.Text = s.LastCsvPath;
         ChkOnlyUserSpace.IsChecked = s.OnlyUserSpace;
         ChkOnlyHighRisk.IsChecked  = s.OnlyHighRisk;
+        ChkHideKnownDlls.IsChecked = s.HideKnownDlls;
     }
 
     private void WirePersistence()
@@ -71,15 +72,17 @@ public partial class ProcmonPage : Page
         CsvPathBox.TextChanged  += Save;
         ChkOnlyUserSpace.Checked += Save; ChkOnlyUserSpace.Unchecked += Save;
         ChkOnlyHighRisk.Checked  += Save; ChkOnlyHighRisk.Unchecked  += Save;
+        ChkHideKnownDlls.Checked += Save; ChkHideKnownDlls.Unchecked += Save;
     }
 
     private void PersistState()
     {
         if (!IsLoaded) return;
         var s = ConfigManager.Current.UiState.ProcmonPage;
-        s.LastCsvPath   = CsvPathBox.Text?.Trim();
-        s.OnlyUserSpace = ChkOnlyUserSpace.IsChecked == true;
-        s.OnlyHighRisk  = ChkOnlyHighRisk.IsChecked == true;
+        s.LastCsvPath    = CsvPathBox.Text?.Trim();
+        s.OnlyUserSpace  = ChkOnlyUserSpace.IsChecked == true;
+        s.OnlyHighRisk   = ChkOnlyHighRisk.IsChecked == true;
+        s.HideKnownDlls  = ChkHideKnownDlls.IsChecked == true;
         ConfigManager.Save();
     }
 
@@ -202,6 +205,13 @@ public partial class ProcmonPage : Page
         if (ChkOnlyHighRisk.IsChecked == true)
             view = view.Where(r => string.Equals(r.Risk, "HIGH", StringComparison.OrdinalIgnoreCase));
 
+        // KnownDLLs (kernel32, ntdll, user32…) are surfaced by ProcMon because
+        // every process searches for them in its own dir first, but Windows
+        // ignores that and loads them from System32 regardless. Hiding them
+        // by default keeps the grid focused on actually-exploitable rows.
+        if (ChkHideKnownDlls.IsChecked == true)
+            view = view.Where(r => r.Mode != ProcmonRowMode.KnownDll);
+
         var q = DllSearchBox?.Text?.Trim();
         if (!string.IsNullOrEmpty(q))
         {
@@ -298,7 +308,20 @@ public partial class ProcmonPage : Page
     private class DllRow
     {
         public ProcmonAggregation Aggregation { get; }
-        public DllRow(ProcmonAggregation a) { Aggregation = a; }
+        // Computed once at row construction from ProcmonRowClassifier — gating
+        // signal for the Mode column, the Hide KnownDLLs filter, and (in the
+        // upcoming Promote action) the choice between Proxy and Sideload
+        // generation modes.
+        public ProcmonRowMode Mode { get; }
+        public string? CanonicalPath { get; }
+
+        public DllRow(ProcmonAggregation a)
+        {
+            Aggregation = a;
+            var classification = ProcmonRowClassifier.Classify(a.DllName);
+            Mode = classification.Mode;
+            CanonicalPath = classification.CanonicalPath;
+        }
 
         public string Risk => Aggregation.RiskHeuristic;
         public string DllName => Aggregation.DllName;
@@ -306,5 +329,13 @@ public partial class ProcmonPage : Page
         public int EventCount => Aggregation.EventCount;
         public int DirCount => Aggregation.SearchedDirs.Count;
         public string ProcessList => string.Join(", ", Aggregation.Processes.OrderBy(p => p));
+
+        public string ModeLabel => Mode switch
+        {
+            ProcmonRowMode.KnownDll   => "KNOWN-DLL",
+            ProcmonRowMode.Resolvable => "RESOLVABLE",
+            ProcmonRowMode.Phantom    => "PHANTOM",
+            _ => "?",
+        };
     }
 }

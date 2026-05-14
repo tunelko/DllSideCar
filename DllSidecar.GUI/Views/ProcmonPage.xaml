@@ -58,6 +58,10 @@
                         <CheckBox x:Name="ChkOnlyHighRisk" Style="{StaticResource SegmentedCheck}"
                                   Content="High risk only"
                                   Checked="Filter_Changed" Unchecked="Filter_Changed"/>
+                        <CheckBox x:Name="ChkHideKnownDlls" Style="{StaticResource SegmentedCheck}"
+                                  Content="Hide KnownDLLs"
+                                  Checked="Filter_Changed" Unchecked="Filter_Changed"
+                                  ToolTip="KnownDLLs (kernel32, ntdll, user32 …) always load from System32 regardless of sideload — never explotable, just noise"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -153,6 +157,8 @@
                         </DataGrid.ColumnHeaderStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Risk" Binding="{Binding Risk}" Width="60"/>
+                            <DataGridTextColumn Header="Mode" Binding="{Binding ModeLabel}" Width="110"
+                                                SortMemberPath="ModeLabel"/>
                             <DataGridTextColumn Header="DLL" Binding="{Binding DllName}" Width="200"/>
                             <DataGridTextColumn Header="Procs" Binding="{Binding ProcessCount}" Width="60"/>
                             <DataGridTextColumn Header="Events" Binding="{Binding EventCount}" Width="80"/>

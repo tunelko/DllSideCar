@@ -137,6 +137,10 @@ public class ProcmonPageState
     public string? LastCsvPath { get; set; }
     public bool OnlyUserSpace { get; set; }
     public bool OnlyHighRisk { get; set; }
+    // On by default — KnownDlls always load from System32 regardless of
+    // sideload attempts, so they're never useful targets. Showing them just
+    // clutters the grid.
+    public bool HideKnownDlls { get; set; } = true;
 }
 
 public class MingwConfig
