@@ -62,27 +62,27 @@ public partial class AdvisoryLibraryPage : Page
             var artifactsByAdvisory = await _repo.GetArtifactsIndexAsync();
             var deleted = await _repo.ListDeletedAsync();
 
-            // Build a TRASH-style AdvisoryNode (used only inside the Trash group, where each
-            // soft-deleted advisory still needs its own per-advisory grouping for restore).
+            // Flat hierarchy: Vendor → FileLeafNode. The previous Vendor → FormatFolder →
+            // File grouping was dropped — the filename itself (DLL_SIDELOADING_ADVISORY_NNNN
+            // .md/.txt/.yaml) already conveys which renderer produced it, so the extra
+            // folder level was navigational tax without information. Files sort by filename
+            // so all artifacts of one advisory cluster naturally (0001.md / 0001.txt /
+            // 0001.yaml / 0002.md ...) thanks to the sequence-padded filename convention.
+            //
+            // For the Trash group we keep one AdvisoryNode per deleted record because
+            // Restore acts on the whole advisory (not on a single file), so the user needs
+            // a parent handle to drag back to the vendor tree.
             AdvisoryNode BuildTrashNode(AdvisoryRecordListItem it)
             {
                 var adv = new AdvisoryNode(it);
-                artifactsByAdvisory.TryGetValue(it.Id, out var arts);
-                foreach (var renderer in AdvisoryRenderers.All)
+                if (artifactsByAdvisory.TryGetValue(it.Id, out var arts) && arts != null)
                 {
-                    var files = arts?.Where(x => string.Equals(x.TemplateId, renderer.Id, StringComparison.OrdinalIgnoreCase)).ToList();
-                    if (files == null || files.Count == 0) continue;
-                    var folder = new FormatFolderNode(it.Id, renderer.Id, renderer.DisplayName);
-                    foreach (var a in files) folder.Files.Add(new FileLeafNode(a));
-                    adv.Folders.Add(folder);
+                    foreach (var a in arts.OrderBy(x => x.Path, StringComparer.OrdinalIgnoreCase))
+                        adv.Files.Add(new FileLeafNode(a));
                 }
                 return adv;
             }
 
-            // Main tree: Vendor → VendorFormatFolderNode (per renderer) → FileLeafNode.
-            // Each leaf carries its owning advisory record so selection can show the right-pane
-            // detail and the leaf can render a status pill alongside the filename. Format
-            // folders that would be empty under a vendor are skipped to cut visual noise.
             _roots.Clear();
             foreach (var group in items
                 .GroupBy(i => string.IsNullOrWhiteSpace(i.Vendor) ? "(no vendor)" : i.Vendor!)
@@ -92,19 +92,11 @@ public partial class AdvisoryLibraryPage : Page
                 var sortedAdvisories = group.OrderByDescending(i => i.UpdatedAtUtc).ToList();
                 vendor.Advisories.AddRange(sortedAdvisories);
 
-                foreach (var renderer in AdvisoryRenderers.All)
+                foreach (var it in sortedAdvisories)
                 {
-                    var folder = new VendorFormatFolderNode(group.Key, renderer.Id, renderer.DisplayName);
-                    foreach (var it in sortedAdvisories)
-                    {
-                        if (!artifactsByAdvisory.TryGetValue(it.Id, out var arts) || arts == null) continue;
-                        foreach (var a in arts.Where(x => string.Equals(x.TemplateId, renderer.Id, StringComparison.OrdinalIgnoreCase))
-                                              .OrderBy(x => x.Path, StringComparer.OrdinalIgnoreCase))
-                        {
-                            folder.Files.Add(new FileLeafNode(a, it));
-                        }
-                    }
-                    if (folder.Files.Count > 0) vendor.Folders.Add(folder);
+                    if (!artifactsByAdvisory.TryGetValue(it.Id, out var arts) || arts == null) continue;
+                    foreach (var a in arts.OrderBy(x => x.Path, StringComparer.OrdinalIgnoreCase))
+                        vendor.Files.Add(new FileLeafNode(a, it));
                 }
                 _roots.Add(vendor);
             }
@@ -190,12 +182,6 @@ public partial class AdvisoryLibraryPage : Page
                 }
                 break;
 
-            case FormatFolderNode folder:
-                _selectedLeaf = null;
-                RenderFolderHint(folder);
-                ShowPane(Pane.Folder);
-                break;
-
             case TrashNode trash:
                 _loaded = null;
                 _selectedLeaf = null;
@@ -224,8 +210,7 @@ public partial class AdvisoryLibraryPage : Page
     {
         TrashNode => true,
         AdvisoryNode adv => _trash.Advisories.Contains(adv),
-        FormatFolderNode folder => _trash.Advisories.Any(a => a.Folders.Contains(folder)),
-        FileLeafNode leaf => _trash.Advisories.Any(a => a.Folders.Any(f => f.Files.Contains(leaf))),
+        FileLeafNode leaf => _trash.Advisories.Any(a => a.Files.Contains(leaf)),
         _ => false,
     };
 
@@ -305,7 +290,7 @@ public partial class AdvisoryLibraryPage : Page
         }
     }
 
-    private enum Pane { Empty, Advisory, Folder, File, Vendor, Trash }
+    private enum Pane { Empty, Advisory, File, Vendor, Trash }
 
     private FileLeafNode? _selectedLeaf;
 
@@ -315,13 +300,12 @@ public partial class AdvisoryLibraryPage : Page
         DetailContent.Visibility  = p == Pane.Advisory ? Visibility.Visible : Visibility.Collapsed;
         ActionIconsBar.Visibility = p == Pane.Advisory ? Visibility.Visible : Visibility.Collapsed;
         FilePreviewPanel.Visibility = p == Pane.File   ? Visibility.Visible : Visibility.Collapsed;
-        FolderHintPanel.Visibility  = p == Pane.Folder ? Visibility.Visible : Visibility.Collapsed;
         VendorPanel.Visibility      = p == Pane.Vendor ? Visibility.Visible : Visibility.Collapsed;
         TrashPanel.Visibility       = p == Pane.Trash  ? Visibility.Visible : Visibility.Collapsed;
 
         // The header ⛶ only helps when there's actually a rich, scrollable body worth expanding
-        // (advisory details + file preview). Vendor / Trash / Folder-hint / Empty show compact
-        // summaries that already fit in the pane — expanding them is just extra clicks.
+        // (advisory details + file preview). Vendor / Trash / Empty show compact summaries
+        // that already fit in the pane — expanding them is just extra clicks.
         ExpandAdvisoryBtn.Visibility = (p == Pane.Advisory || p == Pane.File) ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -588,8 +572,8 @@ public partial class AdvisoryLibraryPage : Page
     // (bulk soft-delete). Vendors in edit mode (double-click rename active) are
     // locked — can't drag a row you're actively renaming.
     //
-    // Drop targets: VendorNode (accept Advisory or Vendor), TrashNode (accept either).
-    // Drop rejected: same node on itself, FormatFolderNode, FileLeafNode, AdvisoryNode-as-target.
+    // Drop targets: VendorNode (accept Advisory or Vendor or FileLeaf-as-advisory), TrashNode
+    // (accept Advisory or Vendor). Drop rejected: same node on itself, AdvisoryNode-as-target.
 
     private const string DragDataFormat = "DllSidecar.TreeNode";
     private System.Windows.Point? _dragStart;
@@ -632,8 +616,20 @@ public partial class AdvisoryLibraryPage : Page
         const double DragThreshold = 16.0;
         if (Math.Abs(delta.X) < DragThreshold && Math.Abs(delta.Y) < DragThreshold) return;
 
-        // Only advisories and vendors are draggable. Skip vendors currently in rename mode.
-        if (_dragCandidate is AdvisoryNode || (_dragCandidate is VendorNode v && !v.IsEditing))
+        // Draggable: advisories (Trash), vendors (not in rename mode), AND file leaves
+        // that know their owning advisory (main tree). FileLeaf drag has always had a
+        // CanDrop case + a Tree_Drop handler that moves the whole owning advisory, but
+        // the move-initiation check above was missing the case — so a file row stayed
+        // un-grabbable in practice. Fixed here so "drag a file to a vendor folder"
+        // matches the behaviour the comment block above promises.
+        bool draggable = _dragCandidate switch
+        {
+            AdvisoryNode => true,
+            VendorNode v => !v.IsEditing,
+            FileLeafNode leaf => leaf.Owner != null,
+            _ => false,
+        };
+        if (draggable)
         {
             _dragStart = null;
             var data = new System.Windows.DataObject(DragDataFormat, _dragCandidate);
@@ -721,7 +717,7 @@ public partial class AdvisoryLibraryPage : Page
         while (source != null)
         {
             if (source is TreeViewItem tvi) return tvi.DataContext;
-            if (source is FrameworkElement fe && fe.DataContext is (VendorNode or AdvisoryNode or TrashNode or FormatFolderNode or FileLeafNode))
+            if (source is FrameworkElement fe && fe.DataContext is (VendorNode or AdvisoryNode or TrashNode or FileLeafNode))
                 return fe.DataContext;
             source = System.Windows.Media.VisualTreeHelper.GetParent(source);
         }
@@ -737,14 +733,6 @@ public partial class AdvisoryLibraryPage : Page
         public string Status => Item.Status.ToString();
         public string Product => string.IsNullOrWhiteSpace(Item.Product) ? "—" : Item.Product!;
         public string Updated => Item.UpdatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
-    }
-
-    private void RenderFolderHint(FormatFolderNode folder)
-    {
-        var rendererName = AdvisoryRenderers.ById(folder.TemplateId)?.DisplayName ?? folder.TemplateId;
-        FolderHintText.Text = folder.Files.Count == 0
-            ? $"Folder '{rendererName}' is empty. Open the advisory in AdvisoryPage, select '{rendererName}' as template, and Save — the rendered file will land here."
-            : $"Folder '{rendererName}' contains {folder.Files.Count} rendered file(s). Expand to pick one.";
     }
 
     private void RenderFilePreview(FileLeafNode leaf)
@@ -1114,14 +1102,16 @@ public partial class AdvisoryLibraryPage : Page
         public Visibility EditVisibility => _isEditing ? Visibility.Visible : Visibility.Collapsed;
 
         /// <summary>
-        /// Children of the vendor in the main tree: a single VendorFormatFolderNode per
-        /// renderer that has at least one artifact under this vendor. Replaces the older
-        /// per-advisory grouping so the tree mirrors the disk layout (Vendor → Format → File).
+        /// Files directly under this vendor (flattened across all renderers). Sorted by
+        /// filename so the advisory sequence number and extension produce the natural
+        /// clustering DLL_SIDELOADING_ADVISORY_NNNN.md / .txt / .yaml. The previous
+        /// Vendor → FormatFolder → File hierarchy was dropped because the intermediate
+        /// folder added click cost without carrying information the filename does not.
         /// </summary>
-        public ObservableCollection<VendorFormatFolderNode> Folders { get; } = [];
+        public ObservableCollection<FileLeafNode> Files { get; } = [];
 
         /// <summary>
-        /// Cache of advisories under this vendor. Populated alongside Folders so the right-pane
+        /// Cache of advisories under this vendor. Populated alongside Files so the right-pane
         /// vendor summary can list them without re-querying the repo.
         /// </summary>
         public List<AdvisoryRecordListItem> Advisories { get; } = [];
@@ -1131,11 +1121,14 @@ public partial class AdvisoryLibraryPage : Page
         private void OnChanged(string n) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
     }
 
-    /// <summary>Level 2 of the tree (Trash group only): one advisory with child format folders.</summary>
+    /// <summary>Level 2 of the tree (Trash group only): one soft-deleted advisory with its
+    /// rendered files directly underneath. Format-folder intermediates were dropped during
+    /// the flatten-tree pass — Restore acts on the whole advisory anyway, so per-file
+    /// grouping per renderer added a click without changing the operation.</summary>
     public sealed class AdvisoryNode
     {
         public AdvisoryRecordListItem Item { get; }
-        public ObservableCollection<FormatFolderNode> Folders { get; } = [];
+        public ObservableCollection<FileLeafNode> Files { get; } = [];
         public AdvisoryNode(AdvisoryRecordListItem it) { Item = it; }
 
         public string Title => Item.Title;
@@ -1151,34 +1144,7 @@ public partial class AdvisoryLibraryPage : Page
         }
     }
 
-    /// <summary>Level 3: format folder under an advisory (one per registered renderer).</summary>
-    public sealed class FormatFolderNode
-    {
-        public string TemplateId { get; }
-        public string DisplayName { get; }
-        public string AdvisoryId { get; }
-        public ObservableCollection<FileLeafNode> Files { get; } = [];
-
-        public FormatFolderNode(string advisoryId, string templateId, string displayName)
-        {
-            AdvisoryId = advisoryId;
-            TemplateId = templateId;
-            DisplayName = displayName;
-        }
-
-        public int Count => Files.Count;
-        public string CountText => Files.Count.ToString();
-        public Visibility CountVisibility => Files.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        // Populated folders stay bright yellow; empty ones fade to gray to signal "not yet rendered".
-        public System.Windows.Media.Brush FolderBrush => Files.Count > 0
-            ? (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["Yellow"]
-            : new SolidColorBrush(Color.FromArgb(0x66, 0xA0, 0xA0, 0xA0));
-        public System.Windows.Media.Brush NameBrush => Files.Count > 0
-            ? (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["Text"]
-            : (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["Overlay"];
-    }
-
-    /// <summary>Level 4: a single rendered file inside a format folder.</summary>
+    /// <summary>Leaf: a single rendered file (markdown / INCIBE / GHSA / future).</summary>
     public sealed class FileLeafNode
     {
         public AdvisoryArtifact Artifact { get; }
@@ -1214,38 +1180,17 @@ public partial class AdvisoryLibraryPage : Page
             get { var (_, fg) = StatusColors(Artifact.Status); return new SolidColorBrush(fg); }
         }
         public Visibility StatusVisibility => Owner == null ? Visibility.Collapsed : Visibility.Visible;
+
+        // Format chip — Markdown and GHSA now share the .md extension, so the filename
+        // alone is ambiguous in the flat tree (one advisory can have two .md siblings).
+        // The chip surfaces the renderer id so the row reads unambiguously without
+        // having to open each file. INCIBE keeps its .txt extension but gets a chip
+        // for visual consistency.
+        public string FormatLabel =>
+            (DllSidecar.Core.Services.Advisory.Rendering.AdvisoryRenderers.ById(Artifact.TemplateId)?.Id
+                ?? Artifact.TemplateId ?? "").ToUpperInvariant();
     }
 
-    /// <summary>
-    /// Level 2 alternative: format folder grouping ALL artifacts of one template under
-    /// a single vendor (across all that vendor's advisories). Replaces the per-advisory
-    /// FormatFolderNode in the main tree so the layout matches the disk layout
-    /// (Vendor → INCIBE/MARKDOWN/GHSA → file).
-    /// </summary>
-    public sealed class VendorFormatFolderNode
-    {
-        public string Vendor { get; }
-        public string TemplateId { get; }
-        public string DisplayName { get; }
-        public ObservableCollection<FileLeafNode> Files { get; } = [];
-
-        public VendorFormatFolderNode(string vendor, string templateId, string displayName)
-        {
-            Vendor = vendor;
-            TemplateId = templateId;
-            DisplayName = displayName;
-        }
-
-        public int Count => Files.Count;
-        public string CountText => Files.Count.ToString();
-        public Visibility CountVisibility => Files.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        public System.Windows.Media.Brush FolderBrush => Files.Count > 0
-            ? (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["Yellow"]
-            : new SolidColorBrush(Color.FromArgb(0x66, 0xA0, 0xA0, 0xA0));
-        public System.Windows.Media.Brush NameBrush => Files.Count > 0
-            ? (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["Text"]
-            : (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["Overlay"];
-    }
 
     /// <summary>
     /// Pre-TreeView view model kept so the status-bar summary can quote counts +

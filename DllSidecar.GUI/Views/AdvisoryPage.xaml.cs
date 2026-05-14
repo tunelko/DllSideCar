@@ -553,11 +553,14 @@ public partial class AdvisoryPage : Page
         {
             var src = MdEditor.Text ?? "";
             string body;
-            if (_activeRenderer.Id == "markdown")
+            // Markdig is meaningful for every markdown-producing renderer. We key off the
+            // active renderer's FileExtension ("md") instead of the renderer Id so future
+            // markdown variants (e.g. a slimmer 'vendor-email.md') auto-render without
+            // having to touch this switch. INCIBE keeps its plain pre.raw path because
+            // its template is ASCII-art bordered text Markdig would mangle into stray
+            // <em>/<p> wrappers.
+            if (string.Equals(_activeRenderer.FileExtension, ".md", StringComparison.OrdinalIgnoreCase))
             {
-                // Markdig is meaningful only for the Markdown renderer. INCIBE TXT is plain
-                // text with ASCII art borders that Markdig would mangle into stray <em>/<p>
-                // wrappers; GHSA YAML would lose its key:value structure to mistaken indents.
                 body = Markdown.ToHtml(src, _mdPipeline);
             }
             else
@@ -594,7 +597,7 @@ public partial class AdvisoryPage : Page
                     "font-family:'Cascadia Mono',Consolas,monospace;font-size:12px;}" +
                "pre{background:#111111;border:1px solid #262626;border-radius:6px;padding:12px;overflow:auto;}" +
                "pre code{background:transparent;color:#ededed;padding:0;}" +
-               // pre.raw is used by the non-markdown preview path (INCIBE TXT, GHSA YAML) — full
+               // pre.raw is used by the non-markdown preview path (INCIBE TXT) — full
                // viewport, no border/wrapper, so the ASCII-art INCIBE banner doesn't get clipped.
                "pre.raw{background:transparent;border:none;padding:16px;margin:0;color:#ededed;" +
                        "font-family:'Cascadia Mono',Consolas,monospace;font-size:12px;line-height:1.45;white-space:pre;}" +
