@@ -121,8 +121,13 @@ public static class InstallerExtractor
         psi.ArgumentList.Add(installer);
         psi.ArgumentList.Add($"-o{outDir}");
         psi.ArgumentList.Add("-y");        // assume yes on prompts
-        psi.ArgumentList.Add("-bb0");      // quiet log level
-        psi.ArgumentList.Add("-bsp0");     // no progress to stdout (we'd need to parse)
+        // -bb1 emits one log line per extracted file (`- path/to/file`). The page
+        // streams these lines to the loading overlay so the user can see real-time
+        // progress instead of staring at a static spinner. -bsp0 keeps the
+        // per-second percentage off stdout — it uses CR (not LF) so it would
+        // break our line-based reader.
+        psi.ArgumentList.Add("-bb1");
+        psi.ArgumentList.Add("-bsp0");
 
         return await RunProcessAsync(psi, result, progress, ct, "7z");
     }
@@ -172,6 +177,16 @@ public static class InstallerExtractor
         IProgress<string>? progress, CancellationToken ct, string label)
     {
         Process? p = null;
+        // Per-line streaming via OutputDataReceived events instead of ReadToEndAsync.
+        // The previous implementation buffered the entire child output until the
+        // process exited, which meant the page-level IProgress callback only fired
+        // ONCE per extraction (after completion). For 7-Zip with -bb1 emitting one
+        // line per extracted file, line-streaming lets the LoadingOverlay subtitle
+        // update in real time so the user sees forward motion instead of a static
+        // spinner. Lists are filled inside the event handlers (single producer
+        // thread per stream, so List<T> is safe here without locking).
+        var stdoutLines = new List<string>();
+        var stderrLines = new List<string>();
         try
         {
             p = Process.Start(psi);
@@ -181,8 +196,20 @@ public static class InstallerExtractor
                 return false;
             }
 
-            var stdoutTask = p.StandardOutput.ReadToEndAsync(ct);
-            var stderrTask = p.StandardError.ReadToEndAsync(ct);
+            p.OutputDataReceived += (_, e) =>
+            {
+                if (e.Data == null) return;
+                stdoutLines.Add(e.Data);
+                progress?.Report(e.Data);
+            };
+            p.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data == null) return;
+                stderrLines.Add(e.Data);
+                progress?.Report($"[{label} err] {e.Data}");
+            };
+            p.BeginOutputReadLine();
+            p.BeginErrorReadLine();
 
             using var reg = ct.Register(() =>
             {
@@ -191,11 +218,9 @@ public static class InstallerExtractor
             });
 
             await p.WaitForExitAsync(ct);
-            var stdout = await stdoutTask;
-            var stderr = await stderrTask;
 
-            if (!string.IsNullOrEmpty(stdout)) result.Logs.Add($"[{label}] stdout:\n{stdout.Trim()}");
-            if (!string.IsNullOrEmpty(stderr)) result.Logs.Add($"[{label}] stderr:\n{stderr.Trim()}");
+            if (stdoutLines.Count > 0) result.Logs.Add($"[{label}] stdout:\n{string.Join("\n", stdoutLines)}");
+            if (stderrLines.Count > 0) result.Logs.Add($"[{label}] stderr:\n{string.Join("\n", stderrLines)}");
 
             var ok = p.ExitCode == 0;
             progress?.Report(ok ? $"{label} exited 0 (success)" : $"{label} exited {p.ExitCode}");

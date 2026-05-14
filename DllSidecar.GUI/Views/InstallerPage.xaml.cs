@@ -50,7 +50,25 @@ public partial class InstallerPage : Page
         Overlay.Show("Extracting installer", $"Processing {Path.GetFileName(path)}");
 
         _cts = new CancellationTokenSource();
-        var progress = new Progress<string>(m => AppendLog(m));
+        // Progress lines from InstallerExtractor land here. They drive THREE
+        // sinks at once: the page-level log (full audit trail), the overlay
+        // subtitle (single-line live status so the user sees forward motion
+        // mid-extraction), and a file-counter that turns 7-Zip's per-file
+        // "- path/to/file" stream into a friendly count.
+        int extractedFiles = 0;
+        var progress = new Progress<string>(m =>
+        {
+            AppendLog(m);
+            if (m.StartsWith("- ", StringComparison.Ordinal))
+            {
+                extractedFiles++;
+                Overlay.UpdateSubtitle($"Extracted {extractedFiles} files — {Path.GetFileName(m.AsSpan(2).ToString())}");
+            }
+            else
+            {
+                Overlay.UpdateSubtitle(m);
+            }
+        });
         InstallerExtractionResult result;
         try
         {
@@ -76,18 +94,50 @@ public partial class InstallerPage : Page
             SumMethod.Text = result.MethodUsed.ToString();
             SumOutput.Text = result.OutputDir ?? "";
             SumFiles.Text = result.FilesExtracted.ToString("N0");
-            SumSize.Text = $"{result.TotalBytesExtracted:N0} bytes";
+            SumSize.Text = FormatBytes(result.TotalBytesExtracted);
             ScanBtn.IsEnabled = true;
             OpenFolderBtn.IsEnabled = true;
-            SetStatus($"Extracted with {result.MethodUsed} — {result.FilesExtracted} files, {result.TotalBytesExtracted / 1024:N0} KB",
+            SetStatus($"Extracted with {result.MethodUsed} — {result.FilesExtracted:N0} files, {FormatBytes(result.TotalBytesExtracted)}",
                 StatusKind.Ok);
             _main.Log($"Installer extracted: {path} → {result.OutputDir}");
+
+            // Informational modal so the user explicitly sees the destination
+            // and is told what the next action is. Without this the page sat
+            // silent after success and the "Scan extracted" CTA was easy to
+            // miss. Modal is OK-only — user dismisses, then ScanBtn is focused
+            // so Enter triggers the scan with no further mouse work.
+            AppDialog.Show(
+                Window.GetWindow(this),
+                $"Installer extracted successfully.\n\n" +
+                $"Destination:\n{result.OutputDir}\n\n" +
+                $"Size: {result.FilesExtracted:N0} files, {FormatBytes(result.TotalBytesExtracted)}\n\n" +
+                $"Next step: scan this directory to find DLL sideloading candidates. " +
+                $"Press Scan (or Enter) to view the results.",
+                "Extraction complete",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+
+            ScanBtn.Focus();
         }
         else
         {
             SetStatus($"Extraction failed: {result.ErrorMessage}", StatusKind.Err);
             _main.Log($"Installer extraction FAILED: {result.ErrorMessage}");
+            AppDialog.Show(
+                Window.GetWindow(this),
+                $"Extraction failed.\n\n{result.ErrorMessage}\n\nSee the extraction log below for the full output from the underlying tool (7-Zip / msiexec / innounp).",
+                "Extraction failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024L * 1024) return $"{bytes / 1024.0:N1} KB";
+        if (bytes < 1024L * 1024 * 1024) return $"{bytes / 1024.0 / 1024:N1} MB";
+        return $"{bytes / 1024.0 / 1024 / 1024:N2} GB";
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
