@@ -470,7 +470,7 @@ public partial class ProcmonPage : Page
             Mode = classification.Mode;
             CanonicalPath = classification.CanonicalPath;
             Writability = ProcmonRowWritabilityClassifier.Classify(a.SearchedDirs, dirAcl);
-            Verdict = ExploitabilityVerdict.For.ProcmonRow(a, Mode, Writability);
+            Verdict = ExploitabilityVerdict.For.ProcmonRow(Mode, Writability);
         }
 
         public string Risk => Aggregation.RiskHeuristic;
