@@ -286,6 +286,20 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="Blocker" Binding="{Binding BlockerLabel}" Width="125"
+                                            SortMemberPath="BlockerSortKey"
+                                            ToolTipService.ToolTip="Top blocker that drags this candidate below Total 5 — empty cell means no dominant blocker (candidate is actionable)">
+                            <DataGridTextColumn.ElementStyle>
+                                <!-- Inline so the column-scope StaticResource lookup stays bulletproof
+                                     (DataGridColumns aren't in the visual tree). Red so the blocker
+                                     reads as a downgrade alongside the green Total/axis cells. -->
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource Red}"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="ToolTip" Value="{Binding BlockerTooltip}"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
                         <DataGridTextColumn Header="DLL" Binding="{Binding Filename}" Width="200"/>
                         <DataGridTextColumn Header="Arch" Binding="{Binding Arch}" Width="55"/>
                         <DataGridTextColumn Header="DLL sig" Binding="{Binding DllSig}" Width="70"/>

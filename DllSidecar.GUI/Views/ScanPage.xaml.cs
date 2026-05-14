@@ -1214,6 +1214,28 @@ public partial class ScanPage : Page
         public string ImpactText => ImpactValue.ToString();
         public string ConfidenceText => ConfidenceValue.ToString();
         public string Severity => Score?.Severity ?? "?";
+
+        // Dominant blocker for this candidate (Phase 3 of the exploitability roadmap).
+        // Computed once via BlockerInference so the column cell + tooltip stay in sync
+        // and so we don't recompute on every WPF binding refresh.
+        private Core.Services.Exploitability.CandidateBlocker? _blocker;
+        private bool _blockerComputed;
+        private Core.Services.Exploitability.CandidateBlocker? Blocker
+        {
+            get
+            {
+                if (_blockerComputed) return _blocker;
+                _blockerComputed = true;
+                if (Score != null) _blocker = Core.Services.Exploitability.BlockerInference.Resolve(Score);
+                return _blocker;
+            }
+        }
+        public string BlockerLabel => Blocker?.Label ?? "";
+        public string BlockerTooltip => Blocker?.Reason ?? "";
+        public string BlockerSortKey =>
+            // Sort: actionable rows (no blocker) first, then by label alphabetically
+            // so equal-blocker groups cluster together.
+            Blocker == null ? " " : Blocker.Label;
         public string Filename => Existing?.Dll.Filename ?? Phantom?.DllName ?? "?";
         public string Arch => Existing?.Dll.Arch ?? "—";
 
