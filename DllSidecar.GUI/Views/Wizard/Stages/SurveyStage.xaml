@@ -20,7 +20,6 @@
             <TextBlock FontSize="12" Foreground="{StaticResource Overlay}" Margin="0,0,0,4"
                        Text="Auto-runs on entry."/>
             <TextBlock FontSize="12" Foreground="{StaticResource Subtext}" TextWrapping="Wrap">
-                <Run Text="• Extract installer (if needed)"/><LineBreak/>
                 <Run Text="• Static scan: IAT cross-ref · Authenticode · directory ACL"/><LineBreak/>
                 <Run Text="• Privesc vectors: services · tasks · autoElevate · updater heuristic"/>
             </TextBlock>

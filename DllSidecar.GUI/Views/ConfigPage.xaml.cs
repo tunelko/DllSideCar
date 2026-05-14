@@ -51,7 +51,7 @@ public partial class ConfigPage : Page
         var fileRows = new[]
         {
             ProcmonRow, SigcheckRow, DependenciesRow,
-            X64DbgRow, X32DbgRow, PythonRow, SevenZipRow, InnoUnpRow,
+            X64DbgRow, X32DbgRow,
         };
         foreach (var row in fileRows) row.BundleDirsProvider = bundleProvider;
 
@@ -77,15 +77,6 @@ public partial class ConfigPage : Page
 
         X32DbgRow.CandidateNames = ["x32dbg.exe"];
         X32DbgRow.DownloadUrl = "https://x64dbg.com/";
-
-        PythonRow.CandidateNames = ["python.exe", "python3.exe"];
-        PythonRow.DownloadUrl = "https://www.python.org/downloads/windows/";
-
-        SevenZipRow.CandidateNames = ["7z.exe"];
-        SevenZipRow.DownloadUrl = "https://www.7-zip.org/";
-
-        InnoUnpRow.CandidateNames = ["innounp.exe"];
-        InnoUnpRow.DownloadUrl = "https://innounp.sourceforge.net/";
     }
 
     private void LoadFromConfig()
@@ -107,9 +98,6 @@ public partial class ConfigPage : Page
         DependenciesRow.ToolPath = cfg.Tools.DependenciesGuiPath ?? "";
         X64DbgRow.ToolPath       = cfg.Tools.X64DbgPath          ?? "";
         X32DbgRow.ToolPath       = cfg.Tools.X32DbgPath          ?? "";
-        PythonRow.ToolPath       = cfg.Tools.PythonPath          ?? "";
-        SevenZipRow.ToolPath     = cfg.Tools.SevenZipPath        ?? "";
-        InnoUnpRow.ToolPath      = cfg.Tools.InnoUnpPath         ?? "";
 
         // NVD key (separate input, not a path)
         NvdApiKeyBox.Text = cfg.Tools.NvdApiKey ?? "";
@@ -224,9 +212,6 @@ public partial class ConfigPage : Page
         cfg.Tools.DependenciesGuiPath = NullIfBlank(DependenciesRow.ToolPath);
         cfg.Tools.X64DbgPath          = NullIfBlank(X64DbgRow.ToolPath);
         cfg.Tools.X32DbgPath          = NullIfBlank(X32DbgRow.ToolPath);
-        cfg.Tools.PythonPath          = NullIfBlank(PythonRow.ToolPath);
-        cfg.Tools.SevenZipPath        = NullIfBlank(SevenZipRow.ToolPath);
-        cfg.Tools.InnoUnpPath         = NullIfBlank(InnoUnpRow.ToolPath);
 
         cfg.Tools.NvdApiKey = NullIfBlank(NvdApiKeyBox.Text);
 

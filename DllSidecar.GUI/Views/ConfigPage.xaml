@@ -70,9 +70,6 @@
                         <ctrl:ToolPathRow x:Name="DependenciesRow" Label="Dependencies (lucasg)" Purpose="Visual IAT / import tree browser"/>
                         <ctrl:ToolPathRow x:Name="X64DbgRow"       Label="x64dbg"              Purpose="Dynamic debug of 64-bit targets"/>
                         <ctrl:ToolPathRow x:Name="X32DbgRow"       Label="x32dbg"              Purpose="Dynamic debug of 32-bit targets"/>
-                        <ctrl:ToolPathRow x:Name="PythonRow"       Label="Python"              Purpose="Run helper scripts (scan_imports, gen_proxy_dll)"/>
-                        <ctrl:ToolPathRow x:Name="SevenZipRow"     Label="7-Zip"               Purpose="Installer extraction (msi, nsis, generic)"/>
-                        <ctrl:ToolPathRow x:Name="InnoUnpRow"      Label="InnoUnp"             Purpose="Inno Setup extraction (fallback when 7-Zip fails)"/>
 
                         <!-- NVD API key — not a path, kept here because it's a tools/external-resource secret -->
                         <TextBlock Text="NVD API key (optional — raises rate limit 5→50 req/30s)" Style="{StaticResource FieldLabel}" Margin="0,16,0,0"/>

@@ -74,17 +74,19 @@ public partial class InputStage : System.Windows.Controls.UserControl, IWizardSt
         }
         else // EntryScan
         {
-            // Scan accepts directories or installer-like files (fall through to InstallerExtractor).
-            var isDir = Directory.Exists(path);
-            var isFile = File.Exists(path);
-            if (!isDir && !isFile)
+            // Scan-folder accepts directories only. Single-PE inputs route through
+            // the "Analyze a binary" entry, which sets WizardInputKind.SinglePe.
+            if (!Directory.Exists(path))
             {
-                MessageBox.Show($"Path does not exist:\n{path}",
+                MessageBox.Show(
+                    File.Exists(path)
+                        ? "Scan a folder requires a directory path. To analyze a single PE, switch to 'Analyze a binary' above."
+                        : $"Path does not exist:\n{path}",
                     "Invalid path", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return Task.FromResult(false);
             }
             _session.EntryPoint = WizardEntryPoint.ScanFolder;
-            _session.InputKind = isDir ? WizardInputKind.InstallDirectory : WizardInputKind.Installer;
+            _session.InputKind = WizardInputKind.InstallDirectory;
         }
 
         _session.InputPath = path;
@@ -115,12 +117,10 @@ public partial class InputStage : System.Windows.Controls.UserControl, IWizardSt
     {
         var dlg = new OpenFileDialog
         {
-            Filter = EntryAnalyze.IsChecked == true
-                ? "PE|*.dll;*.exe|All files|*.*"
-                : "Any supported|*.msi;*.exe;*.zip;*.7z;*.dll|Installers|*.msi;*.exe|Archives|*.zip;*.7z|PE|*.dll;*.exe|All files|*.*",
+            Filter = "PE|*.dll;*.exe|All files|*.*",
             Title = EntryAnalyze.IsChecked == true
                 ? "Pick a DLL or EXE to analyze"
-                : "Pick a file — auto-detect installer vs archive",
+                : "Pick a PE file",
         };
         if (dlg.ShowDialog() == true) PathBox.Text = dlg.FileName;
     }
@@ -166,7 +166,7 @@ public partial class InputStage : System.Windows.Controls.UserControl, IWizardSt
             DetectKind.Foreground = (System.Windows.Media.Brush)FindResource("Overlay");
             DetectHint.Text = EntryAnalyze.IsChecked == true
                 ? "Pick a .dll or .exe — the wizard will analyze it and skip directly to Pick."
-                : "Pick a directory or a .msi / .exe / .zip — the wizard decides extract + scan.";
+                : "Pick an install directory — the wizard will scan every PE under it.";
             return;
         }
 
@@ -180,16 +180,19 @@ public partial class InputStage : System.Windows.Controls.UserControl, IWizardSt
         }
         else if (File.Exists(raw))
         {
-            var ext = Path.GetExtension(raw).ToLowerInvariant();
             if (EntryAnalyze.IsChecked == true)
             {
                 icon = "\U0001F50D"; kindLabel = "SINGLE PE";
                 hint = "Will analyze this PE and jump to Pick with it pre-selected.";
             }
-            else if (ext is ".msi") { icon = "\U0001F4E6"; kindLabel = "MSI INSTALLER"; hint = "Will extract statically then scan."; }
-            else if (ext is ".zip" or ".7z" or ".rar") { icon = "\U0001F5DC"; kindLabel = "ARCHIVE"; hint = "Will extract with 7-Zip then scan."; }
-            else if (ext is ".exe") { icon = "\U0001F4E5"; kindLabel = "EXE (installer or PE)"; hint = "Will try installer extraction; if it's a plain PE, switch to Analyze a binary."; }
-            else { icon = "❓"; kindLabel = "UNKNOWN FILE"; hint = "Unrecognised extension — attempt as installer."; }
+            else
+            {
+                DetectIcon.Text = "⚠";
+                DetectKind.Text = "FILE — UNSUPPORTED HERE";
+                DetectKind.Foreground = (System.Windows.Media.Brush)FindResource("Red");
+                DetectHint.Text = "'Scan a folder' requires a directory. To analyze a single PE, switch to 'Analyze a binary' above.";
+                return;
+            }
         }
         else
         {

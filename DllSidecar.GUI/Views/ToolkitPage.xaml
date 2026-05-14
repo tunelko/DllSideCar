@@ -15,7 +15,7 @@
         <StackPanel Grid.Row="0" Margin="0,0,0,16">
             <TextBlock Text="Toolkit Status" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Text}"/>
             <TextBlock FontSize="12" Foreground="{StaticResource Overlay}" Margin="0,4,0,0" TextWrapping="Wrap"
-                       Text="Health-check of every external tool the pipeline needs: MinGW (compile), Process Monitor (dynamic verify), sigcheck (Authenticode cross-check), Dependencies + x64dbg (manual inspection), Python+pefile (legacy scripts), 7-Zip + InnoUnp (installer extraction). Green = ready. Red = required and missing."/>
+                       Text="Health-check of every external tool the pipeline needs: MinGW (compile), Process Monitor (dynamic verify), sigcheck (Authenticode cross-check), Dependencies + x64dbg (manual inspection). Green = ready. Red = required and missing."/>
         </StackPanel>
 
         <!-- Stats header -->

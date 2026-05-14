@@ -137,6 +137,10 @@ public class ProcmonPageState
     public string? LastCsvPath { get; set; }
     public bool OnlyUserSpace { get; set; }
     public bool OnlyHighRisk { get; set; }
+    // On by default — KnownDlls always load from System32 regardless of
+    // sideload attempts, so they're never useful targets. Showing them just
+    // clutters the grid.
+    public bool HideKnownDlls { get; set; } = true;
 }
 
 public class MingwConfig
@@ -179,15 +183,10 @@ public class ToolsConfig
     public string? DependenciesGuiPath { get; set; }     // lucasg Dependencies
     public string? X64DbgPath { get; set; }
     public string? X32DbgPath { get; set; }
-    public string? PythonPath { get; set; }
-    public string? SevenZipPath { get; set; }            // 7z.exe — installer extraction
-    public string? InnoUnpPath { get; set; }             // innounp.exe — Inno Setup extraction
 
     public string SysinternalsDownloadUrl { get; set; } = "https://download.sysinternals.com/files/SysinternalsSuite.zip";
     public string DependenciesDownloadUrl { get; set; } = "https://github.com/lucasg/Dependencies/releases";
     public string X64DbgDownloadUrl { get; set; } = "https://x64dbg.com/";
-    public string SevenZipDownloadUrl { get; set; } = "https://www.7-zip.org/";
-    public string InnoUnpDownloadUrl { get; set; } = "https://innounp.sourceforge.net/";
 
     // NVD API v2 — optional key raises rate limit from 5 req/30s to 50 req/30s
     // Register at https://nvd.nist.gov/developers/request-an-api-key

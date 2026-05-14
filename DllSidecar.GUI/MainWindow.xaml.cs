@@ -37,6 +37,13 @@ public partial class MainWindow : Window
     public DllSidecar.Core.Services.ScanResults? LastScanResults { get; set; }
     public string? LastScanDir { get; set; }
     public DllSidecar.Core.Models.EtwTraceResult? LastEtwResult { get; set; }
+    // Parsed ProcMon CSV survives navigation. ProcmonPage parks both the
+    // result and the source path here so reopening the page after a detour
+    // (e.g. to Analyze, Config, or Toolkit) doesn't drop the parse — same
+    // pattern as LastScanResults / LastEtwResult above. Cleared only when
+    // the user explicitly re-parses a different CSV.
+    public DllSidecar.Core.Services.ProcmonParser.ParseResult? LastProcmonResult { get; set; }
+    public string? LastProcmonCsvPath { get; set; }
     // Last EXE path the user typed/picked in RuntimeTrace's Launch mode. Persisted here
     // so the field survives navigation away and back (same pattern as LastScanDir).
     public string? LastRuntimeLaunchExe { get; set; }
@@ -157,6 +164,15 @@ public partial class MainWindow : Window
             windres != null ? Color.FromRgb(0x00, 0xCA, 0x4E) : Color.FromRgb(0xFF, 0x5B, 0x4F));
 
         Log("DllSidecar GUI started");
+
+        // Proactive MinGW toolchain check. Fires once per session AFTER the
+        // shell is visible so the warning dialog has a real owner. No-op
+        // when both gcc x64 and x86 resolve; otherwise pops a modal that
+        // links to the README's compiler-setup section. Researchers using
+        // analysis-only features (Analyze, Scan, ETW, Advisories) can
+        // dismiss and proceed — only Generate/Build paths actually need it.
+        Dispatcher.BeginInvoke(new Action(() => CompilerHealthCheck.WarnIfMissing(this)),
+            System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
     // Suppresses the exit confirmation when we already asked the user once
@@ -227,7 +243,6 @@ public partial class MainWindow : Window
             ScanPage                   => NavBtnScan,
             ProcmonPage                => NavBtnProcmon,
             RuntimeTracePage           => NavBtnRuntime,
-            InstallerPage              => NavBtnInstaller,
             PrivescPage                => NavBtnPrivesc,
             AttackPathPage             => NavBtnAttackPath,
             GeneratePage               => NavBtnDllTechniques,
@@ -238,7 +253,7 @@ public partial class MainWindow : Window
         System.Windows.Controls.Button[] all =
         [
             NavBtnWizard, NavBtnAnalyze, NavBtnScan, NavBtnProcmon, NavBtnRuntime,
-            NavBtnInstaller, NavBtnPrivesc, NavBtnAttackPath, NavBtnDllTechniques, NavBtnAdvisory, NavBtnAdvisoryLibrary
+            NavBtnPrivesc, NavBtnAttackPath, NavBtnDllTechniques, NavBtnAdvisory, NavBtnAdvisoryLibrary
         ];
         foreach (var b in all) b.Tag = ReferenceEquals(b, active) ? "active" : null;
     }
@@ -327,7 +342,6 @@ public partial class MainWindow : Window
     private void NavAnalyze_Click(object sender, RoutedEventArgs e) => NavigateTo(new AnalyzePage(this));
     private void NavScan_Click(object sender, RoutedEventArgs e) => NavigateTo(new ScanPage(this));
     private void NavProcmon_Click(object sender, RoutedEventArgs e) => NavigateTo(new ProcmonPage(this));
-    private void NavInstaller_Click(object sender, RoutedEventArgs e) => NavigateTo(new InstallerPage(this));
     private void NavDllTechniques_Click(object sender, RoutedEventArgs e) => NavigateTo(new GeneratePage(this));
     private void NavBuild_Click(object sender, RoutedEventArgs e) { ToolsPopup.IsOpen = false; NavigateTo(new BuildPage(this)); }
     private void NavPrivesc_Click(object sender, RoutedEventArgs e) => NavigateTo(new PrivescPage(this));

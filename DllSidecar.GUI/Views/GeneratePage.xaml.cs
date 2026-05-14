@@ -286,35 +286,6 @@ public partial class GeneratePage : Page
         if (dlg.ShowDialog() == true) HostExeBox.Text = dlg.FileName;
     }
 
-    private void HostExeBox_Changed(object sender, TextChangedEventArgs e)
-    {
-        if (HostWarning == null) return;
-        HostWarning.Visibility = IsTempLikePath(HostExeBox.Text)
-            ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    /// <summary>
-    /// True when <paramref name="path"/> looks like a temp-extracted location:
-    /// per-user temp dir (%TEMP%/%TMP%), \AppData\Local\Temp\, or C:\Windows\Temp\.
-    /// Used to nudge the user when an importer was detected inside a self-extracted
-    /// payload (MobaXterm, Inno Setup tmp, MSI cache) — the "real" launcher is upstream.
-    /// </summary>
-    private static bool IsTempLikePath(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path)) return false;
-        try
-        {
-            var full = Path.GetFullPath(path);
-            var userTemp = Path.GetFullPath(Path.GetTempPath());
-            if (full.StartsWith(userTemp, StringComparison.OrdinalIgnoreCase)) return true;
-        }
-        catch { /* malformed path — fall through to substring check */ }
-
-        return path.Contains(@"\AppData\Local\Temp\", StringComparison.OrdinalIgnoreCase)
-            || path.Contains(@"\Local Settings\Temp\", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith(@"C:\Windows\Temp\", StringComparison.OrdinalIgnoreCase);
-    }
-
     private void ClearDeploy_Click(object sender, RoutedEventArgs e)
     {
         _deployDir = null;

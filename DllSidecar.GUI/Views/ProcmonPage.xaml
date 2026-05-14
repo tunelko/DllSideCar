@@ -58,6 +58,10 @@
                         <CheckBox x:Name="ChkOnlyHighRisk" Style="{StaticResource SegmentedCheck}"
                                   Content="High risk only"
                                   Checked="Filter_Changed" Unchecked="Filter_Changed"/>
+                        <CheckBox x:Name="ChkHideKnownDlls" Style="{StaticResource SegmentedCheck}"
+                                  Content="Hide KnownDLLs"
+                                  Checked="Filter_Changed" Unchecked="Filter_Changed"
+                                  ToolTip="KnownDLLs (kernel32, ntdll, user32 …) always load from System32 regardless of sideload — never explotable, just noise"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -153,6 +157,8 @@
                         </DataGrid.ColumnHeaderStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Risk" Binding="{Binding Risk}" Width="60"/>
+                            <DataGridTextColumn Header="Mode" Binding="{Binding ModeLabel}" Width="110"
+                                                SortMemberPath="ModeLabel"/>
                             <DataGridTextColumn Header="DLL" Binding="{Binding DllName}" Width="200"/>
                             <DataGridTextColumn Header="Procs" Binding="{Binding ProcessCount}" Width="60"/>
                             <DataGridTextColumn Header="Events" Binding="{Binding EventCount}" Width="80"/>
@@ -203,10 +209,18 @@
             </Border>
         </Grid>
 
-        <!-- Footer: status only — Copy/Export moved to the search bar above the grid -->
-        <TextBlock Grid.Row="5" x:Name="Status" Foreground="{StaticResource Overlay}" FontSize="12"
-                   Margin="0,10,0,0"
-                   Text="Ready. Export from ProcMon with File → Save → CSV after applying your filter."/>
+        <!-- Footer: status left, post-parse actions right (mirrors ScanPage layout) -->
+        <Grid Grid.Row="5" Margin="0,10,0,0">
+            <TextBlock x:Name="Status" HorizontalAlignment="Left" VerticalAlignment="Center"
+                       Foreground="{StaticResource Overlay}" FontSize="12" TextTrimming="CharacterEllipsis"
+                       Text="Ready. Export from ProcMon with File → Save → CSV after applying your filter."/>
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                <Button x:Name="PromoteBtn" VerticalAlignment="Center"
+                        Content="&#x2197;  Promote to DLL Techniques" Style="{StaticResource AccentButton}"
+                        Margin="6,0,0,0" Click="Promote_Click" IsEnabled="False"
+                        ToolTip="Hand the selected row off to DLL Techniques in Proxy or Sideload mode depending on whether a canonical system copy exists"/>
+            </StackPanel>
+        </Grid>
     </Grid>
     <ctrl:LoadingOverlay x:Name="Overlay"/>
     </Grid>

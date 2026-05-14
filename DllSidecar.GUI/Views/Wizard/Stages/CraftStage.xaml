@@ -85,10 +85,6 @@
                         <Button Grid.Column="2" Content="&#x1F4C1;" Style="{StaticResource IconButton}"
                                 Margin="6,0,0,0" Click="BrowseHost_Click" ToolTip="Browse for Host EXE"/>
                     </Grid>
-                    <TextBlock x:Name="HostWarning" Visibility="Collapsed" Margin="70,4,0,0"
-                               Foreground="{StaticResource Yellow}" FontSize="10.5"
-                               FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"
-                               Text="⚠ Looks like a temp-extracted path. The real launcher (portable EXE / installer / parent) probably lives elsewhere — override above."/>
                 </StackPanel>
             </Border>
 

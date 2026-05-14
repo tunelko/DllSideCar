@@ -65,7 +65,7 @@
                                FontSize="14" FontWeight="SemiBold"/>
                     <TextBlock Foreground="{StaticResource Subtext}" FontSize="11" TextWrapping="Wrap"
                                Margin="0,4,0,0"
-                               Text="Install directory or extracted installer. Runs IAT + phantom detection + scoring across every PE in the tree."/>
+                               Text="Install directory. Runs IAT + phantom detection + scoring across every PE in the tree."/>
                 </StackPanel>
             </RadioButton>
 

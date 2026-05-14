@@ -18,9 +18,13 @@ public enum WizardStage
 
 public enum WizardInputKind
 {
-    Installer,        // .exe / .msi that needs extraction first
-    InstallDirectory, // already extracted, just scan it
-    SinglePe,         // skip scanning — go straight to Craft
+    // Explicit numeric IDs preserve back-compat with persisted
+    // wizard_session.json snapshots written before the Installer-extract
+    // feature was removed. Value 0 used to be 'Installer'; keeping the
+    // gap means an old snapshot with InputKind=1 still deserializes as
+    // InstallDirectory, not SinglePe.
+    InstallDirectory = 1, // a directory, scan it
+    SinglePe = 2,         // skip scanning — go straight to Craft
 }
 
 /// <summary>
@@ -62,11 +66,9 @@ public class WizardSession
     public WizardHuntingGoal HuntingGoal { get; set; } = WizardHuntingGoal.ArbitraryCode;
     public string? InputPath { get; set; }
 
-    // ---- Stage 2: Survey (extract + scan) ----
-    public string? SurveyRootDir { get; set; }        // where we scanned (post-extract for installers)
+    // ---- Stage 2: Survey ----
+    public string? SurveyRootDir { get; set; }
     public ScanResults? ScanResults { get; set; }
-    public bool ExtractionPerformed { get; set; }
-    public string? ExtractionMethod { get; set; }
 
     // ---- Stage 3: Verify ----
     public string? ProcmonCsvPath { get; set; }
