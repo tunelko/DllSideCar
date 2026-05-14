@@ -674,5 +674,11 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         }
 
         Log.Info("wizard.craft", $"Built: {dllOutput} ({result.OutputSize:N0} bytes)");
+
+        // Same post-build modal the BuildPage / GeneratePage code paths show.
+        // The wizard's stage indicator is silent on output paths, so without
+        // this the researcher only sees BuiltDllPath in the next stage's
+        // summary line and has no one-click way to open the artifact.
+        Helpers.BuildCompleteDialog.Show(Window.GetWindow(this), dllOutput);
     }
 }
