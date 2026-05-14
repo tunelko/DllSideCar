@@ -259,20 +259,6 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTemplateColumn Header="CVE" Width="60" SortMemberPath="CveSortKey">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <Border Background="{Binding CveBg}" CornerRadius="4"
-                                            Padding="6,1" HorizontalAlignment="Left" VerticalAlignment="Center"
-                                            ToolTip="{Binding CveTooltip}">
-                                        <TextBlock Text="{Binding CveLabel}" Foreground="{Binding CveFg}"
-                                                   FontSize="10" FontWeight="Bold"
-                                                   FontFamily="{StaticResource FontMono}"/>
-                                    </Border>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Dyn" Binding="{Binding DynLabel}" Width="55"/>
                         <DataGridTemplateColumn Header="Reported" Width="80" SortMemberPath="ReportedLabel">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
@@ -300,12 +286,9 @@
                                 </Style>
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
-                        <DataGridTextColumn Header="DLL" Binding="{Binding Filename}" Width="200"/>
+                        <DataGridTextColumn Header="DLL" Binding="{Binding Filename}" Width="*"/>
                         <DataGridTextColumn Header="Arch" Binding="{Binding Arch}" Width="55"/>
-                        <DataGridTextColumn Header="DLL sig" Binding="{Binding DllSig}" Width="70"/>
-                        <DataGridTextColumn Header="Importers" Binding="{Binding ImportersText}" Width="85"/>
                         <DataGridTextColumn Header="Writable" Binding="{Binding WritableText}" Width="85"/>
-                        <DataGridTextColumn Header="Path" Binding="{Binding ShortPath}" Width="*"/>
                     </DataGrid.Columns>
                 </DataGrid>
                 </DockPanel>

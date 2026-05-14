@@ -637,7 +637,9 @@ public partial class GeneratePage : Page
             }
         }
 
-        // Auto-build
+        // Auto-build. builtDllPath stays null when auto-build is off or the
+        // compile fails; consumed by the post-build success modal below.
+        string? builtDllPath = null;
         if (ChkAutoBuild.IsChecked == true)
         {
             var cFile = files.Keys.First(k => k.EndsWith(".c"));
@@ -672,6 +674,7 @@ public partial class GeneratePage : Page
             if (result.Success)
             {
                 outputInfo.AppendLine($"\n  [+] Compiled: {_analysis.Filename} ({result.OutputSize:N0} bytes, {result.ExportCount} exports)");
+                builtDllPath = dllOutput;
 
                 // Stomp only when we have a source file to copy timestamps from.
                 if (config.StompTimestamps)
@@ -701,6 +704,14 @@ public partial class GeneratePage : Page
         GenerateBtn.IsEnabled = true;
         SetStatus($"Done — {outputDir}", StatusKind.Ok);
         Overlay.Hide();
+
+        // Post-build success modal — surface the on-disk location with a one-click
+        // open-in-Explorer so the researcher doesn't have to scroll the output panel
+        // hunting for the path. Only fires when auto-build ran AND succeeded;
+        // generation-only runs (no compile) don't pop the dialog because the
+        // researcher's next step is to compile manually via BuildPage anyway.
+        if (builtDllPath != null)
+            Helpers.BuildCompleteDialog.Show(Window.GetWindow(this), builtDllPath);
     }
 
     private void Reset_Click(object sender, RoutedEventArgs e)
