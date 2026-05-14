@@ -24,6 +24,37 @@ public partial class ProcmonPage : Page
         UpdateLaunchBtn();
         RestorePersistedState();
         WirePersistence();
+        // Re-hydrate from the MainWindow session state so a parse done earlier
+        // in the same app session is still visible after navigating away and
+        // back. UiState handles the CSV path + checkbox filters; the heavy
+        // ParseResult itself lives on MainWindow because it's not config.
+        if (_main.LastProcmonResult != null) RehydrateFromLastResult();
+    }
+
+    /// <summary>
+    /// Reconstructs the grid, stats and status from a previously-parsed result
+    /// held on MainWindow. Called from the ctor when navigating back to a page
+    /// that had been parsed earlier in this app session.
+    /// </summary>
+    private void RehydrateFromLastResult()
+    {
+        _lastResult = _main.LastProcmonResult;
+        if (_lastResult == null) return;
+        if (!string.IsNullOrEmpty(_main.LastProcmonCsvPath))
+            CsvPathBox.Text = _main.LastProcmonCsvPath;
+
+        _allRows.Clear();
+        foreach (var a in _lastResult.ByDll) _allRows.Add(new DllRow(a));
+
+        StatTotal.Text  = _lastResult.TotalRows.ToString();
+        StatEvents.Text = _lastResult.FilteredRows.ToString();
+        StatDlls.Text   = _allRows.Count.ToString();
+        StatHigh.Text   = _allRows.Count(r => r.Aggregation.AnyDirUserSpace).ToString();
+
+        ApplyViewFilter();
+        SetStatus(
+            $"Restored parse — {_lastResult.FilteredRows} events, {_allRows.Count} unique DLLs",
+            StatusKind.Info);
     }
 
     private void RestorePersistedState()
@@ -138,6 +169,12 @@ public partial class ProcmonPage : Page
         StatHigh.Text = _allRows.Count(r => r.Aggregation.AnyDirUserSpace).ToString();
 
         ApplyViewFilter();
+
+        // Park the successful parse on MainWindow so the next ProcmonPage
+        // instance (e.g. after navigating to Config and back) re-hydrates
+        // automatically. Mirrors LastScanResults / LastEtwResult.
+        _main.LastProcmonResult = _lastResult;
+        _main.LastProcmonCsvPath = path;
 
         SetStatus($"Parsed — {_lastResult.FilteredRows} events, {_allRows.Count} unique DLLs",
             _allRows.Count > 0 ? StatusKind.Ok : StatusKind.Warn);

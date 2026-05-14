@@ -37,6 +37,13 @@ public partial class MainWindow : Window
     public DllSidecar.Core.Services.ScanResults? LastScanResults { get; set; }
     public string? LastScanDir { get; set; }
     public DllSidecar.Core.Models.EtwTraceResult? LastEtwResult { get; set; }
+    // Parsed ProcMon CSV survives navigation. ProcmonPage parks both the
+    // result and the source path here so reopening the page after a detour
+    // (e.g. to Analyze, Config, or Toolkit) doesn't drop the parse — same
+    // pattern as LastScanResults / LastEtwResult above. Cleared only when
+    // the user explicitly re-parses a different CSV.
+    public DllSidecar.Core.Services.ProcmonParser.ParseResult? LastProcmonResult { get; set; }
+    public string? LastProcmonCsvPath { get; set; }
     // Last EXE path the user typed/picked in RuntimeTrace's Launch mode. Persisted here
     // so the field survives navigation away and back (same pattern as LastScanDir).
     public string? LastRuntimeLaunchExe { get; set; }
