@@ -152,6 +152,15 @@ public partial class MainWindow : Window
         if (saved >= 32 && saved < ActualHeight) // sanity bound
             LogRow.Height = new GridLength(saved);
 
+        // Sidebar attribution — prefix with the configured researcher handle when set
+        // ("@johndoe · BugAInters 2026"), otherwise drop the prefix so a fresh install
+        // doesn't show the maintainer's identity. The project name stays as the
+        // anchor in either case.
+        var handle = ConfigManager.Current.Researcher.Handle?.Trim();
+        SidebarAttribution.Text = string.IsNullOrEmpty(handle)
+            ? "BugAInters 2026"
+            : $"{handle} · BugAInters 2026";
+
         var gcc64 = BuildSystem.FindGcc("x64");
         var gcc32 = BuildSystem.FindGcc("x86");
         StatusGcc.Text = gcc64 != null ? "GCC X64 — OK" : gcc32 != null ? "GCC X86 — OK" : "GCC — MISSING";

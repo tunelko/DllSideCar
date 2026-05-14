@@ -68,20 +68,17 @@
                 <TextBlock Grid.Row="0" Grid.Column="1" x:Name="VersionText" FontFamily="{StaticResource FontMono}"
                            FontSize="11" Foreground="{StaticResource Text}" Margin="0,0,0,5"/>
 
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="Author" FontFamily="{StaticResource FontMono}"
+                <TextBlock Grid.Row="1" Grid.Column="0" x:Name="AuthorLabel" Text="Researcher"
+                           FontFamily="{StaticResource FontMono}"
                            FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,18,5"/>
-                <TextBlock Grid.Row="1" Grid.Column="1" Text="Pedro J. Nunez-Cacho Fuentes (@tunelko)"
+                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="AuthorText"
                            FontFamily="{StaticResource FontMono}" FontSize="11"
                            Foreground="{StaticResource Text}" Margin="0,0,0,5"/>
 
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="Blog" FontFamily="{StaticResource FontMono}"
+                <TextBlock Grid.Row="2" Grid.Column="0" x:Name="BlogLabel" Text="Blog"
+                           FontFamily="{StaticResource FontMono}"
                            FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,18,5"/>
-                <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,5">
-                    <Hyperlink NavigateUri="https://blogs.tunelko.com" RequestNavigate="Hyperlink_RequestNavigate"
-                               Foreground="{StaticResource Mauve}">
-                        <Run Text="blogs.tunelko.com" FontFamily="{StaticResource FontMono}" FontSize="11"/>
-                    </Hyperlink>
-                </TextBlock>
+                <TextBlock Grid.Row="2" Grid.Column="1" x:Name="BlogContainer" Margin="0,0,0,5"/>
 
                 <TextBlock Grid.Row="3" Grid.Column="0" Text="Repo" FontFamily="{StaticResource FontMono}"
                            FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,18,5"/>
@@ -99,7 +96,7 @@
                            Foreground="{StaticResource Text}" Margin="0,0,0,5"/>
             </Grid>
 
-            <TextBlock Text="Copyright 2026 Pedro J. Nunez-Cacho Fuentes. Independent security research."
+            <TextBlock Text="Independent security research — DLL sideloading / hijacking (CWE-427 / CWE-426)"
                        HorizontalAlignment="Center" FontSize="10"
                        Foreground="{StaticResource Overlay}" Margin="0,16,0,0"/>
         </StackPanel>

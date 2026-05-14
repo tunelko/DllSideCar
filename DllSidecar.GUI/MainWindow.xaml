@@ -181,7 +181,7 @@
                         <TextBlock Text="DllSidecar" FontSize="17" FontWeight="SemiBold"
                                    FontFamily="{StaticResource FontDisplay}"
                                    Foreground="{StaticResource Text}"/>
-                        <TextBlock Text="@tunelko · BugAInters 2026" FontSize="10"
+                        <TextBlock x:Name="SidebarAttribution" FontSize="10"
                                    Foreground="{StaticResource Overlay}" Margin="0,2,0,0"/>
                     </StackPanel>
                     <Button Grid.Column="1" x:Name="SidebarToggle" Style="{StaticResource SidebarToggleBtn}"

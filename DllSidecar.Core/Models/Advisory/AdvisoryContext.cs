@@ -16,10 +16,13 @@ public enum ImpactCategory { CodeExecution, DenialOfService, EscalationOfPrivile
 /// </summary>
 public class AdvisoryContext
 {
-    // Researcher (identity; defaults pulled from AppConfig.Researcher by AdvisoryPage)
-    public string ResearcherName { get; set; } = "Pedro J. Nunez-Cacho Fuentes";
-    public string ResearcherHandle { get; set; } = "@tunelko";
-    public string ResearcherBlog { get; set; } = "https://blogs.tunelko.com";
+    // Researcher (identity; AdvisoryPage hydrates these from AppConfig.Researcher
+    // before rendering. Defaults are blank so a fresh install — or a path that
+    // forgets to pull from config — never bakes the project maintainer's
+    // identity into the generated advisory; templates skip empty fields cleanly.)
+    public string ResearcherName { get; set; } = "";
+    public string ResearcherHandle { get; set; } = "";
+    public string ResearcherBlog { get; set; } = "";
     public string ResearcherEmail { get; set; } = "";
     public string ResearcherPgpFingerprint { get; set; } = "";
     public string ResearcherPgpKeyId { get; set; } = "";
