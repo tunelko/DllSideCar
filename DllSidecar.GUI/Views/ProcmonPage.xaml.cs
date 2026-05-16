@@ -33,7 +33,23 @@ public partial class ProcmonPage : Page
         // in the same app session is still visible after navigating away and
         // back. UiState handles the CSV path + checkbox filters; the heavy
         // ParseResult itself lives on MainWindow because it's not config.
-        if (_main.LastProcmonResult != null) RehydrateFromLastResult();
+        if (_main.LastProcmonResult != null)
+        {
+            RehydrateFromLastResult();
+        }
+        // Session-restore path: only the CSV path is in the snapshot. Re-parse
+        // automatically so the grid shows the same rows as before the restart.
+        else if (!string.IsNullOrEmpty(_main.LastProcmonCsvPath) && File.Exists(_main.LastProcmonCsvPath))
+        {
+            Loaded += AutoParseOnce;
+        }
+    }
+
+    private void AutoParseOnce(object sender, RoutedEventArgs e)
+    {
+        Loaded -= AutoParseOnce;
+        CsvPathBox.Text = _main.LastProcmonCsvPath ?? "";
+        Parse_Click(this, new RoutedEventArgs());
     }
 
     /// <summary>

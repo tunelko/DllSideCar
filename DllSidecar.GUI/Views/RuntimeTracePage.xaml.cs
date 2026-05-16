@@ -671,6 +671,21 @@ public partial class RuntimeTracePage : Page
         // resume at Survey with the freshly-promoted phantoms loaded);
         // otherwise the Scan page is the natural landing spot.
         var resumingWizard = _main.CurrentWizardSession != null;
+        if (resumingWizard)
+        {
+            // Tag the session as Runtime-originated and pre-fill its scan slot
+            // so WizardPage ctor lands on Survey on the first promote. Without
+            // this, a session created via the sidebar (EntryPoint=ScanFolder
+            // default) would route the user to Input the first time and the
+            // bug only resolved after the user manually re-entered via Input.
+            var s = _main.CurrentWizardSession!;
+            s.EntryPoint = Core.Models.Wizard.WizardEntryPoint.RuntimeTrace;
+            if (s.ScanResults == null)
+            {
+                s.ScanResults = _main.LastScanResults;
+                s.SurveyRootDir = _main.LastScanDir;
+            }
+        }
         _main.Log($"Promoted {added} runtime phantoms into scan results");
         SetStatus(
             resumingWizard

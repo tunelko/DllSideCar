@@ -118,6 +118,12 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
         ctx.CvssScore = score;
         ctx.CvssSeverity = sev;
 
+        // Pull researcher identity (Name / Handle / Blog / Email / PGP / INCIBE display)
+        // from Configuration. Without this the Report stage hands off a context with
+        // blank Researcher fields to AdvisoryPage and the GHSA/INCIBE renderers print
+        // "Researcher: ()" even when the user has filled in Configuration.
+        ctx.ApplyResearcherFromConfig();
+
         _session.Advisory = ctx;
         // Prefer the user's previous edits (stored on session) over the freshly rendered
         // template so Back → Continue navigation doesn't wipe their draft work.

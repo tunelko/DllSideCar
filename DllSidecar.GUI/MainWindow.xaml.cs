@@ -5,7 +5,9 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using DllSidecar.Core.Configuration;
 using DllSidecar.Core.Models;
+using DllSidecar.Core.Models.Wizard;
 using DllSidecar.Core.Services;
+using DllSidecar.Core.Services.Wizard;
 using DllSidecar.GUI.Views;
 using CoreLog = DllSidecar.Core.Logging.Log;
 using LogEntry = DllSidecar.Core.Logging.LogEntry;
@@ -130,9 +132,173 @@ public partial class MainWindow : Window
             Key.B, ModifierKeys.Control);
         InputBindings.Add(toggleBinding);
 
-        // Wizard is the recommended starting point — guided pipeline that hands
-        // off to Analyze/Scan/Runtime as needed. Power users with a specific
-        // tool in mind navigate directly via the sidebar.
+        // Silent session restore on launch: if the previous run saved (or the wizard
+        // auto-checkpointed on a crash), pre-populate in-memory paths/wizard state
+        // and land on the page the user left. Otherwise the wizard is the default
+        // starting point.
+        var resumed = TryRestoreSession();
+        NavigateTo(resumed ?? new Views.Wizard.WizardPage(this));
+    }
+
+    // ---------- Session save / restore ----------
+
+    /// <summary>
+    /// Records the last navigated page so OnClosing can write it into the snapshot.
+    /// Pages reachable only via dropdowns (Build, Config, Toolkit) are tracked too so
+    /// restoring lands the user back where they were.
+    /// </summary>
+    public string? CurrentPageName { get; private set; }
+
+    private static string? GetPageName(System.Windows.Controls.Page page) => page switch
+    {
+        Views.Wizard.WizardPage => "Wizard",
+        AnalyzePage             => "Analyze",
+        ScanPage                => "Scan",
+        ProcmonPage             => "Procmon",
+        RuntimeTracePage        => "RuntimeTrace",
+        PrivescPage             => "Privesc",
+        AttackPathPage          => "AttackPath",
+        GeneratePage            => "Generate",
+        AdvisoryPage            => "Advisory",
+        AdvisoryLibraryPage     => "AdvisoryLibrary",
+        BuildPage               => "Build",
+        ConfigPage              => "Config",
+        ToolkitPage             => "Toolkit",
+        _                       => null,
+    };
+
+    private System.Windows.Controls.Page PageForName(string? name) => name switch
+    {
+        "Analyze"          => new AnalyzePage(this),
+        "Scan"             => new ScanPage(this),
+        "Procmon"          => new ProcmonPage(this),
+        "RuntimeTrace"     => new RuntimeTracePage(this),
+        "Privesc"          => new PrivescPage(this),
+        "AttackPath"       => new AttackPathPage(this),
+        "Generate"         => new GeneratePage(this),
+        "Advisory"         => new AdvisoryPage(this),
+        "AdvisoryLibrary"  => new AdvisoryLibraryPage(this),
+        "Build"            => new BuildPage(this),
+        "Config"           => new ConfigPage(this),
+        "Toolkit"          => new ToolkitPage(this),
+        _                  => new Views.Wizard.WizardPage(this),
+    };
+
+    /// <summary>Build a snapshot of the currently in-memory app state.</summary>
+    private AppSessionSnapshot CaptureSnapshot() => new()
+    {
+        ActivePage = CurrentPageName,
+        CurrentDllPath = CurrentDllPath,
+        LastScanDir = LastScanDir,
+        LastProcmonCsvPath = LastProcmonCsvPath,
+        LastRuntimeLaunchExe = LastRuntimeLaunchExe,
+        PendingAdvisoryMarkdown = PendingAdvisoryMarkdown,
+        PendingAdvisoryRecordId = PendingAdvisoryRecordId,
+        PendingAdvisoryTemplateId = PendingAdvisoryTemplateId,
+    };
+
+    /// <summary>Apply a snapshot to MainWindow state. Wizard state, if present on disk,
+    /// is also adopted so WizardPage opens at the right stage. Heavy results that can't
+    /// be re-derived (runtime trace) are loaded from their companion JSON files.</summary>
+    private void ApplySnapshot(AppSessionSnapshot snap)
+    {
+        CurrentDllPath = snap.CurrentDllPath;
+        LastScanDir = snap.LastScanDir;
+        LastProcmonCsvPath = snap.LastProcmonCsvPath;
+        LastRuntimeLaunchExe = snap.LastRuntimeLaunchExe;
+        PendingAdvisoryMarkdown = snap.PendingAdvisoryMarkdown;
+        PendingAdvisoryRecordId = snap.PendingAdvisoryRecordId;
+        PendingAdvisoryTemplateId = snap.PendingAdvisoryTemplateId;
+
+        // ETW capture cannot be re-run silently (interactive admin session), so the
+        // result is serialized to its own file. AnalyzePage / ProcmonPage re-derive
+        // from a path on first render — those don't need a companion snapshot.
+        LastEtwResult = AppSessionStore.TryLoadEtwResult();
+
+        // Wizard state lives in its own snapshot file (auto-checkpointed during work).
+        // Adopt it silently so WizardPage doesn't pop a "Resume?" prompt — the user
+        // already opted in by saving on exit (or the auto-checkpoint survived a crash).
+        var wsnap = WizardSessionStore.TryLoad();
+        if (wsnap != null)
+        {
+            var restored = new WizardSession();
+            WizardSessionStore.Apply(wsnap, restored);
+            CurrentWizardSession = restored;
+        }
+    }
+
+    /// <summary>
+    /// Called from the MainWindow ctor. Returns the Page to navigate to on launch
+    /// (or null if there's nothing to restore and the caller should pick a default).
+    /// </summary>
+    private System.Windows.Controls.Page? TryRestoreSession()
+    {
+        try
+        {
+            var snap = AppSessionStore.TryLoad();
+            // No app-level snapshot, but wizard might still have an auto-checkpoint.
+            if (snap == null)
+            {
+                if (!WizardSessionStore.HasSession()) return null;
+                ApplySnapshot(new AppSessionSnapshot()); // adopts wizard only
+                CurrentPageName = "Wizard";
+                Log($"Wizard checkpoint restored from {WizardSessionStore.FilePath}");
+                return new Views.Wizard.WizardPage(this);
+            }
+
+            ApplySnapshot(snap);
+            var page = PageForName(snap.ActivePage);
+            CurrentPageName = GetPageName(page);
+            var savedAt = snap.SavedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+            var etw = LastEtwResult != null ? $", trace ({LastEtwResult.FilteredEvents} events)" : "";
+            Log($"Session restored from {AppSessionStore.FilePath} (saved {savedAt}{etw}) → {snap.ActivePage ?? "Wizard"}");
+            return page;
+        }
+        catch (Exception ex)
+        {
+            // Best-effort. A corrupt snapshot shouldn't block the app from starting.
+            CoreLog.Warn("session.restore", "Restore failed", ex);
+            return null;
+        }
+    }
+
+    /// <summary>Public hook for File→Open Session and File→Delete Session.</summary>
+    public void RestoreSessionFromDisk()
+    {
+        if (!AppSessionStore.HasSession() && !WizardSessionStore.HasSession())
+        {
+            MessageBox.Show(this, "No saved session was found.",
+                "Open session", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var page = TryRestoreSession();
+        if (page != null) NavigateTo(page);
+        Log("Session restored from disk.");
+    }
+
+    public void DeleteSavedSession()
+    {
+        // Wipes the on-disk snapshot AND the in-memory state so the running app
+        // reflects the same "clean slate" the next launch would see.
+        AppSessionStore.DeleteAll();
+        CurrentWizardSession = null;
+        CurrentAnalysis = null;
+        CurrentDllPath = null;
+        LastScanResults = null;
+        LastScanDir = null;
+        LastEtwResult = null;
+        LastProcmonResult = null;
+        LastProcmonCsvPath = null;
+        LastCallsiteResult = null;
+        LastExploitabilityVerdict = null;
+        LastRuntimeLaunchExe = null;
+        PendingAdvisoryContext = null;
+        PendingAdvisoryMarkdown = null;
+        PendingAdvisoryRecordId = null;
+        PendingAdvisoryTemplateId = null;
+        PendingDeployContext = null;
+        CurrentAttackFocus = null;
+        Log("Session deleted (in-memory state and saved snapshot cleared).");
         NavigateTo(new Views.Wizard.WizardPage(this));
     }
 
@@ -192,36 +358,55 @@ public partial class MainWindow : Window
             System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
-    // Suppresses the exit confirmation when we already asked the user once
-    // in this close cycle (Cancel-then-no path) or when the close is being
-    // forced programmatically. Reset implicit because the window is disposed
-    // after a successful close, so there's no "next time" within this process.
+    // Set once the user has answered the save/discard prompt so a re-entrant
+    // close (e.g. programmatic Close() after the prompt) doesn't ask twice.
     private bool _exitConfirmed;
 
     /// <summary>
-    /// Two responsibilities on close:
-    ///   1. Ask the user to confirm — accidental Alt+F4 / red-X clicks have
-    ///      eaten enough in-progress wizard/scan state to warrant a prompt.
-    ///   2. Persist the console panel height so the drag-resize choice (or
-    ///      the collapsed default) survives across sessions.
-    /// Confirmation runs first because there's no point persisting if the
-    /// user is going to cancel and keep working.
+    /// Always prompt on close so the researcher chooses between saving (next launch will
+    /// restore silently), discarding (clean slate), or cancelling. Console panel height
+    /// is persisted on every successful close — it's a UI preference, not session work.
     /// </summary>
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (!_exitConfirmed)
         {
-            var r = MessageBox.Show(this,
-                "Are you sure you want to exit?\n\n" +
-                "Unsaved scan results, wizard progress, and runtime trace events " +
-                "will be lost. Configuration (paths, defaults) is already persisted.",
-                "Exit DllSidecar",
-                MessageBoxButton.YesNo, MessageBoxImage.Question,
-                MessageBoxResult.No);
-            if (r != MessageBoxResult.Yes)
+            var r = AppDialog.ShowCustom(this,
+                "A session will be restored in the next application restart.",
+                "Save the current session?",
+                yesLabel: "Yes, Store",
+                noLabel: "No, Discard",
+                cancelLabel: "Cancel, Stay",
+                MessageBoxImage.Question,
+                MessageBoxResult.Yes);
+
+            switch (r)
             {
-                e.Cancel = true;
-                return;
+                case MessageBoxResult.Yes:
+                    try
+                    {
+                        AppSessionStore.Save(CaptureSnapshot());
+                        // Heavy results that cannot be re-derived from a path go to
+                        // companion files so the user sees their captured trace data
+                        // (or a cleared placeholder) on next launch instead of an
+                        // empty page.
+                        AppSessionStore.SaveEtwResult(LastEtwResult);
+                        // Force a final wizard checkpoint too — auto-save fires on stage
+                        // transition, so anything typed since the last transition would
+                        // otherwise be lost on the next launch.
+                        if (CurrentWizardSession != null)
+                            WizardSessionStore.Save(CurrentWizardSession);
+                        CoreLog.Info("session.save", $"Session saved to {AppSessionStore.FilePath}");
+                    }
+                    catch (Exception ex) { CoreLog.Warn("session.save", "Save failed", ex); }
+                    break;
+                case MessageBoxResult.No:
+                    try { AppSessionStore.DeleteAll(); }
+                    catch (Exception ex) { CoreLog.Warn("session.delete", "Delete failed", ex); }
+                    break;
+                default:
+                    e.Cancel = true;
+                    return;
             }
             _exitConfirmed = true;
         }
@@ -239,6 +424,7 @@ public partial class MainWindow : Window
 
     public void NavigateTo(System.Windows.Controls.Page page)
     {
+        CurrentPageName = GetPageName(page);
         ContentFrame.Navigate(page);
         SetActiveNavForPage(page);
     }
@@ -328,6 +514,30 @@ public partial class MainWindow : Window
     private void HelpDropdown_Click(object sender, RoutedEventArgs e)
     {
         HelpPopup.IsOpen = !HelpPopup.IsOpen;
+    }
+
+    private void FileDropdown_Click(object sender, RoutedEventArgs e)
+    {
+        FilePopup.IsOpen = !FilePopup.IsOpen;
+    }
+
+    private void OpenSessionMenu_Click(object sender, RoutedEventArgs e)
+    {
+        FilePopup.IsOpen = false;
+        RestoreSessionFromDisk();
+    }
+
+    private void DeleteSessionMenu_Click(object sender, RoutedEventArgs e)
+    {
+        FilePopup.IsOpen = false;
+        var r = MessageBox.Show(this,
+            "Delete the current session?\n\n" +
+            "This clears the in-memory state (open PE, scan results, wizard progress, " +
+            "advisory draft) and removes any saved snapshot. The action cannot be undone.",
+            "Delete session",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (r == MessageBoxResult.Yes) DeleteSavedSession();
     }
 
     private void NavReadDocs_Click(object sender, RoutedEventArgs e)
