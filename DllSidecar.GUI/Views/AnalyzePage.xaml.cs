@@ -30,8 +30,25 @@ public partial class AnalyzePage : Page
         // callsite result are cached on MainWindow so the rehydrate path
         // doesn't trigger another disassembly pass.
         if (_main.CurrentAnalysis != null && _main.CurrentDllPath != null)
+        {
             RenderAnalysis(_main.CurrentAnalysis, _main.CurrentDllPath,
                 _main.LastCallsiteResult, _main.LastExploitabilityVerdict);
+        }
+        // Session-restore path: snapshot stored the path but heavy state (PeAnalysis,
+        // callsites, verdict) isn't serialized. If the file still exists, re-run the
+        // analysis automatically so the user sees the same cards on relaunch instead
+        // of an empty page with just the path filled in. Defer to Loaded so the page
+        // is fully constructed before we touch UI in Analyze_Click.
+        else if (!string.IsNullOrEmpty(_main.CurrentDllPath) && File.Exists(_main.CurrentDllPath))
+        {
+            Loaded += AutoAnalyzeOnce;
+        }
+    }
+
+    private void AutoAnalyzeOnce(object sender, RoutedEventArgs e)
+    {
+        Loaded -= AutoAnalyzeOnce;
+        Analyze_Click(this, new RoutedEventArgs());
     }
 
     private void SetActionsEnabled(bool enabled)

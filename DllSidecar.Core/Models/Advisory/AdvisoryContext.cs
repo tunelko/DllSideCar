@@ -1,3 +1,4 @@
+using DllSidecar.Core.Configuration;
 using DllSidecar.Core.Models.Cve;
 using DllSidecar.Core.Models.Privesc;
 
@@ -92,4 +93,24 @@ public class AdvisoryContext
 
     // References
     public List<string> References { get; set; } = [];
+
+    /// <summary>
+    /// Fill blank researcher identity fields from <see cref="ConfigManager.Current"/>.
+    /// Call once after constructing a fresh context (Analyze build, Wizard build) or after
+    /// projecting from a Library record, so renderers never emit "Researcher: ()" when
+    /// the user has set their identity in Configuration. Only blank fields are touched —
+    /// any value the caller already populated wins, which is the contract every advisory
+    /// renderer (GHSA, INCIBE, Markdown) and the persistence layer rely on.
+    /// </summary>
+    public void ApplyResearcherFromConfig()
+    {
+        var r = ConfigManager.Current.Researcher;
+        if (string.IsNullOrWhiteSpace(ResearcherName)) ResearcherName = r.Name ?? "";
+        if (string.IsNullOrWhiteSpace(ResearcherHandle)) ResearcherHandle = r.Handle ?? "";
+        if (string.IsNullOrWhiteSpace(ResearcherBlog)) ResearcherBlog = r.Blog ?? "";
+        if (string.IsNullOrWhiteSpace(ResearcherEmail)) ResearcherEmail = r.Email ?? "";
+        if (string.IsNullOrWhiteSpace(ResearcherPgpFingerprint)) ResearcherPgpFingerprint = r.PgpFingerprint ?? "";
+        if (string.IsNullOrWhiteSpace(ResearcherPgpKeyId)) ResearcherPgpKeyId = r.PgpKeyId ?? "";
+        if (string.IsNullOrWhiteSpace(IncibePublicDisplayName)) IncibePublicDisplayName = r.IncibePublicDisplayName ?? "";
+    }
 }

@@ -212,6 +212,10 @@ public partial class AdvisoryPage : Page
         ctx.CvssScore = score;
         ctx.CvssSeverity = severity;
 
+        // Pull researcher identity (Name / Handle / Blog / Email / PGP / INCIBE display)
+        // from Configuration so the renderers don't emit "Researcher: ()" placeholders.
+        ctx.ApplyResearcherFromConfig();
+
         return ctx;
     }
 

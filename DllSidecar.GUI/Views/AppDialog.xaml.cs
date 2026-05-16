@@ -80,6 +80,45 @@ public partial class AppDialog : Window
         _ => MessageBoxResult.None,
     };
 
+    /// <summary>
+    /// Like <see cref="Show(Window?,string,string,MessageBoxButton,MessageBoxImage,MessageBoxResult)"/>
+    /// but with caller-supplied button labels. Useful when the standard "Yes/No/Cancel"
+    /// wording doesn't carry the action intent (e.g. "Yes, Store" / "No, Discard" /
+    /// "Cancel, Stay" for the exit prompt). Pass null for <paramref name="cancelLabel"/>
+    /// to render a two-button dialog mapped to Yes/No only.
+    /// </summary>
+    public static MessageBoxResult ShowCustom(
+        Window? owner, string text, string caption,
+        string yesLabel, string noLabel, string? cancelLabel,
+        MessageBoxImage icon = MessageBoxImage.Question,
+        MessageBoxResult defaultResult = MessageBoxResult.Yes)
+    {
+        var dlg = new AppDialog
+        {
+            Title = caption,
+            Owner = owner,
+            WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen,
+        };
+        dlg.ChromeTitle.Text = string.IsNullOrWhiteSpace(caption) ? "DllSidecar" : caption;
+        dlg.TitleText.Text = caption;
+        dlg.BodyText.Text = text;
+        ApplyIcon(dlg, icon);
+
+        // Right-most button is primary, matching Windows convention.
+        if (cancelLabel != null)
+        {
+            dlg.ButtonStrip.Children.Add(MakeButton(dlg, cancelLabel, MessageBoxResult.Cancel,
+                isPrimary: false, isCancel: true, isDefault: defaultResult == MessageBoxResult.Cancel));
+        }
+        dlg.ButtonStrip.Children.Add(MakeButton(dlg, noLabel, MessageBoxResult.No,
+            isPrimary: false, isCancel: cancelLabel == null, isDefault: defaultResult == MessageBoxResult.No));
+        dlg.ButtonStrip.Children.Add(MakeButton(dlg, yesLabel, MessageBoxResult.Yes,
+            isPrimary: true, isCancel: false, isDefault: defaultResult == MessageBoxResult.Yes));
+
+        dlg.ShowDialog();
+        return dlg._result;
+    }
+
     // ── Header glyph (matches MessageBoxImage semantics) ───────────────────
 
     private static void ApplyIcon(AppDialog dlg, MessageBoxImage icon)

@@ -139,6 +139,38 @@
             </Setter>
         </Style>
 
+        <!-- Menu-bar button (File / Settings / Delete session / Help). One shared style so
+             the four pill-shaped buttons stay visually consistent. -->
+        <Style x:Key="MenuBarButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Ring}"/>
+            <Setter Property="Padding" Value="14,5,12,5"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface1}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource RingStrong}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- GridSplitter thumb style — thin horizontal divider that lights up on hover/drag -->
         <Style TargetType="GridSplitter">
             <Setter Property="Background" Value="{StaticResource Ring}"/>
@@ -339,45 +371,62 @@
                     </LinearGradientBrush>
                 </Border.Background>
                 <DockPanel>
-                    <!-- Outermost right: Tools & Settings + Help dropdowns. The Popups stay
+                    <!-- Left side: File dropdown (session controls). The Popups stay
                          attached to their PlacementTarget so they don't need to live next
                          to the buttons in layout order. -->
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0">
+                        <Button x:Name="FileDropdown" Style="{StaticResource MenuBarButton}"
+                                Click="FileDropdown_Click"
+                                ToolTip="Open or delete the saved session">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F4C2;" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBlock Text="File" VerticalAlignment="Center"/>
+                                <TextBlock Text=" &#x25BE;" FontSize="10" Foreground="{StaticResource Overlay}"
+                                           VerticalAlignment="Center" Margin="6,0,0,0"/>
+                            </StackPanel>
+                        </Button>
+                        <Popup x:Name="FilePopup" PlacementTarget="{Binding ElementName=FileDropdown}"
+                               Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                               PopupAnimation="Fade" HorizontalOffset="2" VerticalOffset="4">
+                            <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource RingStrong}"
+                                    BorderThickness="1" CornerRadius="8" Padding="4,6"
+                                    MinWidth="240">
+                                <Border.Effect>
+                                    <DropShadowEffect ShadowDepth="4" Opacity="0.5" BlurRadius="12"/>
+                                </Border.Effect>
+                                <StackPanel>
+                                    <Button Style="{StaticResource NavButton}" Click="OpenSessionMenu_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x1F4C2;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Open Session" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  restore last saved state" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Border Height="1" Background="{StaticResource Ring}" Margin="8,4"/>
+                                    <Button Style="{StaticResource NavButton}" Click="DeleteSessionMenu_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x1F5D1;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Delete Session" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  clear in-memory + saved snapshot" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </StackPanel>
+
+                    <!-- Right side: Settings dropdown, Delete-session chip, Help dropdown. -->
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,0">
-                        <Button x:Name="ToolsDropdown" Click="ToolsDropdown_Click"
-                                ToolTip="Build, Toolkit, Configuration" Cursor="Hand">
-                            <Button.Style>
-                                <Style TargetType="Button">
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
-                                    <Setter Property="BorderThickness" Value="1"/>
-                                    <Setter Property="BorderBrush" Value="{StaticResource Ring}"/>
-                                    <Setter Property="Padding" Value="14,5,12,5"/>
-                                    <Setter Property="FontSize" Value="12"/>
-                                    <Setter Property="FontWeight" Value="Medium"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                                        CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                                    <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface1}"/>
-                                                        <Setter Property="Foreground" Value="{StaticResource Text}"/>
-                                                        <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource RingStrong}"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </Button.Style>
+                        <Button x:Name="ToolsDropdown" Style="{StaticResource MenuBarButton}"
+                                Click="ToolsDropdown_Click"
+                                ToolTip="Build, Toolkit, Configuration">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x2699;" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <TextBlock Text="Tools &amp; Settings" VerticalAlignment="Center"/>
+                                <TextBlock Text="Settings" VerticalAlignment="Center"/>
                                 <TextBlock Text=" &#x25BE;" FontSize="10" Foreground="{StaticResource Overlay}"
                                            VerticalAlignment="Center" Margin="6,0,0,0"/>
                             </StackPanel>
@@ -423,38 +472,9 @@
                                 </StackPanel>
                             </Border>
                         </Popup>
-                        <Button x:Name="HelpDropdown" Click="HelpDropdown_Click"
-                                ToolTip="Help / About" Cursor="Hand" Margin="6,0,0,0">
-                            <Button.Style>
-                                <Style TargetType="Button">
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
-                                    <Setter Property="BorderThickness" Value="1"/>
-                                    <Setter Property="BorderBrush" Value="{StaticResource Ring}"/>
-                                    <Setter Property="Padding" Value="14,5,12,5"/>
-                                    <Setter Property="FontSize" Value="12"/>
-                                    <Setter Property="FontWeight" Value="Medium"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                                        CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                                    <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface1}"/>
-                                                        <Setter Property="Foreground" Value="{StaticResource Text}"/>
-                                                        <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource RingStrong}"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </Button.Style>
+                        <Button x:Name="HelpDropdown" Style="{StaticResource MenuBarButton}"
+                                Click="HelpDropdown_Click"
+                                ToolTip="Help / About" Margin="6,0,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#x2753;" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                 <TextBlock Text="Help" VerticalAlignment="Center"/>

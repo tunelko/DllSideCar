@@ -1058,6 +1058,12 @@ public partial class AdvisoryLibraryPage : Page
         if (!string.IsNullOrWhiteSpace(r.ImpactCategory)
             && Enum.TryParse<Core.Models.Advisory.ImpactCategory>(r.ImpactCategory, out var imp))
             ctx.ImpactCategory = imp;
+
+        // Records persisted before the researcher-hydration fix stored Name/Handle/Blog/Email
+        // as blank strings. Re-apply the config fallback so loading an old advisory still
+        // renders with the current researcher identity.
+        ctx.ApplyResearcherFromConfig();
+
         return ctx;
     }
 

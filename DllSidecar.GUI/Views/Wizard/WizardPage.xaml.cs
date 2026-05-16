@@ -36,43 +36,24 @@ public partial class WizardPage : Page
         InitializeComponent();
 
         // Adopt any in-flight session (user pivoted out to RuntimeTrace / ScanPage and
-        // came back). New session only if none exists on MainWindow.
-        //
-        // If no in-memory session exists but a snapshot is on disk (user closed the app
-        // mid-wizard last time), offer to resume it.
-        if (_main.CurrentWizardSession == null && WizardSessionStore.HasSession())
-        {
-            var snap = WizardSessionStore.TryLoad();
-            if (snap != null)
-            {
-                var when = snap.SavedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
-                var r = MessageBox.Show(
-                    $"A saved wizard session was found (stage: {snap.CurrentStage}, saved: {when}).\n\n" +
-                    "Resume it?\n\n" +
-                    "Yes — restore typed state (paths, combos, advisory draft); heavy scan results you'll need to re-run.\n" +
-                    "No — discard the snapshot and start fresh.",
-                    "Resume wizard?", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (r == MessageBoxResult.Yes)
-                {
-                    var restored = new WizardSession();
-                    WizardSessionStore.Apply(snap, restored);
-                    _main.CurrentWizardSession = restored;
-                }
-                else
-                {
-                    WizardSessionStore.Delete();
-                }
-            }
-        }
-
+        // came back, OR MainWindow's silent session-restore re-hydrated one on launch).
+        // New session only if none exists on MainWindow. Disk lookup + "Resume?" prompt
+        // was removed in the unified session-save flow — MainWindow now handles restore
+        // silently from the app-level snapshot.
         _session = _main.CurrentWizardSession ?? new WizardSession();
         _main.CurrentWizardSession = _session;
 
-        // Resume at the right stage depending on what's populated:
-        //  • Input  → no state, fresh start (or returning from Runtime without promoting)
-        //  • Survey → the user promoted Runtime phantoms to LastScanResults while away,
-        //             fold them in and skip Input.
-        var resumeStage = WizardStage.Input;
+        // Resume at the right stage. Priority order:
+        //  1. RuntimeTrace promote — user just landed back from RuntimeTracePage with
+        //     fresh phantoms; jump straight to Survey so they see the new data.
+        //  2. ScanResults are populated — restore at Survey (the in-flight scan).
+        //  3. A persisted CurrentStage > Input — honoured so a saved-and-restored
+        //     wizard opens at the stage the user left (Pick / Craft / Report etc.).
+        //     Heavy state (ScanResults, ChosenExisting) is not in the snapshot so
+        //     downstream stages may show partial data; the user re-runs Survey if
+        //     needed.
+        //  4. Otherwise — start at Input.
+        WizardStage resumeStage;
         if (_session.EntryPoint == WizardEntryPoint.RuntimeTrace
             && _main.LastScanResults != null
             && _session.ScanResults == null)
@@ -84,6 +65,14 @@ public partial class WizardPage : Page
         else if (_session.ScanResults != null)
         {
             resumeStage = WizardStage.Survey;
+        }
+        else if (_session.CurrentStage > WizardStage.Input)
+        {
+            resumeStage = _session.CurrentStage;
+        }
+        else
+        {
+            resumeStage = WizardStage.Input;
         }
 
         // Seed HUNTING FOR radios from the session and wire the change handlers.
@@ -121,18 +110,6 @@ public partial class WizardPage : Page
             _ =>
                 "Code execution in the user's context — the common case. Survey ranks by exploitability + writable ACLs.",
         };
-    }
-
-    // ---------- Public API (called from MainWindow close handler) ----------
-
-    public bool CanLeave()
-    {
-        if (!_session.HasProgress) return true;
-        var r = MessageBox.Show(
-            "Discard the in-progress wizard session?\n\nAll stage state (scan results, picked target, generated DLL path, advisory draft) will be lost.",
-            "Wizard — discard progress?",
-            MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        return r == MessageBoxResult.Yes;
     }
 
     // ---------- Stage navigation ----------
@@ -252,14 +229,6 @@ public partial class WizardPage : Page
         var next = _session.CurrentStage + 1;
         if (next > WizardStage.Report) FinishWizard();
         else ShowStage(next);
-    }
-
-    private void Discard_Click(object sender, RoutedEventArgs e)
-    {
-        if (!CanLeave()) return;
-        _main.CurrentWizardSession = null;
-        WizardSessionStore.Delete();
-        _main.NavigateTo(new AnalyzePage(_main));
     }
 
     private void FinishWizard()
