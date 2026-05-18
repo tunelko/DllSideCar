@@ -11,4 +11,14 @@ public class EtwTraceEvent
     public bool IsChildOfTarget { get; set; }
     public string DllName => Path.GetFileName(FilePath);
     public string Directory => Path.GetDirectoryName(FilePath) ?? "";
+
+    /// <summary>Raw NT CreateOptions DWORD from the kernel FileIO/Create event.</summary>
+    public uint CreateOptions { get; set; }
+
+    /// <summary>
+    /// Loader-vs-probe classification derived from <see cref="CreateOptions"/>.
+    /// Default Unknown is treated as LoaderLike by downstream consumers so we
+    /// never silently drop a real load.
+    /// </summary>
+    public AccessClass Access { get; set; } = AccessClass.Unknown;
 }

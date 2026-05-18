@@ -2,6 +2,7 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ctrl="clr-namespace:DllSidecar.GUI.Controls"
+      xmlns:models="clr-namespace:DllSidecar.Core.Models;assembly=DllSidecar.Core"
       Background="{StaticResource Base}">
     <Grid>
     <Grid Margin="28,20,28,16">
@@ -200,6 +201,50 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
                             <DataGridTextColumn Header="DLL" Binding="{Binding DllName}" Width="200"/>
+                            <DataGridTextColumn Binding="{Binding AccessLabel}" Width="200">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="Access">
+                                        <TextBlock.ToolTip>
+                                            <ToolTip MaxWidth="500">
+                                                <TextBlock TextWrapping="Wrap">
+                                                    <Run FontWeight="Bold" Text="Access column"/>
+                                                    <LineBreak/>
+                                                    <Run Text="Mirrors ProcMon's "/><Run FontFamily="Consolas" Text="Options:"/><Run Text=" field. NT kernel constants below come from "/><Run FontFamily="Consolas" Text="wdm.h"/><Run Text=" (Windows Internals, Russinovich)."/>
+                                                    <LineBreak/><LineBreak/>
+                                                    <Run FontWeight="Bold" Text="{x:Static models:AccessClassLabels.Load}"/>
+                                                    <Run Text=" — also "/><Run FontFamily="Consolas" Text="FILE_SYNCHRONOUS_IO_NONALERT (0x20)"/><Run Text=". Loader image-map open: the OS loader is mapping the DLL; a planted file at this path WOULD be executed."/>
+                                                    <LineBreak/><LineBreak/>
+                                                    <Run FontWeight="Bold" Text="{x:Static models:AccessClassLabels.Probe}"/>
+                                                    <Run Text=" — value 0x200000. Metadata-only probe (GetFileAttributes / PathFileExists / FindFirstFile class). The application is querying file metadata, not mapping it; a planted DLL here would NOT execute."/>
+                                                    <LineBreak/><LineBreak/>
+                                                    <Run FontWeight="Bold" Text="Mixed"/>
+                                                    <Run Text=" — both shapes observed across events for this DLL."/>
+                                                    <LineBreak/><LineBreak/>
+                                                    <Run FontWeight="Bold" Text="(empty)"/>
+                                                    <Run Text=" — Detail field missing or unrecognized; treated conservatively as a load candidate downstream."/>
+                                                </TextBlock>
+                                            </ToolTip>
+                                        </TextBlock.ToolTip>
+                                    </TextBlock>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="ToolTip" Value="{Binding AccessTooltip}"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="Text" Value="{x:Static models:AccessClassLabels.Load}">
+                                                <Setter Property="Foreground" Value="{StaticResource Phosphor}"/>
+                                            </Trigger>
+                                            <Trigger Property="Text" Value="{x:Static models:AccessClassLabels.Probe}">
+                                                <Setter Property="Foreground" Value="{StaticResource Yellow}"/>
+                                            </Trigger>
+                                            <Trigger Property="Text" Value="{x:Static models:AccessClassLabels.Mixed}">
+                                                <Setter Property="Foreground" Value="{StaticResource Blue}"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                             <DataGridTextColumn Header="Procs" Binding="{Binding ProcessCount}" Width="60"/>
                             <DataGridTextColumn Header="Events" Binding="{Binding EventCount}" Width="80"/>
                             <DataGridTextColumn Header="Dirs" Binding="{Binding DirCount}" Width="60"/>

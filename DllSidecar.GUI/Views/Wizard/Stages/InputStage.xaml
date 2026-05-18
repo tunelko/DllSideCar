@@ -60,7 +60,9 @@
                          Style="{StaticResource EntryCard}" IsChecked="True"
                          Checked="Entry_Changed">
                 <StackPanel>
-                    <TextBlock Text="&#x1F4C1;" FontSize="28" Margin="0,0,0,8"/>
+                    <TextBlock Text="&#x1F4C1;" FontSize="28" Margin="0,0,0,8"
+                               FontFamily="Segoe UI Symbol"
+                               Foreground="{StaticResource Text}"/>
                     <TextBlock Text="Scan a folder" Foreground="{StaticResource Text}"
                                FontSize="14" FontWeight="SemiBold"/>
                     <TextBlock Foreground="{StaticResource Subtext}" FontSize="11" TextWrapping="Wrap"
@@ -72,7 +74,9 @@
             <RadioButton Grid.Column="1" x:Name="EntryAnalyze" GroupName="Entry"
                          Style="{StaticResource EntryCard}" Checked="Entry_Changed">
                 <StackPanel>
-                    <TextBlock Text="&#x1F50D;" FontSize="28" Margin="0,0,0,8"/>
+                    <TextBlock Text="&#x1F50D;" FontSize="28" Margin="0,0,0,8"
+                               FontFamily="Segoe UI Symbol"
+                               Foreground="{StaticResource Text}"/>
                     <TextBlock Text="Analyze a binary" Foreground="{StaticResource Text}"
                                FontSize="14" FontWeight="SemiBold"/>
                     <TextBlock Foreground="{StaticResource Subtext}" FontSize="11" TextWrapping="Wrap"
@@ -84,7 +88,9 @@
             <RadioButton Grid.Column="2" x:Name="EntryRuntime" GroupName="Entry"
                          Style="{StaticResource EntryCard}" Checked="Entry_Changed">
                 <StackPanel>
-                    <TextBlock Text="&#x23F1;" FontSize="28" Margin="0,0,0,8"/>
+                    <TextBlock Text="&#x23F1;" FontSize="28" Margin="0,0,0,8"
+                               FontFamily="Segoe UI Symbol"
+                               Foreground="{StaticResource Text}"/>
                     <TextBlock Text="Runtime trace" Foreground="{StaticResource Text}"
                                FontSize="14" FontWeight="SemiBold"/>
                     <TextBlock Foreground="{StaticResource Subtext}" FontSize="11" TextWrapping="Wrap"
@@ -127,7 +133,8 @@
                 BorderBrush="{StaticResource Ring}" BorderThickness="1" CornerRadius="6"
                 Padding="14,10" Margin="0,0,0,16">
             <StackPanel Orientation="Horizontal">
-                <TextBlock x:Name="DetectIcon" Text="&#x1F4C1;" FontSize="16" VerticalAlignment="Center"/>
+                <TextBlock x:Name="DetectIcon" Text="&#x1F4C1;" FontSize="16" VerticalAlignment="Center"
+                           FontFamily="Segoe UI Symbol" Foreground="{StaticResource Text}"/>
                 <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                     <TextBlock x:Name="DetectKind" Text="No input yet" FontSize="12" FontWeight="SemiBold"
                                FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Overlay}"/>

@@ -490,6 +490,9 @@ public class EtwDllTracer : IDisposable
 
         Interlocked.Increment(ref _debugPassedFilter);
 
+        // CreateOptions on FileIOCreateTraceData is signed in some TraceEvent
+        // builds; cast through an unchecked uint so the bit pattern is preserved.
+        var createOptions = unchecked((uint)data.CreateOptions);
         var ev = new EtwTraceEvent
         {
             ProcessId = data.ProcessID,
@@ -499,6 +502,8 @@ public class EtwDllTracer : IDisposable
             IsChildOfTarget = !procInfo.IsRoot,
             FilePath = path,
             Timestamp = data.TimeStamp,
+            CreateOptions = createOptions,
+            Access = AccessClassifier.Classify(createOptions),
         };
 
         _events.Add(ev);
@@ -667,6 +672,11 @@ public class EtwDllTracer : IDisposable
                 agg.SearchedDirs.Add(e.Directory);
                 agg.EventCount++;
                 if (IsLikelyUserWritable(e.Directory)) agg.AnyDirUserSpace = true;
+                switch (e.Access)
+                {
+                    case AccessClass.LoaderLike:    agg.LoaderLikeCount++; break;
+                    case AccessClass.MetadataProbe: agg.MetadataProbeCount++; break;
+                }
             }
             result.ByDll.Add(agg);
         }

@@ -49,6 +49,8 @@ public static class EtwResultConverter
                     MatchedByDirectory = true,
                     MissInWritableDir = dirPerms.IsUserWritable,
                     Source = EvidenceSource.RuntimeTrace,
+                    LoaderLikeEventCount    = g.Count(e => e.Access == AccessClass.LoaderLike),
+                    MetadataProbeEventCount = g.Count(e => e.Access == AccessClass.MetadataProbe),
                 },
             };
 
@@ -83,6 +85,7 @@ public static class EtwResultConverter
                 Path = ev.FilePath,
                 Pid = ev.ProcessId,
                 Timestamp = ev.Timestamp,
+                Access = ev.Access, // forward ETW classification into the unified ProcmonEvent view
             });
         }
 
@@ -93,11 +96,13 @@ public static class EtwResultConverter
     /// <summary>
     /// Deduplicated summary: unique (ProcessImage, DllName, Directory) triples.
     /// Useful for UI display before promotion to full phantom candidates.
+    /// LoadCount / ProbeCount let the UI surface whether each (proc,dll,dir) was
+    /// the loader actually attempting an open or just app-internal probes.
     /// </summary>
-    public static List<(string ProcessImage, string DllName, string Directory, int EventCount, bool DirWritable)>
+    public static List<(string ProcessImage, string DllName, string Directory, int EventCount, bool DirWritable, int LoadCount, int ProbeCount)>
         DeduplicatedSummary(EtwTraceResult result) => DeduplicatedSummary(result.Events);
 
-    public static List<(string ProcessImage, string DllName, string Directory, int EventCount, bool DirWritable)>
+    public static List<(string ProcessImage, string DllName, string Directory, int EventCount, bool DirWritable, int LoadCount, int ProbeCount)>
         DeduplicatedSummary(IEnumerable<EtwTraceEvent> events)
     {
         return events
@@ -113,7 +118,9 @@ public static class EtwResultConverter
                     DllName: first.DllName,
                     Directory: first.Directory,
                     EventCount: g.Count(),
-                    DirWritable: IsLikelyUserWritable(first.Directory));
+                    DirWritable: IsLikelyUserWritable(first.Directory),
+                    LoadCount: g.Count(e => e.Access == AccessClass.LoaderLike),
+                    ProbeCount: g.Count(e => e.Access == AccessClass.MetadataProbe));
             })
             .OrderByDescending(x => x.DirWritable)
             .ThenByDescending(x => x.EventCount)

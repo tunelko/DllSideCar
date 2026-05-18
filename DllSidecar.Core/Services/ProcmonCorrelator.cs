@@ -61,6 +61,8 @@ public static class ProcmonCorrelator
         SearchedDirs = agg.SearchedDirs.ToList(),
         MatchedByName = true,
         MatchedByDirectory = matchedDir,
+        LoaderLikeEventCount = agg.LoaderLikeCount,
+        MetadataProbeEventCount = agg.MetadataProbeCount,
     };
 
 }

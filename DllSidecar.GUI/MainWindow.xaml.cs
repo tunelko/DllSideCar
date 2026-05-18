@@ -557,6 +557,13 @@ public partial class MainWindow : Window
         dlg.ShowDialog();
     }
 
+    private void NavReference_Click(object sender, RoutedEventArgs e)
+    {
+        HelpPopup.IsOpen = false;
+        var dlg = new Views.ReferenceDialog { Owner = this };
+        dlg.ShowDialog();
+    }
+
     // ---------- Nav handlers ----------
 
     private void NavAnalyze_Click(object sender, RoutedEventArgs e) => NavigateTo(new AnalyzePage(this));

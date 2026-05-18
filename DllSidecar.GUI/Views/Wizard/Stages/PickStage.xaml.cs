@@ -112,13 +112,13 @@ public partial class PickStage : System.Windows.Controls.UserControl, IWizardSta
 
     private static readonly string[] ExportHeader =
     {
-        "Total", "Exploit", "Impact", "Conf", "Kind", "DLL", "Dyn", "Privesc", "Dir", "Path",
+        "Total", "Exploit", "Impact", "Conf", "Kind", "DLL", "Access", "Privesc", "Dir", "Path",
     };
 
     private List<string[]> BuildExportRows() => _filtered.Select(r => new[]
     {
         r.ScoreText, r.ExploitText, r.ImpactText, r.ConfidenceText,
-        r.Kind, r.Filename, r.Dyn, r.Privesc, r.DirBadge, r.ShortPath,
+        r.Kind, r.Filename, r.AccessLabel, r.Privesc, r.DirBadge, r.ShortPath,
     }).ToList();
 
     private void CopyList_Click(object sender, System.Windows.RoutedEventArgs e)
@@ -154,7 +154,30 @@ public partial class PickStage : System.Windows.Controls.UserControl, IWizardSta
             : Phantom?.Evidence?.Source == EvidenceSource.RuntimeTrace ? "RUNTIME" : "IAT";
         public string Filename => Existing?.Dll.Filename ?? Phantom?.DllName ?? "";
         public string Privesc => (Existing?.Privesc ?? Phantom?.Privesc)?.ShortLabel ?? "—";
-        public string Dyn => ((Existing?.IsDynamicallyVerified ?? false) || (Phantom?.IsDynamicallyVerified ?? false)) ? "VERIF" : "—";
+
+        // Access label mirrors ProcMon's Options: field — same vocabulary as the
+        // ProcMon page and Runtime trace page. Empty when no runtime evidence; the
+        // literal strings are the single source of truth in AccessClassLabels.
+        public string AccessLabel
+        {
+            get
+            {
+                var ev = Existing?.Evidence ?? Phantom?.Evidence;
+                return ev?.AccessLabel ?? "";
+            }
+        }
+        public string AccessTooltip
+        {
+            get
+            {
+                var ev = Existing?.Evidence ?? Phantom?.Evidence;
+                if (ev == null) return "No runtime evidence yet";
+                return $"Loader-like opens: {ev.LoaderLikeEventCount} · Metadata probes: {ev.MetadataProbeEventCount}\n" +
+                       $"{Core.Models.AccessClassLabels.Load} = real loader image-map open. " +
+                       $"{Core.Models.AccessClassLabels.Probe} = GetFileAttributes-class call " +
+                       "(app enumerating PATH, planted DLL would not execute).";
+            }
+        }
         // "Dir" column — tells the researcher who can write here (lower is better
         // from an attacker's POV): OPEN > USER > LOCKED. Reads from the ACL check.
         //

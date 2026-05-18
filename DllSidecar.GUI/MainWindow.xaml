@@ -493,6 +493,15 @@
                                     <DropShadowEffect ShadowDepth="4" Opacity="0.5" BlurRadius="12"/>
                                 </Border.Effect>
                                 <StackPanel>
+                                    <Button Style="{StaticResource NavButton}" Click="NavReference_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x1F4D1;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Reference" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  scoring, columns, quick-start" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
                                     <Button Style="{StaticResource NavButton}" Click="NavReadDocs_Click"
                                             Padding="12,8" FontSize="13">
                                         <StackPanel Orientation="Horizontal">
