@@ -47,6 +47,13 @@ public class SideloadCandidate
 
     public bool HasImporters => Importers.Count > 0;
     public bool AnyImporterSigned => Importers.Any(i => i.Signing.IsTrusted);
-    public bool IsDynamicallyVerified => Evidence != null;
+    /// <summary>
+    /// True when at least one real loader open backs this candidate. Probe-only
+    /// evidence does NOT count as verified — the loader never attempted to map the
+    /// DLL, so a "verified" badge would be misleading.
+    /// </summary>
+    public bool IsDynamicallyVerified => Evidence != null && !Evidence.IsProbeOnly;
+    /// <summary>True iff runtime evidence exists but every event was a metadata probe.</summary>
+    public bool IsRuntimeProbeOnly => Evidence?.IsProbeOnly == true;
     public bool HasPrivescPath => Privesc != null && Privesc.Findings.Count > 0;
 }

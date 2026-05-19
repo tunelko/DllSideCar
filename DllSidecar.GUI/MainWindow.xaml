@@ -213,8 +213,9 @@
                         <TextBlock Text="DllSidecar" FontSize="17" FontWeight="SemiBold"
                                    FontFamily="{StaticResource FontDisplay}"
                                    Foreground="{StaticResource Text}"/>
-                        <TextBlock x:Name="SidebarAttribution" FontSize="10"
-                                   Foreground="{StaticResource Overlay}" Margin="0,2,0,0"/>
+                        <TextBlock x:Name="SidebarVersion" FontSize="10"
+                                   FontFamily="{StaticResource FontMono}"
+                                   Foreground="{StaticResource Subtext}" Margin="0,1,0,0"/>
                     </StackPanel>
                     <Button Grid.Column="1" x:Name="SidebarToggle" Style="{StaticResource SidebarToggleBtn}"
                             Click="SidebarToggle_Click" ToolTip="Collapse / expand sidebar (Ctrl+B)"
@@ -492,6 +493,15 @@
                                     <DropShadowEffect ShadowDepth="4" Opacity="0.5" BlurRadius="12"/>
                                 </Border.Effect>
                                 <StackPanel>
+                                    <Button Style="{StaticResource NavButton}" Click="NavReference_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x1F4D1;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Reference" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  scoring, columns, quick-start" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
                                     <Button Style="{StaticResource NavButton}" Click="NavReadDocs_Click"
                                             Padding="12,8" FontSize="13">
                                         <StackPanel Orientation="Horizontal">

@@ -1,8 +1,8 @@
 using System;
-using System.Reflection;
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Navigation;
+using DllSidecar.Core;
 using DllSidecar.Core.Configuration;
 
 namespace DllSidecar.GUI.Views;
@@ -12,8 +12,7 @@ public partial class AboutDialog : Window
     public AboutDialog()
     {
         InitializeComponent();
-        var v = Assembly.GetExecutingAssembly().GetName().Version;
-        VersionText.Text = v != null ? $"v{v.Major}.{v.Minor}.{v.Build}" : "v?";
+        VersionText.Text = AppInfo.VersionDisplay;
 
         // Researcher fields hydrate from ConfigManager so the dialog reflects
         // whoever configured the local install — never the project maintainer.

@@ -6,9 +6,12 @@ namespace DllSidecar.Core.Models;
 /// </summary>
 public enum ConfidenceLevel
 {
-    StaticOnly,       // IAT / manifest / ACL only — no runtime signal
-    RuntimeNameMatch, // Runtime source observed the loader resolving this DLL name
-    RuntimeDirMatch,  // Runtime source observed it in THIS directory — ground truth
+    StaticOnly,        // IAT / manifest / ACL only — no runtime signal
+    RuntimeProbeOnly,  // Runtime source saw the name but only as GetFileAttributes-class
+                       //   probes (app-internal PATH walk). The loader never attempted a
+                       //   real open — planted DLLs at these paths are inert.
+    RuntimeNameMatch,  // Runtime source observed the loader resolving this DLL name
+    RuntimeDirMatch,   // Runtime source observed it in THIS directory — ground truth
 }
 
 /// <summary>Which scoring axis a factor contributes to.</summary>

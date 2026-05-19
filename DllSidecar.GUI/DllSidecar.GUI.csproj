@@ -32,9 +32,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <AssemblyName>DllSidecar</AssemblyName>
-    <Version>1.1.1</Version>
-    <AssemblyVersion>1.1.1.0</AssemblyVersion>
-    <FileVersion>1.1.1.0</FileVersion>
+    <Version>1.1.11</Version>
+    <AssemblyVersion>1.1.11.0</AssemblyVersion>
+    <FileVersion>1.1.11.0</FileVersion>
     <Product>DllSidecar</Product>
     <Company>Pedro J. Nunez-Cacho Fuentes (@tunelko)</Company>
     <Copyright>Copyright (c) 2026 Pedro J. Nunez-Cacho Fuentes</Copyright>

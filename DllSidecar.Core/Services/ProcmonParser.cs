@@ -49,6 +49,7 @@ public static class ProcmonParser
             int idxPath   = IndexOf(headers, "Path");
             int idxResult = IndexOf(headers, "Result");
             int idxTime   = IndexOf(headers, "Time of Day");
+            int idxDetail = IndexOf(headers, "Detail");
 
             if (idxProc < 0 || idxOp < 0 || idxPath < 0 || idxResult < 0)
             {
@@ -75,12 +76,17 @@ public static class ProcmonParser
                 if (!resCol.Contains("NAME NOT FOUND", StringComparison.OrdinalIgnoreCase)) continue;
                 if (!path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) continue;
 
+                string? detail = null;
+                if (idxDetail >= 0 && idxDetail < cols.Count) detail = cols[idxDetail];
+
                 var ev = new ProcmonEvent
                 {
                     ProcessName = proc,
                     Operation = op,
                     Result = resCol,
                     Path = path,
+                    Detail = detail,
+                    Access = AccessClassifier.Classify(detail),
                 };
                 if (idxPid >= 0 && idxPid < cols.Count && int.TryParse(cols[idxPid], out var pid))
                     ev.Pid = pid;
@@ -104,6 +110,14 @@ public static class ProcmonParser
                     if (!string.IsNullOrEmpty(e.SearchDir)) agg.SearchedDirs.Add(e.SearchDir);
                     agg.EventCount++;
                     if (IsLikelyUserSpace(e.SearchDir)) agg.AnyDirUserSpace = true;
+                    switch (e.Access)
+                    {
+                        case AccessClass.LoaderLike:    agg.LoaderLikeCount++; break;
+                        case AccessClass.MetadataProbe: agg.MetadataProbeCount++; break;
+                        // Unknown intentionally not counted in either bucket — it falls
+                        // through as a load candidate for downstream safety but doesn't
+                        // inflate the "real loader hits" count.
+                    }
                 }
                 result.ByDll.Add(agg);
             }

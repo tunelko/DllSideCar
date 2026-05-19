@@ -111,15 +111,15 @@ public partial class ProcmonPage : Page
     }
 
     private static readonly string[] ProcmonExportHeader =
-    { "Risk", "DLL", "Procs", "Events", "Dirs", "Processes" };
+    { "Risk", "DLL", "Access", "Loads", "Probes", "Procs", "Events", "Dirs", "Processes" };
 
     private List<string[]> BuildExportRows()
     {
         var view = DllGrid.ItemsSource as IEnumerable<DllRow> ?? _allRows;
         return view.Select(r => new[]
         {
-            r.Risk, r.DllName, r.ProcessCount.ToString(),
-            r.EventCount.ToString(), r.DirCount.ToString(), r.ProcessList,
+            r.Risk, r.DllName, r.AccessLabel, r.LoadCount.ToString(), r.ProbeCount.ToString(),
+            r.ProcessCount.ToString(), r.EventCount.ToString(), r.DirCount.ToString(), r.ProcessList,
         }).ToList();
     }
 
@@ -332,6 +332,31 @@ public partial class ProcmonPage : Page
             return;
         }
 
+        // Access-class gate — warn when every event for this DLL was a metadata
+        // probe (GetFileAttributes / which-style enumeration). The loader never
+        // attempted a real open, so dropping a sideloaded DLL at the probed paths
+        // would NOT execute. This is the MobaXterm 26.4 false-positive pattern.
+        if (row.LoadCount == 0 && row.ProbeCount > 0)
+        {
+            var r = AppDialog.Show(
+                Window.GetWindow(this),
+                $"All {row.ProbeCount} event(s) for '{row.DllName}' are metadata-only probes " +
+                $"(GetFileAttributes-class — {Core.Models.AccessClassLabels.Probe} in Detail).\n\n" +
+                $"The loader never attempted a real image-map open. A planted DLL at any of " +
+                $"the searched paths would NOT be loaded — the app is enumerating PATH on its " +
+                $"own (e.g. which(), version-detect, or conflict scan).\n\n" +
+                $"Promote anyway?",
+                "Probe-only evidence",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No);
+            if (r != MessageBoxResult.Yes)
+            {
+                SetStatus("Promote cancelled — probe-only evidence (no loader open observed).", StatusKind.Warn);
+                return;
+            }
+        }
+
         // Writability gate — warn (don't block) when every searched dir
         // requires admin to write. The PoC will still compile fine, but
         // dropping it into one of those slots would already need elevation,
@@ -495,6 +520,20 @@ public partial class ProcmonPage : Page
         public int EventCount => Aggregation.EventCount;
         public int DirCount => Aggregation.SearchedDirs.Count;
         public string ProcessList => string.Join(", ", Aggregation.Processes.OrderBy(p => p));
+
+        // Loader-vs-probe split surfaced by AccessClassifier. Powers the Access
+        // column so the operator can spot probe-only rows (app PATH enumeration,
+        // never a real load) at a glance.
+        public int LoadCount  => Aggregation.LoaderLikeCount;
+        public int ProbeCount => Aggregation.MetadataProbeCount;
+        public string AccessLabel => Core.Models.AccessClassLabels.FromCounts(LoadCount, ProbeCount);
+        public string AccessTooltip =>
+            LoadCount == 0 && ProbeCount == 0
+                ? "Classification unavailable — CSV missing Detail or events were Unknown"
+                : $"Loader-like opens: {LoadCount} · Metadata probes: {ProbeCount}\n" +
+                  $"{Core.Models.AccessClassLabels.Load} = real loader image-map open. " +
+                  $"{Core.Models.AccessClassLabels.Probe} = GetFileAttributes-class call " +
+                  "(app enumerating PATH, planted DLL would not execute).";
 
         public string ModeLabel => Mode switch
         {

@@ -17,7 +17,8 @@
                     <Button x:Name="TileProxy" Style="{StaticResource ActionTile}"
                             Width="160" Margin="0,0,8,0" Padding="12,8" Click="TileProxy_Click">
                         <StackPanel>
-                            <TextBlock Text="&#x26A1;" FontSize="18" TextAlignment="Center"/>
+                            <TextBlock Text="&#x26A1;" FontSize="18" TextAlignment="Center"
+                                       FontFamily="Segoe UI Symbol" Foreground="{StaticResource Text}"/>
                             <TextBlock Text="Proxy" FontSize="12" FontWeight="SemiBold" TextAlignment="Center"
                                        Foreground="{StaticResource Text}" Margin="0,3,0,1"/>
                             <TextBlock Text="forward + fire" FontSize="10" TextAlignment="Center"
@@ -27,7 +28,8 @@
                     <Button x:Name="TileSideload" Style="{StaticResource ActionTile}"
                             Width="160" Padding="12,8" Click="TileSideload_Click">
                         <StackPanel>
-                            <TextBlock Text="&#x1F4E6;" FontSize="18" TextAlignment="Center"/>
+                            <TextBlock Text="&#x1F4E6;" FontSize="18" TextAlignment="Center"
+                                       FontFamily="Segoe UI Symbol" Foreground="{StaticResource Text}"/>
                             <TextBlock Text="Sideload" FontSize="12" FontWeight="SemiBold" TextAlignment="Center"
                                        Foreground="{StaticResource Text}" Margin="0,3,0,1"/>
                             <TextBlock Text="drop + run DllMain" FontSize="10" TextAlignment="Center"

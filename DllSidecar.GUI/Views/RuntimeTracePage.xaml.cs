@@ -457,7 +457,8 @@ public partial class RuntimeTracePage : Page
         var summary = EtwResultConverter.DeduplicatedSummary(events);
         _allRows.Clear();
         foreach (var s in summary)
-            _allRows.Add(new TraceRow(s.ProcessImage, s.DllName, s.Directory, s.EventCount, s.DirWritable));
+            _allRows.Add(new TraceRow(s.ProcessImage, s.DllName, s.Directory,
+                s.EventCount, s.DirWritable, s.LoadCount, s.ProbeCount));
     }
 
     private void ClearProcessFilter_Click(object sender, RoutedEventArgs e)
@@ -686,11 +687,18 @@ public partial class RuntimeTracePage : Page
                 s.SurveyRootDir = _main.LastScanDir;
             }
         }
-        _main.Log($"Promoted {added} runtime phantoms into scan results");
+        // Count probe-only phantoms (every event was a metadata probe) — the
+        // operator should know how many of the promoted candidates have weak
+        // runtime evidence so they don't waste cycles on app-internal PATH
+        // enumerations dressed up as sideload opportunities.
+        var probeOnly = phantoms.Count(p => p.Evidence?.IsProbeOnly == true);
+        var probeTag = probeOnly > 0 ? $", {probeOnly} probe-only" : "";
+
+        _main.Log($"Promoted {added} runtime phantoms into scan results{probeTag}");
         SetStatus(
             resumingWizard
-                ? $"Promoted {added} phantoms — returning to Wizard"
-                : $"Promoted {added} phantoms — opening Scan page",
+                ? $"Promoted {added} phantoms{probeTag} — returning to Wizard"
+                : $"Promoted {added} phantoms{probeTag} — opening Scan page",
             StatusKind.Ok);
         if (resumingWizard)
             _main.NavigateTo(new Views.Wizard.WizardPage(_main));
@@ -821,6 +829,20 @@ public partial class RuntimeTracePage : Page
         public int EventCount { get; }
         public bool IsWritable { get; }
         public string WritableLabel => IsWritable ? "Y" : "";
+        public int LoadCount { get; }
+        public int ProbeCount { get; }
+
+        // Compact LOAD/PROBE/MIXED label for the grid. Empty when neither bucket
+        // has a count — corresponds to AccessClass.Unknown events only.
+        public string AccessLabel => Core.Models.AccessClassLabels.FromCounts(LoadCount, ProbeCount);
+
+        public string AccessTooltip =>
+            LoadCount == 0 && ProbeCount == 0
+                ? "Classification unavailable for these events"
+                : $"Loader-like opens: {LoadCount} · Metadata probes: {ProbeCount}\n" +
+                  $"{Core.Models.AccessClassLabels.Load} = real loader image-map open. " +
+                  $"{Core.Models.AccessClassLabels.Probe} = GetFileAttributes-class call " +
+                  "(app enumerating PATH, planted DLL would not execute).";
 
         // Cross-surface ExploitabilityVerdict — same record AnalyzePage /
         // ScanPage / ProcmonPage feed into the VerdictBadge control. The
@@ -830,13 +852,16 @@ public partial class RuntimeTracePage : Page
         public Core.Services.Exploitability.ExploitabilityVerdict Verdict { get; }
         public int VerdictSortKey => Verdict.Score;
 
-        public TraceRow(string proc, string dll, string dir, int events, bool writable)
+        public TraceRow(string proc, string dll, string dir, int events, bool writable,
+                        int loadCount = 0, int probeCount = 0)
         {
             ProcessName = Path.GetFileName(proc);
             DllName = dll;
             Directory = dir;
             EventCount = events;
             IsWritable = writable;
+            LoadCount = loadCount;
+            ProbeCount = probeCount;
 
             var mode = Core.Services.ProcmonRowClassifier.Classify(dll).Mode;
             var writTier = writable
