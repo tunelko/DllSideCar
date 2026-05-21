@@ -13,6 +13,13 @@ public class AppConfig
     // When true, ScanPage automatically runs CVE dedup against NVD after each scan.
     // Off by default — researcher may want to avoid traffic on repeat local scans.
     public bool AutoCveLookup { get; set; }
+
+    // First-run onboarding flag. False on a fresh install (and reset on every
+    // version transition by PostInstallReset) so the next launch lands on the
+    // WelcomePage instead of dropping the user straight into the wizard before
+    // they've had a chance to point the app at MinGW + the Sysinternals suite.
+    // The welcome page sets this to true once dismissed.
+    public bool WelcomeSeen { get; set; }
 }
 
 /// <summary>

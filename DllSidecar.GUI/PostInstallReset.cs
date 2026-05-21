@@ -1,6 +1,8 @@
 using System.IO;
 using DllSidecar.Core.Configuration;
 using DllSidecar.Core.Logging;
+using DllSidecar.Core.Services;
+using DllSidecar.Core.Services.Wizard;
 
 namespace DllSidecar.GUI;
 
@@ -11,9 +13,13 @@ namespace DllSidecar.GUI;
 /// when they differ (fresh install OR upgrade), per-user state that should not
 /// carry over between releases is wiped:
 ///
-///   · advisories\library.db   — SQLite library, fully reset
-///   · config.Researcher       — Name / Handle / Blog / Email / PGP fields cleared
-///   · config.Tools.NvdApiKey  — researcher-specific NVD API key cleared
+///   · advisories\library.db       — SQLite library, fully reset
+///   · config.Researcher           — Name / Handle / Blog / Email / PGP fields cleared
+///   · config.Tools.NvdApiKey      — researcher-specific NVD API key cleared
+///   · config.WelcomeSeen          — reset so the next launch shows the welcome screen
+///   · %LOCALAPPDATA%\DllSidecar\app_session.json + wizard_session.json + etw_result.json
+///                                  — stale snapshots from a previous version would
+///                                  otherwise resume the wizard mid-step with no data
 ///
 /// Preserved (these are environment, not identity):
 ///   · Tools paths (sysinternals, procmon, sigcheck, x64dbg …)
@@ -54,6 +60,8 @@ internal static class PostInstallReset
         Log.Info("post-install", $"version transition {lastLaunched} -> {installVer}: clearing per-install state");
         ClearAdvisoryDb();
         ClearResearcherIdentity();
+        ClearSessionSnapshots();
+        ResetWelcomeFlag();
         RecordVersion(installVer);
     }
 
@@ -87,6 +95,32 @@ internal static class PostInstallReset
             Log.Info("post-install", "researcher fields + NvdApiKey cleared");
         }
         catch (Exception ex) { Log.Warn("post-install", $"config reset failed: {ex.Message}"); }
+    }
+
+    private static void ClearSessionSnapshots()
+    {
+        // app_session.json + wizard_session.json + companion etw_result.json all live
+        // under %LOCALAPPDATA%\DllSidecar\. The Inno [UninstallDelete] section only
+        // touches files in {app}, so without this an upgrade leaves the wizard
+        // snapshot in place — silently restored on next launch — and WizardPage
+        // opens mid-step on what the user expected to be a clean install.
+        try
+        {
+            AppSessionStore.DeleteAll();
+            Log.Info("post-install", "session snapshots cleared");
+        }
+        catch (Exception ex) { Log.Warn("post-install", $"session clear failed: {ex.Message}"); }
+    }
+
+    private static void ResetWelcomeFlag()
+    {
+        try
+        {
+            ConfigManager.Current.WelcomeSeen = false;
+            ConfigManager.Save();
+            Log.Info("post-install", "welcome flag reset");
+        }
+        catch (Exception ex) { Log.Warn("post-install", $"welcome flag reset failed: {ex.Message}"); }
     }
 
     private static void RecordVersion(string installVer)

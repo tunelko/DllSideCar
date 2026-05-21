@@ -1,0 +1,74 @@
+<UserControl x:Class="DllSidecar.GUI.Views.HelpTour.HelpTourOverlay"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent"
+             IsHitTestVisible="True"
+             SizeChanged="OnSizeChanged">
+    <Grid x:Name="Root">
+        <!-- Four dim rectangles surrounding the cutout. Positions are set in code. -->
+        <Canvas x:Name="DimCanvas" Background="Transparent" IsHitTestVisible="True">
+            <Rectangle x:Name="DimTop"    Fill="#CC000000"/>
+            <Rectangle x:Name="DimBottom" Fill="#CC000000"/>
+            <Rectangle x:Name="DimLeft"   Fill="#CC000000"/>
+            <Rectangle x:Name="DimRight"  Fill="#CC000000"/>
+
+            <!-- Spotlight outline: phosphor border drawn around the cutout to
+                 draw the eye even when the contained element is busy. -->
+            <Rectangle x:Name="Spotlight" Stroke="#00F0A3" StrokeThickness="2"
+                       Fill="Transparent" RadiusX="6" RadiusY="6"
+                       IsHitTestVisible="False"/>
+        </Canvas>
+
+        <!-- Callout balloon. Positioned absolutely in code via Canvas.SetLeft/Top. -->
+        <Canvas x:Name="BalloonCanvas" Background="Transparent" IsHitTestVisible="True">
+            <Border x:Name="Balloon" Background="#0E0E12"
+                    BorderBrush="#00F0A3" BorderThickness="1"
+                    CornerRadius="10" Padding="18,16"
+                    MaxWidth="380" MinWidth="280"
+                    Visibility="Collapsed">
+                <Border.Effect>
+                    <DropShadowEffect ShadowDepth="6" Opacity="0.6" BlurRadius="18" Color="Black"/>
+                </Border.Effect>
+                <StackPanel>
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="StepCounter" Grid.Column="0"
+                                   Foreground="{StaticResource Phosphor}" FontSize="11"
+                                   FontFamily="{StaticResource FontMono}"
+                                   VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" x:Name="CloseBtn"
+                                Style="{StaticResource IconButton}"
+                                Content="&#x2715;" Width="22" Height="22"
+                                FontSize="11" Click="Close_Click" ToolTip="End tour"/>
+                    </Grid>
+                    <TextBlock x:Name="BalloonTitle"
+                               Foreground="{StaticResource Text}" FontSize="15" FontWeight="Bold"
+                               TextWrapping="Wrap" Margin="0,0,0,8"/>
+                    <TextBlock x:Name="BalloonBody"
+                               Foreground="{StaticResource Subtext}" FontSize="12.5"
+                               TextWrapping="Wrap" LineHeight="18"/>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" x:Name="SkipBtn" Content="Skip tour"
+                                Style="{StaticResource GhostButton}"
+                                Click="Skip_Click"/>
+                        <Button Grid.Column="2" x:Name="BackBtn" Content="← Back"
+                                Style="{StaticResource SecondaryButton}"
+                                Click="Back_Click" Margin="0,0,8,0"/>
+                        <Button Grid.Column="3" x:Name="NextBtn" Content="Next →"
+                                Style="{StaticResource AccentButton}"
+                                Click="Next_Click"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Canvas>
+    </Grid>
+</UserControl>

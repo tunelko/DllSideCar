@@ -918,8 +918,8 @@ public partial class AdvisoryPage : Page
     /// </summary>
     private async void ExportPdf_Click(object sender, RoutedEventArgs e)
     {
-        var chromium = FindChromium();
-        if (chromium == null)
+        var browsers = FindBrowsers();
+        if (browsers.Count == 0)
         {
             var fallback = MessageBox.Show(
                 "Chrome or Edge was not found — neither is required per se, but headless print needs one of them.\n\n" +
@@ -940,7 +940,7 @@ public partial class AdvisoryPage : Page
         if (dlg.ShowDialog() != true) return;
 
         var outPdf = dlg.FileName;
-        Overlay.Show("Exporting PDF", $"Rendering via {Path.GetFileName(chromium)}...");
+        Overlay.Show("Exporting PDF", $"Rendering via {Path.GetFileName(browsers[0])}...");
         try
         {
             var html = Markdown.ToHtml(MdEditor.Text ?? "", _mdPipeline);
@@ -952,9 +952,38 @@ public partial class AdvisoryPage : Page
 
             try
             {
-                await RunHeadlessPrintAsync(chromium, tempHtml, outPdf);
-                if (!File.Exists(outPdf) || new FileInfo(outPdf).Length < 200)
-                    throw new InvalidOperationException("Chromium produced no PDF output. See console for stderr.");
+                // Try every located browser in order. Edge with corporate policies that
+                // forbid headless mode exits 0 but writes nothing — try Chrome next.
+                Exception? lastError = null;
+                foreach (var browser in browsers)
+                {
+                    try
+                    {
+                        if (browser != browsers[0])
+                            Overlay.Show("Exporting PDF", $"Retrying via {Path.GetFileName(browser)}...");
+                        await RunHeadlessPrintAsync(browser, tempHtml, outPdf);
+                        if (File.Exists(outPdf) && new FileInfo(outPdf).Length >= 200)
+                        {
+                            lastError = null;
+                            break;
+                        }
+                        // Missing/undersized output — keep the exception cause for the
+                        // user even when this was the last browser candidate.
+                        lastError = new InvalidOperationException(
+                            $"{Path.GetFileName(browser)} exited successfully but no PDF was written.");
+                    }
+                    catch (Exception ex)
+                    {
+                        lastError = ex;
+                        Log.Warn("advisory.pdf", $"{Path.GetFileName(browser)} attempt failed: {ex.Message}");
+                    }
+                    finally
+                    {
+                        try { if (File.Exists(outPdf) && new FileInfo(outPdf).Length < 200) File.Delete(outPdf); }
+                        catch (IOException) { }
+                    }
+                }
+                if (lastError != null) throw lastError;
 
                 FooterStatus.Text = $"Exported PDF: {outPdf}";
                 _main.Log($"Advisory PDF exported: {outPdf}  ({new FileInfo(outPdf).Length:N0} bytes)");
@@ -974,22 +1003,25 @@ public partial class AdvisoryPage : Page
     }
 
     /// <summary>
-    /// Locate Chrome or Edge on the system. Microsoft Edge ships with every modern Windows
-    /// (10 20H2+, 11); Chrome is ubiquitous. Either works for headless print-to-PDF.
+    /// Locate every Chrome / Edge binary present on the system, ordered by preference.
+    /// Chrome first when available — corporate Edge installs occasionally honour a
+    /// HeadlessMode policy that makes --headless --print-to-pdf exit 0 without writing
+    /// the PDF. Trying Chrome as a fallback recovers cleanly in that case.
     /// </summary>
-    private static string? FindChromium()
+    private static List<string> FindBrowsers()
     {
         string[] candidates =
         [
-            Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
-            Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
             Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
             Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
             Environment.ExpandEnvironmentVariables(@"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+            Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
+            Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
         ];
+        var found = new List<string>();
         foreach (var c in candidates)
-            if (File.Exists(c)) return c;
-        return null;
+            if (File.Exists(c)) found.Add(c);
+        return found;
     }
 
     private static async Task RunHeadlessPrintAsync(string chromium, string htmlPath, string pdfPath)
@@ -1011,35 +1043,45 @@ public partial class AdvisoryPage : Page
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        // Chromium headless PDF flags. `headless=new` is the current modern mode (2022+).
+        // Modern headless print-to-pdf flag set. `--run-all-compositor-stages-before-draw`
+        // replaces `--virtual-time-budget` as the recommended way to wait for compositor
+        // work to finish before snapshotting — virtual-time-budget started returning
+        // exit 0 without writing the PDF on some Edge/Chrome 124+ builds, especially
+        // when the host process runs elevated (DllSidecar requires admin).
         psi.ArgumentList.Add("--headless=new");
         psi.ArgumentList.Add("--disable-gpu");
         psi.ArgumentList.Add("--no-sandbox");
+        psi.ArgumentList.Add("--disable-extensions");
+        psi.ArgumentList.Add("--disable-background-networking");
+        psi.ArgumentList.Add("--run-all-compositor-stages-before-draw");
         psi.ArgumentList.Add($"--user-data-dir={tempProfile}");
-        // Wait up to 10s of "virtual time" for fonts/scripts to settle before the
-        // print snapshot — avoids blank pages when Markdown highlighters / web fonts
-        // resolve asynchronously.
-        psi.ArgumentList.Add("--virtual-time-budget=10000");
         psi.ArgumentList.Add("--no-pdf-header-footer");
         psi.ArgumentList.Add($"--print-to-pdf={pdfPath}");
         psi.ArgumentList.Add(uri);
 
+        var browserName = Path.GetFileName(chromium);
+        Log.Info("advisory.pdf", $"{browserName} {string.Join(" ", psi.ArgumentList)}");
+
         try
         {
             using var proc = System.Diagnostics.Process.Start(psi)
-                ?? throw new InvalidOperationException("Could not start Chromium");
+                ?? throw new InvalidOperationException($"Could not start {browserName}");
 
             await proc.WaitForExitAsync();
 
-            // Capture stderr regardless of exit code — if the file is missing the
-            // log entry is the only diagnostic the user gets.
+            // Capture stderr regardless of exit code — it is the only diagnostic the
+            // user has in the failure path, since WPF apps don't surface a console.
             var err = (await proc.StandardError.ReadToEndAsync()).Trim();
 
             if (proc.ExitCode != 0)
-                throw new InvalidOperationException($"Chromium exit {proc.ExitCode}: {err}");
+                throw new InvalidOperationException($"{browserName} exit {proc.ExitCode}: {Truncate(err, 600)}");
+
+            if (!File.Exists(pdfPath) || new FileInfo(pdfPath).Length < 200)
+                throw new InvalidOperationException(
+                    $"{browserName} exited 0 but no PDF was written. stderr: {Truncate(err, 600)}");
 
             if (!string.IsNullOrEmpty(err))
-                Log.Warn("advisory.pdf", $"Chromium stderr (exit 0): {err}");
+                Log.Warn("advisory.pdf", $"{browserName} stderr (exit 0): {err}");
         }
         finally
         {
@@ -1051,6 +1093,9 @@ public partial class AdvisoryPage : Page
             catch (UnauthorizedAccessException) { }
         }
     }
+
+    private static string Truncate(string s, int max) =>
+        string.IsNullOrEmpty(s) ? "(empty)" : (s.Length <= max ? s : s.Substring(0, max) + "…");
 
     /// <summary>
     /// Light-theme CSS for PDF output — printable on white paper with dark ink.

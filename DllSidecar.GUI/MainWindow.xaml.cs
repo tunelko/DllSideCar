@@ -134,10 +134,22 @@ public partial class MainWindow : Window
 
         // Silent session restore on launch: if the previous run saved (or the wizard
         // auto-checkpointed on a crash), pre-populate in-memory paths/wizard state
-        // and land on the page the user left. Otherwise the wizard is the default
-        // starting point.
+        // and land on the page the user left. Otherwise: WelcomePage on a first run
+        // (post-install reset clears WelcomeSeen on every version transition), or
+        // the wizard once the user has dismissed the welcome at least once.
         var resumed = TryRestoreSession();
-        NavigateTo(resumed ?? new Views.Wizard.WizardPage(this));
+        if (resumed != null)
+        {
+            NavigateTo(resumed);
+        }
+        else if (!Core.Configuration.ConfigManager.Current.WelcomeSeen)
+        {
+            NavigateTo(new Views.WelcomePage(this));
+        }
+        else
+        {
+            NavigateTo(new Views.Wizard.WizardPage(this));
+        }
     }
 
     // ---------- Session save / restore ----------
@@ -164,11 +176,13 @@ public partial class MainWindow : Window
         BuildPage               => "Build",
         ConfigPage              => "Config",
         ToolkitPage             => "Toolkit",
+        Views.WelcomePage       => "Welcome",
         _                       => null,
     };
 
     private System.Windows.Controls.Page PageForName(string? name) => name switch
     {
+        "Welcome"          => new Views.WelcomePage(this),
         "Analyze"          => new AnalyzePage(this),
         "Scan"             => new ScanPage(this),
         "Procmon"          => new ProcmonPage(this),
@@ -563,6 +577,20 @@ public partial class MainWindow : Window
         var dlg = new Views.ReferenceDialog { Owner = this };
         dlg.ShowDialog();
     }
+
+    private void NavStartTour_Click(object sender, RoutedEventArgs e)
+    {
+        HelpPopup.IsOpen = false;
+        // The controller navigates to ConfigPage, waits for it to render, then
+        // walks the named fields one by one with the overlay. Clicking the same
+        // menu entry again while a tour is running starts a fresh one — End()
+        // hides the overlay and resets index before the new instance kicks off.
+        _tourController?.End();
+        _tourController = new Views.HelpTour.HelpTourController(this, TourOverlay);
+        _tourController.Start();
+    }
+
+    private Views.HelpTour.HelpTourController? _tourController;
 
     // ---------- Nav handlers ----------
 
