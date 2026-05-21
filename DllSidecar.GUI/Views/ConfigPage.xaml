@@ -23,7 +23,7 @@
             <StackPanel>
 
                 <!-- MINGW TOOLCHAIN -->
-                <Border Style="{StaticResource SectionCard}">
+                <Border x:Name="MingwSection" Style="{StaticResource SectionCard}">
                     <StackPanel>
                         <TextBlock Text="MINGW TOOLCHAIN" Style="{StaticResource SectionHeader}"/>
                         <TextBlock Text="Bin directories for the GCC builds used by Generate / Build. x64 is required; x86 is needed for 32-bit targets like Battle.net Agent."
@@ -52,7 +52,7 @@
                 </Border>
 
                 <!-- TOOLS -->
-                <Border Style="{StaticResource SectionCard}" Margin="0,12,0,0">
+                <Border x:Name="ToolsSection" Style="{StaticResource SectionCard}" Margin="0,12,0,0">
                     <StackPanel>
                         <TextBlock Text="TOOLS" Style="{StaticResource SectionHeader}"/>
                         <TextBlock FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,0,8" TextWrapping="Wrap"
@@ -92,7 +92,7 @@
                 </Border>
 
                 <!-- RESEARCHER IDENTITY -->
-                <Border Style="{StaticResource SectionCard}" Margin="0,12,0,0">
+                <Border x:Name="ResearcherSection" Style="{StaticResource SectionCard}" Margin="0,12,0,0">
                     <StackPanel>
                         <TextBlock Text="RESEARCHER IDENTITY" Style="{StaticResource SectionHeader}"/>
                         <TextBlock Text="Persisted in config.json (local). Used as default in advisory drafting; per-advisory overrides live in the advisory record."
@@ -149,7 +149,7 @@
                 </Border>
 
                 <!-- BEHAVIOR -->
-                <Border Style="{StaticResource SectionCard}" Margin="0,12,0,0">
+                <Border x:Name="BehaviorSection" Style="{StaticResource SectionCard}" Margin="0,12,0,0">
                     <StackPanel>
                         <TextBlock Text="BEHAVIOR" Style="{StaticResource SectionHeader}"/>
                         <CheckBox x:Name="AutoCveLookupBox"
@@ -161,7 +161,7 @@
                 </Border>
 
                 <!-- PAYLOAD DEFAULTS -->
-                <Border Style="{StaticResource SectionCard}" Margin="0,12,0,0">
+                <Border x:Name="PayloadSection" Style="{StaticResource SectionCard}" Margin="0,12,0,0">
                     <StackPanel>
                         <TextBlock Text="PAYLOAD DEFAULTS" Style="{StaticResource SectionHeader}"/>
                         <TextBlock Text="MessageBox PoC popup text reused across every Generate run. Use {Researcher} as a placeholder — it's substituted at template time. Newlines are emitted as \n in the generated C; quotes are escaped automatically."
@@ -216,7 +216,7 @@
                 <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                     <Button Content="Open config folder" Style="{StaticResource SecondaryButton}" Click="OpenFolder_Click"/>
                     <Button Content="Reset defaults" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" Click="Reset_Click"/>
-                    <Button Content="Save config" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Click="Save_Click"/>
+                    <Button x:Name="SaveConfigBtn" Content="Save config" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Click="Save_Click"/>
                 </StackPanel>
             </Grid>
         </Border>

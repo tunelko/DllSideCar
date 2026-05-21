@@ -5,3 +5,4 @@ global using Color = System.Windows.Media.Color;
 // exactly (same overloads, same MessageBoxResult/Button/Image enums).
 global using MessageBox = DllSidecar.GUI.Views.AppDialog;
 global using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
+global using UserControl = System.Windows.Controls.UserControl;

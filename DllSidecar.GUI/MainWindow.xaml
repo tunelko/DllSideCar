@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:tour="clr-namespace:DllSidecar.GUI.Views.HelpTour"
         mc:Ignorable="d"
         Title="DllSidecar — DLL Sideloading Automation"
         Height="750" Width="1200" MinHeight="600" MinWidth="900"
@@ -521,6 +522,15 @@
                                         </StackPanel>
                                     </Button>
                                     <Border Height="1" Background="{StaticResource Ring}" Margin="8,4"/>
+                                    <Button Style="{StaticResource NavButton}" Click="NavStartTour_Click"
+                                            Padding="12,8" FontSize="13">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x1F9ED;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Start Help Wizard Tour" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            <TextBlock Text="  guided config walkthrough" Foreground="{StaticResource Overlay}"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
                                     <Button Style="{StaticResource NavButton}" Click="NavAbout_Click"
                                             Padding="12,8" FontSize="13">
                                         <StackPanel Orientation="Horizontal">
@@ -583,5 +593,13 @@
                 </DockPanel>
             </Border>
         </Grid>
+
+        <!-- Help Wizard Tour overlay — full-window dim with a spotlight cutout
+             over the active ConfigPage element. Sits above all other UI and
+             spans both sidebar + content columns. Z-order set explicitly. -->
+        <tour:HelpTourOverlay x:Name="TourOverlay"
+                              Grid.Column="0" Grid.ColumnSpan="2"
+                              Visibility="Collapsed"
+                              Panel.ZIndex="1000"/>
     </Grid>
 </Window>
