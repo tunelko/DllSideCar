@@ -95,6 +95,21 @@ public class AdvisoryContext
     public List<string> References { get; set; } = [];
 
     /// <summary>
+    /// Substitute `{Product}`, `{Filename}`, `{Vendor}` placeholders in the Title (and
+    /// any other free-text field that may contain them). Centralised so PDF export, the
+    /// library record, and renderers all produce the same resolved string — the prior
+    /// bug was each PDF export call site passing the raw Title with placeholders still in.
+    /// </summary>
+    public string ResolveTitle() => ResolvePlaceholders(Title);
+
+    public string ResolvePlaceholders(string? input) => string.IsNullOrEmpty(input) ? "" :
+        input.Replace("{Product}",  Product   ?? "")
+             .Replace("{Filename}", PeFilename ?? "")
+             .Replace("{Vendor}",   Vendor    ?? "")
+             .Replace("  ", " ")
+             .Trim();
+
+    /// <summary>
     /// Fill blank researcher identity fields from <see cref="ConfigManager.Current"/>.
     /// Call once after constructing a fresh context (Analyze build, Wizard build) or after
     /// projecting from a Library record, so renderers never emit "Researcher: ()" when

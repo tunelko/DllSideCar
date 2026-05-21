@@ -36,6 +36,10 @@ public class SideloadCandidate
     public PrivescContext? Privesc { get; set; }     // set by PrivescAnalyzer
     public Cve.CveQueryResult? Cve { get; set; }     // set by background CVE query from ScanPage
 
+    /// <summary>Verdict from SandboxClassifier for the primary importer. Gates whether
+    /// SandboxEscape appears in the Payload picker for this candidate.</summary>
+    public SandboxKind SandboxKind { get; set; } = SandboxKind.None;
+
     /// <summary>How this candidate was surfaced (Sprint 3 targeted re-scan awareness).</summary>
     public DiscoveryOrigin Discovery { get; set; } = DiscoveryOrigin.DirectEnumeration;
 

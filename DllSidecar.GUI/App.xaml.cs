@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using QuestPDF.Infrastructure;
 
 namespace DllSidecar.GUI;
 
@@ -27,6 +28,12 @@ public partial class App : System.Windows.Application
             Shutdown();
             return;
         }
+
+        // QuestPDF Community license — free for solo developers and small
+        // organisations (< $1M revenue). Pedro qualifies as an independent
+        // security researcher. The flag must be set before any PDF generation
+        // call, hence here in OnStartup rather than inside AdvisoryPage.
+        QuestPDF.Settings.License = LicenseType.Community;
 
         // Runs once per install: wipes per-researcher state (advisories DB,
         // identity, NVD API key) when the install marker version differs

@@ -93,7 +93,53 @@ public partial class GeneratePage : Page
 
         // Restore last-session UI state, then wire change handlers so every edit persists.
         RestoreUiState();
+        ApplySandboxRecommendation();
         WirePersistence();
+    }
+
+    /// <summary>
+    /// Hide SandboxEscape from the Payload combo unless the active candidate's
+    /// importer classifies as sandboxed. Same logic as CraftStage.ApplySandboxRecommendation —
+    /// both pages share the SandboxEscapeItem + SandboxHint x:Names.
+    /// </summary>
+    private void ApplySandboxRecommendation()
+    {
+        // Best-effort candidate lookup: the active DLL path may match a scan
+        // result. If we have no scan context, fall back to classifying the
+        // current DLL path on its own (handles "Browse → DLL → Generate" flows
+        // that bypass Scan entirely).
+        var kind = SandboxKind.None;
+        var path = _main.CurrentDllPath;
+        if (!string.IsNullOrEmpty(path) && _main.LastScanResults != null)
+        {
+            var existing = _main.LastScanResults.Existing.FirstOrDefault(c =>
+                string.Equals(c.Dll.Path, path, StringComparison.OrdinalIgnoreCase));
+            if (existing != null) kind = existing.SandboxKind;
+            else
+            {
+                var phantom = _main.LastScanResults.Phantoms.FirstOrDefault(p =>
+                    string.Equals(System.IO.Path.Combine(p.DirectoryPath, p.DllName), path, StringComparison.OrdinalIgnoreCase));
+                if (phantom != null) kind = phantom.SandboxKind;
+            }
+        }
+        // Last-resort static classification when no scan match — handles "Browse
+        // for DLL → Generate" without going through Scan.
+        if (kind == SandboxKind.None && !string.IsNullOrEmpty(path))
+            kind = Core.Services.SandboxClassifier.Classify(path);
+
+        var sandboxed = kind != SandboxKind.None;
+        SandboxEscapeItem.Visibility = sandboxed ? Visibility.Visible : Visibility.Collapsed;
+        SandboxHint.Visibility       = sandboxed ? Visibility.Visible : Visibility.Collapsed;
+        if (sandboxed)
+        {
+            SandboxHint.Text = kind switch
+            {
+                SandboxKind.AppContainer       => "AppContainer host detected — SandboxEscape recommended.",
+                SandboxKind.LowIntegrity       => "Low integrity host detected — SandboxEscape recommended.",
+                SandboxKind.RendererSubprocess => "Sandboxed renderer host detected (CEF / WebView2) — SandboxEscape recommended.",
+                _                              => "Sandboxed host detected — SandboxEscape recommended.",
+            };
+        }
     }
 
     private void ModeSwitch_Changed(object sender, RoutedEventArgs e)

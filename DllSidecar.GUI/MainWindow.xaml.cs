@@ -58,6 +58,71 @@ public partial class MainWindow : Window
     // so the field survives navigation away and back (same pattern as LastScanDir).
     public string? LastRuntimeLaunchExe { get; set; }
 
+    // ─── Live trace session (ownership on MainWindow so navigation doesn't kill it) ───
+    //
+    // Previously the EtwDllTracer instance lived on RuntimeTracePage, so navigating
+    // to ConfigPage / AnalyzePage while a 5-minute trace was running silently
+    // dropped the tracer when the page got navigated away. Owning the tracer on
+    // MainWindow keeps it alive across nav; the page subscribes to relay events
+    // on construction and unhooks on Unload, but never disposes the tracer.
+    public DllSidecar.Core.Services.EtwDllTracer? ActiveTracer { get; private set; }
+    public CancellationTokenSource? ActiveTraceCts { get; private set; }
+    public System.Diagnostics.Stopwatch? ActiveTraceStopwatch { get; private set; }
+    public string? ActiveTraceMode { get; private set; }
+    private int _activeTraceLiveCount;
+    public int ActiveTraceLiveCount => _activeTraceLiveCount;
+    public bool IsTraceActive => ActiveTracer != null;
+
+    // Relay events. RuntimeTracePage subscribes to these (not directly to the
+    // tracer) so the page can come/go without leaking handlers into the tracer
+    // when the page is unloaded.
+    public event Action<DllSidecar.Core.Models.EtwTraceEvent>? TraceEventCaptured;
+    public event Action<DllSidecar.Core.Models.TracedProcess>? TraceProcessDetected;
+    public event Action<string>? TraceStatusChanged;
+
+    public void StartActiveTrace(DllSidecar.Core.Services.EtwDllTracer tracer,
+                                 CancellationTokenSource cts, string mode)
+    {
+        ActiveTracer = tracer;
+        ActiveTraceCts = cts;
+        ActiveTraceMode = mode;
+        ActiveTraceStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        System.Threading.Interlocked.Exchange(ref _activeTraceLiveCount, 0);
+        tracer.EventCaptured += OnTracerEvent;
+        tracer.ProcessDetected += OnTracerProcess;
+        tracer.StatusChanged += OnTracerStatus;
+    }
+
+    public DllSidecar.Core.Models.EtwTraceResult? StopAndDisposeActiveTrace()
+    {
+        if (ActiveTracer == null) return null;
+        var tracer = ActiveTracer;
+        tracer.EventCaptured -= OnTracerEvent;
+        tracer.ProcessDetected -= OnTracerProcess;
+        tracer.StatusChanged -= OnTracerStatus;
+        DllSidecar.Core.Models.EtwTraceResult? result = null;
+        try { result = tracer.Stop(); }
+        finally
+        {
+            tracer.Dispose();
+            ActiveTracer = null;
+            ActiveTraceCts?.Dispose();
+            ActiveTraceCts = null;
+            ActiveTraceStopwatch?.Stop();
+            ActiveTraceStopwatch = null;
+            ActiveTraceMode = null;
+        }
+        return result;
+    }
+
+    private void OnTracerEvent(DllSidecar.Core.Models.EtwTraceEvent ev)
+    {
+        System.Threading.Interlocked.Increment(ref _activeTraceLiveCount);
+        TraceEventCaptured?.Invoke(ev);
+    }
+    private void OnTracerProcess(DllSidecar.Core.Models.TracedProcess p) => TraceProcessDetected?.Invoke(p);
+    private void OnTracerStatus(string s) => TraceStatusChanged?.Invoke(s);
+
     // Live wizard session — non-null while a wizard is open and NOT finished/discarded.
     // Survives navigation: WizardPage ctor adopts it, RuntimeTracePage reads it to show
     // the "← Back to Wizard" button. Cleared on FinishWizard or Discard.
@@ -173,7 +238,6 @@ public partial class MainWindow : Window
         GeneratePage            => "Generate",
         AdvisoryPage            => "Advisory",
         AdvisoryLibraryPage     => "AdvisoryLibrary",
-        BuildPage               => "Build",
         ConfigPage              => "Config",
         ToolkitPage             => "Toolkit",
         Views.WelcomePage       => "Welcome",
@@ -192,7 +256,6 @@ public partial class MainWindow : Window
         "Generate"         => new GeneratePage(this),
         "Advisory"         => new AdvisoryPage(this),
         "AdvisoryLibrary"  => new AdvisoryLibraryPage(this),
-        "Build"            => new BuildPage(this),
         "Config"           => new ConfigPage(this),
         "Toolkit"          => new ToolkitPage(this),
         _                  => new Views.Wizard.WizardPage(this),
@@ -229,6 +292,12 @@ public partial class MainWindow : Window
         // from a path on first render — those don't need a companion snapshot.
         LastEtwResult = AppSessionStore.TryLoadEtwResult();
 
+        // Promoted scan results (Existing + Phantoms) are persisted to their own
+        // companion file so a RuntimeTrace→Promote→Craft chain survives restart:
+        // without this, the wizard would resume at Craft with ScanResults=null and
+        // the user would have to re-do Promote to see the phantoms re-appear.
+        LastScanResults = AppSessionStore.TryLoadScanResults();
+
         // Wizard state lives in its own snapshot file (auto-checkpointed during work).
         // Adopt it silently so WizardPage doesn't pop a "Resume?" prompt — the user
         // already opted in by saving on exit (or the auto-checkpoint survived a crash).
@@ -237,6 +306,37 @@ public partial class MainWindow : Window
         {
             var restored = new WizardSession();
             WizardSessionStore.Apply(wsnap, restored);
+
+            // If a scan result and wizard session both restored, reattach
+            // ScanResults so WizardPage doesn't fall through to the "no scan yet"
+            // branch and re-prompt for Survey.
+            if (LastScanResults != null && restored.ScanResults == null)
+                restored.ScanResults = LastScanResults;
+
+            // Rematch the chosen phantom / existing candidate from snapshot
+            // name+path so the user lands at Craft with the same selection they
+            // had before close. Both lookups are case-insensitive — Windows
+            // paths are not case-sensitive and the user may have edited casing
+            // in the path field across sessions.
+            if (LastScanResults != null)
+            {
+                if (!string.IsNullOrEmpty(wsnap.ChosenPhantomName)
+                    && !string.IsNullOrEmpty(wsnap.ChosenPhantomDirectory))
+                {
+                    restored.ChosenPhantom = LastScanResults.Phantoms.FirstOrDefault(p =>
+                        string.Equals(p.DllName, wsnap.ChosenPhantomName, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(p.DirectoryPath, wsnap.ChosenPhantomDirectory, StringComparison.OrdinalIgnoreCase));
+                }
+                if (restored.ChosenPhantom == null
+                    && !string.IsNullOrEmpty(wsnap.ChosenExistingFilename)
+                    && !string.IsNullOrEmpty(wsnap.ChosenExistingPath))
+                {
+                    restored.ChosenExisting = LastScanResults.Existing.FirstOrDefault(c =>
+                        string.Equals(c.Dll.Filename, wsnap.ChosenExistingFilename, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(c.Dll.Path, wsnap.ChosenExistingPath, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+
             CurrentWizardSession = restored;
         }
     }
@@ -265,7 +365,10 @@ public partial class MainWindow : Window
             CurrentPageName = GetPageName(page);
             var savedAt = snap.SavedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
             var etw = LastEtwResult != null ? $", trace ({LastEtwResult.FilteredEvents} events)" : "";
-            Log($"Session restored from {AppSessionStore.FilePath} (saved {savedAt}{etw}) → {snap.ActivePage ?? "Wizard"}");
+            var scan = LastScanResults != null
+                ? $", scan ({LastScanResults.ExistingCount} existing + {LastScanResults.PhantomCount} phantoms)"
+                : "";
+            Log($"Session restored from {AppSessionStore.FilePath} (saved {savedAt}{etw}{scan}) → {snap.ActivePage ?? "Wizard"}");
             return page;
         }
         catch (Exception ex)
@@ -398,6 +501,9 @@ public partial class MainWindow : Window
                         // (or a cleared placeholder) on next launch instead of an
                         // empty page.
                         AppSessionStore.SaveEtwResult(LastEtwResult);
+                        // Promoted scan results live here so a RuntimeTrace→Promote
+                        // chain doesn't lose its phantoms across restart.
+                        AppSessionStore.SaveScanResults(LastScanResults);
                         // Force a final wizard checkpoint too — auto-save fires on stage
                         // transition, so anything typed since the last transition would
                         // otherwise be lost on the next launch.
@@ -598,7 +704,6 @@ public partial class MainWindow : Window
     private void NavScan_Click(object sender, RoutedEventArgs e) => NavigateTo(new ScanPage(this));
     private void NavProcmon_Click(object sender, RoutedEventArgs e) => NavigateTo(new ProcmonPage(this));
     private void NavDllTechniques_Click(object sender, RoutedEventArgs e) => NavigateTo(new GeneratePage(this));
-    private void NavBuild_Click(object sender, RoutedEventArgs e) { ToolsPopup.IsOpen = false; NavigateTo(new BuildPage(this)); }
     private void NavPrivesc_Click(object sender, RoutedEventArgs e) => NavigateTo(new PrivescPage(this));
     private void NavAttackPath_Click(object sender, RoutedEventArgs e) => NavigateTo(new AttackPathPage(this));
     private void NavAdvisory_Click(object sender, RoutedEventArgs e) => NavigateTo(new AdvisoryPage(this));

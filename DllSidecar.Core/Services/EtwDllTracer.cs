@@ -518,7 +518,14 @@ public class EtwDllTracer : IDisposable
         {
             _rootPid = data.ProcessID;
             var rName = data.ProcessName + ".exe";
-            var rPath = data.ImageFileName ?? _pendingExePath ?? "";
+            // Launch mode: the user-supplied full path is the ground truth — it's
+            // literally what they want to land in Craft's Host EXE field after
+            // Promote. ETW's data.ImageFileName arrives as a kernel device path
+            // ("\Device\HarddiskVolume3\…") or a basename depending on the kernel
+            // build, neither of which is useful for compilation. Prefer the
+            // user's input; fall back to ETW only when StartWithExe wasn't the
+            // entry point (e.g. tracer was attached after process startup).
+            var rPath = !string.IsNullOrEmpty(_pendingExePath) ? _pendingExePath : (data.ImageFileName ?? "");
             _trackedPids[data.ProcessID] = new ProcessInfo(rName, rPath, 0, true);
             _processEvents.Add(new ProcessLifecycle(data.ProcessID, 0, rName, rPath, data.TimeStamp, true));
             _pendingProcessName = null;
@@ -594,6 +601,12 @@ public class EtwDllTracer : IDisposable
     {
         try
         {
+            // Sandbox-relevant token signals captured here while the process is
+            // guaranteed alive. Same data is also stamped on the matching
+            // ProcessLifecycle so BuildResult can populate the persisted tree.
+            var (il, isAc) = CaptureTokenInfo(pid);
+            AnnotateLifecycle(pid, il, isAc);
+
             ProcessDetected?.Invoke(new TracedProcess
             {
                 Pid = pid,
@@ -602,9 +615,28 @@ public class EtwDllTracer : IDisposable
                 ImagePath = imagePath,
                 StartTime = DateTime.Now,
                 IsRootTarget = isRoot,
+                IntegrityLevel = il,
+                IsAppContainer = isAc,
             });
         }
         catch { }
+    }
+
+    private void AnnotateLifecycle(int pid, IntegrityLevel il, bool isAppContainer)
+    {
+        // ProcessLifecycle is appended right BEFORE NotifyProcessDetected in every
+        // hook (StartWithExe, AttachToPid, SeedExistingDescendants, OnProcessStart).
+        // The order means the matching record exists by the time we reach here —
+        // we just stamp the token fields on it.
+        foreach (var pe in _processEvents)
+        {
+            if (pe.Pid == pid && pe.IntegrityLevel == IntegrityLevel.Unknown)
+            {
+                pe.IntegrityLevel = il;
+                pe.IsAppContainer = isAppContainer;
+                break;
+            }
+        }
     }
 
     private EtwTraceResult BuildResult()
@@ -631,6 +663,8 @@ public class EtwDllTracer : IDisposable
                 ExitTime = pe.ExitTime,
                 IsRootTarget = pe.IsRoot,
                 DllMissCount = missCount,
+                IntegrityLevel = pe.IntegrityLevel,
+                IsAppContainer = pe.IsAppContainer,
             };
         }
 
@@ -698,8 +732,14 @@ public class EtwDllTracer : IDisposable
         try
         {
             using var proc = Process.GetProcessById(pid);
-            string? imagePath = null;
-            try { imagePath = proc.MainModule?.FileName; } catch { }
+            // Prefer QueryFullProcessImageName via ProcessImagePath helper — works
+            // cross-arch where Process.MainModule throws (x64 host reading an x86
+            // process or vice versa). MainModule is the last resort.
+            var imagePath = ProcessImagePath.TryGet(pid);
+            if (string.IsNullOrEmpty(imagePath))
+            {
+                try { imagePath = proc.MainModule?.FileName; } catch { }
+            }
             return (proc.ProcessName + ".exe", imagePath);
         }
         catch
@@ -856,6 +896,12 @@ public class EtwDllTracer : IDisposable
         public bool IsRoot { get; }
         public DateTime? ExitTime { get; set; }
 
+        // Captured at detection time, while the process is still alive — once the
+        // process exits, OpenProcess fails and we can't recover these. Default to
+        // Unknown so a missed-capture path still serializes cleanly.
+        public IntegrityLevel IntegrityLevel { get; set; } = IntegrityLevel.Unknown;
+        public bool IsAppContainer { get; set; }
+
         public ProcessLifecycle(int pid, int parentPid, string name, string? imagePath, DateTime start, bool isRoot)
         {
             Pid = pid;
@@ -866,4 +912,102 @@ public class EtwDllTracer : IDisposable
             IsRoot = isRoot;
         }
     }
+
+    // ──────────────── Token signal capture (Phase 2 dynamic) ────────────────
+    //
+    // Queried right after a process is detected (alive guaranteed at that moment).
+    // Failures are swallowed — token info is best-effort; the static classifier
+    // already covers the high-value research targets when this gap appears.
+
+    /// <summary>Read the process token and populate (IntegrityLevel, IsAppContainer)
+    /// for use by <see cref="SandboxClassifier"/>. Returns defaults on any failure.</summary>
+    private static (IntegrityLevel IL, bool IsAppContainer) CaptureTokenInfo(int pid)
+    {
+        const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+        const uint TOKEN_QUERY = 0x0008;
+        const int  TokenIsAppContainer = 29;
+
+        IntPtr hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        if (hProc == IntPtr.Zero) return (IntegrityLevel.Unknown, false);
+        try
+        {
+            if (!OpenProcessToken(hProc, TOKEN_QUERY, out var hTok) || hTok == IntPtr.Zero)
+                return (IntegrityLevel.Unknown, false);
+            try
+            {
+                bool isAc = QueryTokenBool(hTok, TokenIsAppContainer);
+                var il = QueryTokenIntegrity(hTok);
+                return (il, isAc);
+            }
+            finally { CloseHandle(hTok); }
+        }
+        finally { CloseHandle(hProc); }
+    }
+
+    private static bool QueryTokenBool(IntPtr hTok, int infoClass)
+    {
+        // TokenIsAppContainer returns a 4-byte DWORD (0/1).
+        uint size = 4;
+        IntPtr buf = Marshal.AllocHGlobal((int)size);
+        try
+        {
+            if (!GetTokenInformation(hTok, infoClass, buf, size, out _)) return false;
+            return Marshal.ReadInt32(buf) != 0;
+        }
+        finally { Marshal.FreeHGlobal(buf); }
+    }
+
+    private static IntegrityLevel QueryTokenIntegrity(IntPtr hTok)
+    {
+        const int TokenIntegrityLevel = 25;
+        // First call discovers required buffer size, second call fills it.
+        GetTokenInformation(hTok, TokenIntegrityLevel, IntPtr.Zero, 0, out var needed);
+        if (needed == 0) return IntegrityLevel.Unknown;
+        IntPtr buf = Marshal.AllocHGlobal((int)needed);
+        try
+        {
+            if (!GetTokenInformation(hTok, TokenIntegrityLevel, buf, needed, out _))
+                return IntegrityLevel.Unknown;
+            // TOKEN_MANDATORY_LABEL { SID_AND_ATTRIBUTES Label } — Label.Sid is a
+            // pointer to the integrity SID; the last sub-authority is the RID.
+            IntPtr pSid = Marshal.ReadIntPtr(buf);
+            if (pSid == IntPtr.Zero) return IntegrityLevel.Unknown;
+            // GetSidSubAuthorityCount returns a pointer to a byte; index its value.
+            IntPtr pCount = GetSidSubAuthorityCount(pSid);
+            if (pCount == IntPtr.Zero) return IntegrityLevel.Unknown;
+            byte count = Marshal.ReadByte(pCount);
+            if (count == 0) return IntegrityLevel.Unknown;
+            IntPtr pSub = GetSidSubAuthority(pSid, (uint)(count - 1));
+            if (pSub == IntPtr.Zero) return IntegrityLevel.Unknown;
+            uint rid = (uint)Marshal.ReadInt32(pSub);
+            return rid switch
+            {
+                0 => IntegrityLevel.Untrusted,
+                0x1000 => IntegrityLevel.Low,        // 4096
+                0x2000 => IntegrityLevel.Medium,     // 8192
+                0x2100 => IntegrityLevel.MediumPlus, // 8448
+                0x3000 => IntegrityLevel.High,       // 12288
+                0x4000 => IntegrityLevel.System,     // 16384
+                0x5000 => IntegrityLevel.ProtectedProcess, // 20480
+                _ => IntegrityLevel.Unknown,
+            };
+        }
+        finally { Marshal.FreeHGlobal(buf); }
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint desiredAccess, bool inheritHandle, int processId);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr hProcess, uint desiredAccess, out IntPtr hToken);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetTokenInformation(IntPtr hToken, int tokenInfoClass,
+        IntPtr tokenInformation, uint tokenInformationLength, out uint returnLength);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern IntPtr GetSidSubAuthorityCount(IntPtr pSid);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern IntPtr GetSidSubAuthority(IntPtr pSid, uint nSubAuthority);
 }

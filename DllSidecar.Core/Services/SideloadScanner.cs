@@ -197,6 +197,14 @@ public class SideloadScanner
 
                 candidate.Score = ExploitabilityScorer.Score(candidate);
 
+                // Static sandbox classification on the first importer. Trace-time
+                // dynamic signal isn't available here (this is a cold static scan),
+                // so the verdict is heuristic-only — but enough to flag AcroCEF /
+                // RdrCEF / msedgewebview2 candidates in the Scan grid.
+                var primaryImp = candidate.Importers.FirstOrDefault();
+                if (primaryImp != null)
+                    candidate.SandboxKind = SandboxClassifier.Classify(primaryImp.ExePath);
+
                 // Apply filters — per-axis first, then derived Total (back-compat)
                 if (candidate.Score.Exploitability < options.MinExploitability) return;
                 if (candidate.Score.Impact < options.MinImpact) return;
@@ -283,6 +291,13 @@ public class SideloadScanner
                 }
 
                 ph.Score = ExploitabilityScorer.ScorePhantom(ph);
+
+                // Static sandbox classification on the first importer (same as the
+                // Existing-candidate branch above). Dynamic signal arrives later
+                // if this phantom is also surfaced via runtime trace + Promote.
+                var primaryPhImp = ph.Importers.FirstOrDefault();
+                if (primaryPhImp != null)
+                    ph.SandboxKind = SandboxClassifier.Classify(primaryPhImp.ExePath);
 
                 if (ph.Score.Exploitability < options.MinExploitability) continue;
                 if (ph.Score.Impact < options.MinImpact) continue;
