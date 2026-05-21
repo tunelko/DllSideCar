@@ -49,7 +49,35 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         // Restore any previously typed/selected inputs from the wizard session
         // (survives Back → Continue navigation AND app restart via WizardSessionStore).
         RestoreSessionInputs();
+        ApplySandboxRecommendation();
         WirePersistence();
+    }
+
+    /// <summary>
+    /// SandboxEscape is hidden from the Payload combo unless the chosen target's
+    /// importer is classified as sandboxed (AppContainer, Low IL, or a known
+    /// renderer subprocess like AcroCEF). Cuts visual clutter for the 90% of
+    /// targets that don't need it and surfaces a recommendation hint when they
+    /// do. See SandboxClassifier for the heuristic + dynamic-token logic.
+    /// </summary>
+    private void ApplySandboxRecommendation()
+    {
+        var kind = _session.ChosenPhantom?.SandboxKind
+                ?? _session.ChosenExisting?.SandboxKind
+                ?? SandboxKind.None;
+        var sandboxed = kind != SandboxKind.None;
+        SandboxEscapeItem.Visibility = sandboxed ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        SandboxHint.Visibility       = sandboxed ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        if (sandboxed)
+        {
+            SandboxHint.Text = kind switch
+            {
+                SandboxKind.AppContainer       => "AppContainer host detected — SandboxEscape recommended.",
+                SandboxKind.LowIntegrity       => "Low integrity host detected — SandboxEscape recommended.",
+                SandboxKind.RendererSubprocess => "Sandboxed renderer host detected (CEF / WebView2) — SandboxEscape recommended.",
+                _                              => "Sandboxed host detected — SandboxEscape recommended.",
+            };
+        }
     }
 
     /// <summary>
@@ -297,6 +325,19 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         {
             try { return PeAnalyzer.Analyze(i.ExePath).Arch == arch; } catch { return false; }
         })?.ExePath ?? p.Importers.FirstOrDefault()?.ExePath;
+
+        // Legacy data (scan_results.json from a pre-fix trace) may carry only a
+        // basename like "Battle.net.exe" here. Reconstruct the full path by
+        // looking inside the phantom directory — the importer almost always
+        // lives in the same directory as the DLL it searches for.
+        if (!string.IsNullOrEmpty(_hostExePath)
+            && !Path.IsPathRooted(_hostExePath)
+            && !string.IsNullOrEmpty(_deployDir))
+        {
+            var candidate = Path.Combine(_deployDir, Path.GetFileName(_hostExePath));
+            if (File.Exists(candidate)) _hostExePath = candidate;
+        }
+
         _systemOrigPath = resolved?.Path;
     }
 

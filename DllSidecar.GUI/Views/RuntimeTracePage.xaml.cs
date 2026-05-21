@@ -15,8 +15,6 @@ namespace DllSidecar.GUI.Views;
 public partial class RuntimeTracePage : Page
 {
     private readonly MainWindow _main;
-    private EtwDllTracer? _tracer;
-    private CancellationTokenSource? _cts;
     private EtwTraceResult? _lastResult;
     private readonly List<TraceRow> _allRows = [];
     private readonly List<TraceRow> _rows = [];
@@ -25,17 +23,67 @@ public partial class RuntimeTracePage : Page
     // Set by ProcessTree_Selected; cleared by the × chip.
     private HashSet<int>? _processFilterPids;
     private DispatcherTimer? _elapsedTimer;
-    private Stopwatch? _sw;
-    private int _liveEventCount;
     // Populated by ProcessPickerDialog; drives Attach-mode Start.
     private int? _attachPid;
     private string? _attachProcName;
+    // True once we've wired ourselves to MainWindow's relay events. Guarded so
+    // a re-Loaded page doesn't double-subscribe (e.g. if the user toggles to a
+    // different tab and back within the same Frame).
+    private bool _subscribedToLiveTrace;
 
     public RuntimeTracePage(MainWindow main)
     {
         _main = main;
         InitializeComponent();
-        _ = InitAsync();
+        // Subscribe / unsubscribe with the page's actual Loaded/Unloaded lifecycle
+        // so handlers are cleaned up when WPF navigates away. The tracer itself
+        // lives on MainWindow and is NOT disposed here — that's why the REC pulse
+        // and stats survive a detour to ConfigPage / AnalyzePage.
+        Loaded   += (_, _) => AdoptLiveTraceIfRunning();
+        Unloaded += (_, _) => ReleaseLiveTraceHandlers();
+
+        // Fire-and-forget swallows exceptions on its own — guard the body with a
+        // try/catch so any restore-time crash (deserialization mismatch, null in
+        // a field PopulateResults touches) reaches the user-facing log instead
+        // of leaving them staring at an empty page with no breadcrumb.
+        _ = InitAsync().ContinueWith(t =>
+        {
+            if (t.IsFaulted && t.Exception != null)
+                _main.Log($"RuntimeTrace init failed: {t.Exception.InnerException?.GetType().Name}: {t.Exception.InnerException?.Message}");
+        }, TaskScheduler.FromCurrentSynchronizationContext());
+    }
+
+    /// <summary>If a live trace is in progress on MainWindow, restore the UI to
+    /// the "recording" state and start consuming relay events again. Called on
+    /// every page Load — when the user navigates to RuntimeTracePage and a
+    /// trace is already running (started earlier, then nav'd away), the page
+    /// re-attaches transparently.</summary>
+    private void AdoptLiveTraceIfRunning()
+    {
+        if (!_main.IsTraceActive) return;
+        if (!_subscribedToLiveTrace)
+        {
+            _main.TraceEventCaptured  += OnEventCaptured;
+            _main.TraceProcessDetected += OnProcessDetected;
+            _main.TraceStatusChanged  += OnStatusChanged;
+            _subscribedToLiveTrace = true;
+        }
+        EnterRecordingUi();
+    }
+
+    private void ReleaseLiveTraceHandlers()
+    {
+        if (_subscribedToLiveTrace)
+        {
+            _main.TraceEventCaptured  -= OnEventCaptured;
+            _main.TraceProcessDetected -= OnProcessDetected;
+            _main.TraceStatusChanged  -= OnStatusChanged;
+            _subscribedToLiveTrace = false;
+        }
+        _elapsedTimer?.Stop();
+        _elapsedTimer = null;
+        // NB: do not touch _main.ActiveTracer — the trace continues running
+        // until the user clicks Stop (or closes the app).
     }
 
     private async Task InitAsync()
@@ -80,6 +128,11 @@ public partial class RuntimeTracePage : Page
                     $"Previous trace — {_lastResult.FilteredEvents} events, {_lastResult.ByDll.Count} DLLs, " +
                     $"{_lastResult.ProcessTree.Count} processes",
                     _lastResult.FilteredEvents > 0 ? StatusKind.Ok : StatusKind.Warn);
+                _main.Log($"Runtime trace restored on page open — {_allRows.Count} aggregated rows");
+            }
+            else
+            {
+                _main.Log("RuntimeTrace opened with no in-memory trace — start a new capture or restore a saved session");
             }
         }
         finally { Overlay.Hide(); }
@@ -221,7 +274,7 @@ public partial class RuntimeTracePage : Page
 
     private void Trace_Click(object sender, RoutedEventArgs e)
     {
-        if (_tracer != null) { Stop_Click(sender, e); return; }
+        if (_main.IsTraceActive) { Stop_Click(sender, e); return; }
         Start_Click(sender, e);
     }
 
@@ -234,11 +287,8 @@ public partial class RuntimeTracePage : Page
             NameNotFoundOnly = ChkNotFoundOnly.IsChecked == true,
         };
 
-        _cts = new CancellationTokenSource();
-        _tracer = new EtwDllTracer(filter);
-        _tracer.EventCaptured += OnEventCaptured;
-        _tracer.ProcessDetected += OnProcessDetected;
-        _tracer.StatusChanged += OnStatusChanged;
+        var cts = new CancellationTokenSource();
+        var tracer = new EtwDllTracer(filter);
 
         var isLaunch = ModeLaunch.IsChecked == true;
         var isAttach = ModeAttach.IsChecked == true;
@@ -256,41 +306,37 @@ public partial class RuntimeTracePage : Page
                 if (string.IsNullOrEmpty(exePath))
                 {
                     SetStatus("Enter the path to an EXE", StatusKind.Err);
-                    _tracer.Dispose();
-                    _tracer = null;
+                    tracer.Dispose();
                     return;
                 }
                 if (!File.Exists(exePath))
                 {
                     SetStatus($"File not found: {exePath}", StatusKind.Err);
-                    _tracer.Dispose();
-                    _tracer = null;
+                    tracer.Dispose();
                     return;
                 }
                 var args = ArgsBox.Text.Trim();
                 if (string.IsNullOrEmpty(args) && !string.IsNullOrEmpty(parsedArgs))
                     args = parsedArgs;
                 var launchMode = ParseLaunchMode();
-                _tracer.StartWithExe(exePath, string.IsNullOrEmpty(args) ? null : args, launchMode, _cts.Token);
+                tracer.StartWithExe(exePath, string.IsNullOrEmpty(args) ? null : args, launchMode, cts.Token);
             }
             else if (isAttach)
             {
                 if (!_attachPid.HasValue)
                 {
                     SetStatus("Pick a process first (click 'Pick process...')", StatusKind.Err);
-                    _tracer.Dispose();
-                    _tracer = null;
+                    tracer.Dispose();
                     return;
                 }
                 try { Process.GetProcessById(_attachPid.Value); }
                 catch
                 {
                     SetStatus($"Process {_attachPid} no longer running — pick another", StatusKind.Err);
-                    _tracer.Dispose();
-                    _tracer = null;
+                    tracer.Dispose();
                     return;
                 }
-                _tracer.AttachToPid(_attachPid.Value, _cts.Token);
+                tracer.AttachToPid(_attachPid.Value, cts.Token);
             }
             else // isWatch
             {
@@ -298,16 +344,15 @@ public partial class RuntimeTracePage : Page
                 if (string.IsNullOrEmpty(procName))
                 {
                     SetStatus("Enter a process name to watch (e.g. splunkd.exe)", StatusKind.Err);
-                    _tracer.Dispose();
-                    _tracer = null;
+                    tracer.Dispose();
                     return;
                 }
                 var cmd = WatchCmdBox.Text?.Trim();
                 var match = WatchMatchBox.Text?.Trim();
-                _tracer.StartWatchByName(
+                tracer.StartWatchByName(
                     procName,
                     string.IsNullOrEmpty(cmd) ? null : cmd,
-                    _cts.Token,
+                    cts.Token,
                     string.IsNullOrEmpty(match) ? null : match);
             }
         }
@@ -315,13 +360,28 @@ public partial class RuntimeTracePage : Page
         {
             SetStatus(ex.Message, StatusKind.Err);
             _main.Log($"Trace start failed: {ex.Message}");
-            _tracer?.Dispose();
-            _tracer = null;
+            tracer.Dispose();
             return;
         }
         finally { Overlay.Hide(); }
 
-        _liveEventCount = 0;
+        // Hand the tracer to MainWindow so it survives navigation. From here on
+        // the page consults _main.ActiveTracer / _main.ActiveTraceStopwatch /
+        // _main.ActiveTraceLiveCount — local fields are gone.
+        var mode = isLaunch ? "Launch" : isAttach ? "Attach" : "Watch";
+        _main.StartActiveTrace(tracer, cts, mode);
+
+        // Wire ourselves to MainWindow's relay events. Loaded/Unloaded keep us
+        // tidy across nav, but Start_Click here may fire on first Loaded too —
+        // guard via the same flag.
+        if (!_subscribedToLiveTrace)
+        {
+            _main.TraceEventCaptured  += OnEventCaptured;
+            _main.TraceProcessDetected += OnProcessDetected;
+            _main.TraceStatusChanged  += OnStatusChanged;
+            _subscribedToLiveTrace = true;
+        }
+
         _allRows.Clear();
         _rows.Clear();
         _treeNodes.Clear();
@@ -329,12 +389,30 @@ public partial class RuntimeTracePage : Page
         ProcessTree.ItemsSource = null;
         ResetStats();
 
-        // Stop icon (■) in IconButton chrome; color cue via ToolTip since style stays neutral.
+        EnterRecordingUi();
+
+        SetStatus(
+            isWatch
+                ? "[Watch] Capturing... trigger the target (or wait for restart cycles), then click STOP."
+                : $"[{mode}] Tracing... interact with the target, then click STOP.",
+            StatusKind.Info);
+        _main.Log($"Runtime trace started ({mode})");
+
+        if (isLaunch)
+            Window.GetWindow(this)!.WindowState = WindowState.Minimized;
+    }
+
+    /// <summary>Apply the "recording in progress" look to the page: stop icon, REC
+    /// badge pulsing, inputs disabled, elapsed-timer ticking from MainWindow's
+    /// stopwatch. Called from both Start_Click (fresh trace) and AdoptLiveTrace
+    /// (returning to the page mid-recording).</summary>
+    private void EnterRecordingUi()
+    {
         TraceBtn.Content = "■";
         TraceBtn.ToolTip = "Stop trace";
-        // Show + start the REC pulse so the user has a clear visual that ETW is live.
         RecBadge.Visibility = Visibility.Visible;
         StartRecPulse();
+
         TargetBox.IsEnabled = false;
         ArgsBox.IsEnabled = false;
         WatchNameBox.IsEnabled = false;
@@ -352,49 +430,46 @@ public partial class RuntimeTracePage : Page
         PromoteBtn.IsEnabled = false;
         CorrelateBtn.IsEnabled = false;
 
-        _sw = Stopwatch.StartNew();
+        _elapsedTimer?.Stop();
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _elapsedTimer.Tick += (_, _) =>
         {
-            ElapsedText.Text = $"{_sw!.Elapsed:mm\\:ss}";
-            StatEvents.Text = _liveEventCount.ToString();
+            var sw = _main.ActiveTraceStopwatch;
+            if (sw != null) ElapsedText.Text = $"{sw.Elapsed:mm\\:ss}";
+            StatEvents.Text = _main.ActiveTraceLiveCount.ToString();
         };
         _elapsedTimer.Start();
-
-        var mode = isLaunch ? "Launch" : isAttach ? "Attach" : "Watch";
-        SetStatus(
-            isWatch
-                ? "[Watch] Capturing... trigger the target (or wait for restart cycles), then click STOP."
-                : $"[{mode}] Tracing... interact with the target, then click STOP.",
-            StatusKind.Info);
-        _main.Log($"Runtime trace started ({mode})");
-
-        if (isLaunch)
-            Window.GetWindow(this)!.WindowState = WindowState.Minimized;
     }
 
     private void Stop_Click(object sender, RoutedEventArgs e)
     {
-        if (_tracer == null) return;
+        if (!_main.IsTraceActive) return;
 
         _elapsedTimer?.Stop();
-        _sw?.Stop();
+        _elapsedTimer = null;
 
         Overlay.Show("Processing", "Aggregating trace results...");
 
         try
         {
-            _lastResult = _tracer.Stop();
+            // Tracer lives on MainWindow; this call unhooks its handlers, calls
+            // Stop, disposes, and clears the ActiveTracer / Stopwatch / Cts.
+            _lastResult = _main.StopAndDisposeActiveTrace();
             _main.LastEtwResult = _lastResult;
         }
         finally
         {
             Overlay.Hide();
-            _tracer.Dispose();
-            _tracer = null;
-            _cts?.Dispose();
-            _cts = null;
+            if (_subscribedToLiveTrace)
+            {
+                _main.TraceEventCaptured  -= OnEventCaptured;
+                _main.TraceProcessDetected -= OnProcessDetected;
+                _main.TraceStatusChanged  -= OnStatusChanged;
+                _subscribedToLiveTrace = false;
+            }
         }
+
+        if (_lastResult == null) return;
 
         TraceBtn.Content = "▶";
         TraceBtn.ToolTip = "Start trace";
@@ -514,7 +589,9 @@ public partial class RuntimeTracePage : Page
 
     private void OnEventCaptured(EtwTraceEvent ev)
     {
-        Interlocked.Increment(ref _liveEventCount);
+        // Counter lives on MainWindow now (so it survives navigation away). The
+        // elapsed-timer reads _main.ActiveTraceLiveCount directly. Nothing for
+        // the page to do per-event.
     }
 
     private void OnProcessDetected(TracedProcess proc)

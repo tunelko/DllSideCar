@@ -900,7 +900,7 @@ public partial class AdvisoryPage : Page
         try
         {
             var html = Markdown.ToHtml(MdEditor.Text ?? "", _mdPipeline);
-            File.WriteAllText(dlg.FileName, WrapWithPdfCss(html, _ctx.Title), new UTF8Encoding(false));
+            File.WriteAllText(dlg.FileName, WrapWithPdfCss(html, _ctx.ResolveTitle()), new UTF8Encoding(false));
             FooterStatus.Text = $"Saved HTML: {dlg.FileName}";
             _main.Log($"Advisory HTML saved: {dlg.FileName}");
         }
@@ -911,25 +911,14 @@ public partial class AdvisoryPage : Page
     }
 
     /// <summary>
-    /// Professional PDF export via Chrome/Edge headless print. No Windows print dialog,
-    /// no external library — uses the Chromium PDF engine that ships with Chrome or Edge
-    /// (both present on every modern Windows install). Renders our full CSS exactly as
-    /// the preview shows it, produces archival-quality PDFs.
+    /// PDF export via QuestPDF + a Markdig AST walker. Pure in-process render — no
+    /// dependency on a system browser (Edge/Chrome), no temporary HTML file, no
+    /// file:// URL handoff. See <see cref="Services.MarkdownPdfRenderer"/> for the
+    /// reasons we left headless Chrome behind (empty pages, "file not found" on
+    /// shell open, race conditions with the user's running Edge profile).
     /// </summary>
-    private async void ExportPdf_Click(object sender, RoutedEventArgs e)
+    private void ExportPdf_Click(object sender, RoutedEventArgs e)
     {
-        var browsers = FindBrowsers();
-        if (browsers.Count == 0)
-        {
-            var fallback = MessageBox.Show(
-                "Chrome or Edge was not found — neither is required per se, but headless print needs one of them.\n\n" +
-                "Fallback: save the HTML and use your browser's Ctrl+P → Save as PDF.\n\n" +
-                "Do you want to save as HTML instead?",
-                "PDF export", MessageBoxButton.YesNo, MessageBoxImage.Information);
-            if (fallback == MessageBoxResult.Yes) SaveHtml_Click(sender, e);
-            return;
-        }
-
         var suggested = BuildSuggestedFilename(".pdf");
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
@@ -940,162 +929,43 @@ public partial class AdvisoryPage : Page
         if (dlg.ShowDialog() != true) return;
 
         var outPdf = dlg.FileName;
-        Overlay.Show("Exporting PDF", $"Rendering via {Path.GetFileName(browsers[0])}...");
+        Overlay.Show("Exporting PDF", "Rendering...");
         try
         {
-            var html = Markdown.ToHtml(MdEditor.Text ?? "", _mdPipeline);
-            var fullHtml = WrapWithPdfCss(html, _ctx.Title);
+            // Resolve {Product}/{Filename}/{Vendor} placeholders before the PDF
+            // header is rendered — otherwise the title literally reads
+            // "DLL Sideloading in {Product} via {Filename}" on the exported page.
+            var resolvedTitle = _ctx.ResolveTitle();
+            if (string.IsNullOrWhiteSpace(resolvedTitle)) resolvedTitle = "Advisory";
+            Services.MarkdownPdfRenderer.Render(MdEditor.Text ?? "", resolvedTitle, outPdf);
 
-            // Write HTML to a temp file — headless print takes a file:// URL
-            var tempHtml = Path.Combine(Path.GetTempPath(), $"dllsidecar-advisory-{Guid.NewGuid():N}.html");
-            await File.WriteAllTextAsync(tempHtml, fullHtml, new UTF8Encoding(false));
+            var size = new FileInfo(outPdf).Length;
+            FooterStatus.Text = $"Exported PDF: {outPdf}";
+            _main.Log($"Advisory PDF exported: {outPdf}  ({size:N0} bytes)");
 
+            // Auto-open the PDF via shell-execute. Uses the system default viewer
+            // (Edge / Acrobat / Foxit / whatever the user has wired up).
             try
             {
-                // Try every located browser in order. Edge with corporate policies that
-                // forbid headless mode exits 0 but writes nothing — try Chrome next.
-                Exception? lastError = null;
-                foreach (var browser in browsers)
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
-                    try
-                    {
-                        if (browser != browsers[0])
-                            Overlay.Show("Exporting PDF", $"Retrying via {Path.GetFileName(browser)}...");
-                        await RunHeadlessPrintAsync(browser, tempHtml, outPdf);
-                        if (File.Exists(outPdf) && new FileInfo(outPdf).Length >= 200)
-                        {
-                            lastError = null;
-                            break;
-                        }
-                        // Missing/undersized output — keep the exception cause for the
-                        // user even when this was the last browser candidate.
-                        lastError = new InvalidOperationException(
-                            $"{Path.GetFileName(browser)} exited successfully but no PDF was written.");
-                    }
-                    catch (Exception ex)
-                    {
-                        lastError = ex;
-                        Log.Warn("advisory.pdf", $"{Path.GetFileName(browser)} attempt failed: {ex.Message}");
-                    }
-                    finally
-                    {
-                        try { if (File.Exists(outPdf) && new FileInfo(outPdf).Length < 200) File.Delete(outPdf); }
-                        catch (IOException) { }
-                    }
-                }
-                if (lastError != null) throw lastError;
-
-                FooterStatus.Text = $"Exported PDF: {outPdf}";
-                _main.Log($"Advisory PDF exported: {outPdf}  ({new FileInfo(outPdf).Length:N0} bytes)");
+                    FileName = outPdf,
+                    UseShellExecute = true,
+                });
             }
-            finally
+            catch (Exception openEx)
             {
-                try { File.Delete(tempHtml); } catch (IOException) { /* keep for debugging */ }
+                Log.Warn("advisory.pdf", $"Auto-open failed: {openEx.Message}");
             }
         }
         catch (Exception ex)
         {
             Log.Error("advisory.pdf", "Export failed", ex);
-            MessageBox.Show($"PDF export failed: {ex.Message}\n\nTry 'Save HTML' and Ctrl+P → Save as PDF from your browser.",
+            MessageBox.Show($"PDF export failed: {ex.GetType().Name}: {ex.Message}",
                 "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally { Overlay.Hide(); }
     }
-
-    /// <summary>
-    /// Locate every Chrome / Edge binary present on the system, ordered by preference.
-    /// Chrome first when available — corporate Edge installs occasionally honour a
-    /// HeadlessMode policy that makes --headless --print-to-pdf exit 0 without writing
-    /// the PDF. Trying Chrome as a fallback recovers cleanly in that case.
-    /// </summary>
-    private static List<string> FindBrowsers()
-    {
-        string[] candidates =
-        [
-            Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
-            Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
-            Environment.ExpandEnvironmentVariables(@"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
-            Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
-            Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
-        ];
-        var found = new List<string>();
-        foreach (var c in candidates)
-            if (File.Exists(c)) found.Add(c);
-        return found;
-    }
-
-    private static async Task RunHeadlessPrintAsync(string chromium, string htmlPath, string pdfPath)
-    {
-        // Build a file:// URI for the input HTML
-        var uri = new Uri(htmlPath).AbsoluteUri;
-
-        // Dedicated profile dir — without --user-data-dir, --headless=new shares the
-        // user's default profile and silently no-ops (exit 0, no file written) when
-        // the user has Edge/Chrome already running. The profile dir gets removed
-        // after the process exits.
-        var tempProfile = Path.Combine(Path.GetTempPath(), $"dllsidecar-headless-{Guid.NewGuid():N}");
-
-        var psi = new System.Diagnostics.ProcessStartInfo
-        {
-            FileName = chromium,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        // Modern headless print-to-pdf flag set. `--run-all-compositor-stages-before-draw`
-        // replaces `--virtual-time-budget` as the recommended way to wait for compositor
-        // work to finish before snapshotting — virtual-time-budget started returning
-        // exit 0 without writing the PDF on some Edge/Chrome 124+ builds, especially
-        // when the host process runs elevated (DllSidecar requires admin).
-        psi.ArgumentList.Add("--headless=new");
-        psi.ArgumentList.Add("--disable-gpu");
-        psi.ArgumentList.Add("--no-sandbox");
-        psi.ArgumentList.Add("--disable-extensions");
-        psi.ArgumentList.Add("--disable-background-networking");
-        psi.ArgumentList.Add("--run-all-compositor-stages-before-draw");
-        psi.ArgumentList.Add($"--user-data-dir={tempProfile}");
-        psi.ArgumentList.Add("--no-pdf-header-footer");
-        psi.ArgumentList.Add($"--print-to-pdf={pdfPath}");
-        psi.ArgumentList.Add(uri);
-
-        var browserName = Path.GetFileName(chromium);
-        Log.Info("advisory.pdf", $"{browserName} {string.Join(" ", psi.ArgumentList)}");
-
-        try
-        {
-            using var proc = System.Diagnostics.Process.Start(psi)
-                ?? throw new InvalidOperationException($"Could not start {browserName}");
-
-            await proc.WaitForExitAsync();
-
-            // Capture stderr regardless of exit code — it is the only diagnostic the
-            // user has in the failure path, since WPF apps don't surface a console.
-            var err = (await proc.StandardError.ReadToEndAsync()).Trim();
-
-            if (proc.ExitCode != 0)
-                throw new InvalidOperationException($"{browserName} exit {proc.ExitCode}: {Truncate(err, 600)}");
-
-            if (!File.Exists(pdfPath) || new FileInfo(pdfPath).Length < 200)
-                throw new InvalidOperationException(
-                    $"{browserName} exited 0 but no PDF was written. stderr: {Truncate(err, 600)}");
-
-            if (!string.IsNullOrEmpty(err))
-                Log.Warn("advisory.pdf", $"{browserName} stderr (exit 0): {err}");
-        }
-        finally
-        {
-            // Best-effort profile cleanup. Chromium may still hold file handles for
-            // a brief window — swallow IOExceptions and let the next run's GUID
-            // create a fresh dir.
-            try { if (Directory.Exists(tempProfile)) Directory.Delete(tempProfile, true); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-        }
-    }
-
-    private static string Truncate(string s, int max) =>
-        string.IsNullOrEmpty(s) ? "(empty)" : (s.Length <= max ? s : s.Substring(0, max) + "…");
 
     /// <summary>
     /// Light-theme CSS for PDF output — printable on white paper with dark ink.
@@ -1129,13 +999,34 @@ public partial class AdvisoryPage : Page
 
     private string BuildSuggestedFilename(string ext)
     {
-        var vendor = (_ctx.Vendor ?? "vendor").ToLowerInvariant();
-        var product = (_ctx.Product ?? "product").Split(' ').FirstOrDefault()?.ToLowerInvariant() ?? "product";
-        var file = Path.GetFileNameWithoutExtension(_ctx.PeFilename ?? "dll").ToLowerInvariant();
+        var vendor = Slugify(_ctx.Vendor ?? "vendor");
+        var product = Slugify(_ctx.Product ?? "product");
+        var file = Slugify(Path.GetFileNameWithoutExtension(_ctx.PeFilename ?? "dll"));
         var date = DateTime.Today.ToString("yyyyMMdd");
-        var safe = $"advisory_{vendor}_{product}_{file}_{date}{ext}";
-        // Strip filesystem-unsafe chars
-        foreach (var c in Path.GetInvalidFileNameChars()) safe = safe.Replace(c, '_');
-        return safe;
+        return $"advisory_{vendor}_{product}_{file}_{date}{ext}";
+    }
+
+    /// <summary>
+    /// Collapse a free-form string into a shell-safe slug: lowercase, ASCII only,
+    /// spaces and punctuation → underscore, consecutive underscores collapsed,
+    /// trimmed of edge underscores. Critical for PDF filenames — Edge shells out
+    /// from Explorer treat spaces in `file://` paths as separators and report
+    /// "file not found" even when the file is right there.
+    /// </summary>
+    private static string Slugify(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return "unknown";
+        var sb = new StringBuilder(input.Length);
+        foreach (var ch in input.ToLowerInvariant())
+        {
+            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-')
+                sb.Append(ch);
+            else
+                sb.Append('_');
+        }
+        var s = sb.ToString();
+        while (s.Contains("__")) s = s.Replace("__", "_");
+        s = s.Trim('_');
+        return string.IsNullOrEmpty(s) ? "unknown" : s;
     }
 }

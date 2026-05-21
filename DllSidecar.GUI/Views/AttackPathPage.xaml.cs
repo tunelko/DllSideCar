@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -727,10 +728,10 @@ public partial class AttackPathPage : Page
         lines.Add(title switch
         {
             "DISCOVERY" => "Click → Scan page",
-            "STATIC"    => "Click → Analyze the DLL",
+            "STATIC"    => "Click → Scan DLL / Binary",
             "DYNAMIC"   => "Click → Runtime Trace",
             "PRIVESC"   => "Click → Privesc Surface",
-            "SCORE"     => "Click → Analyze the DLL",
+            "SCORE"     => "Click → Scan DLL / Binary",
             _ => "",
         });
         return string.Join("\n", lines);
@@ -747,7 +748,7 @@ public partial class AttackPathPage : Page
         lines.Add(kindLabel switch
         {
             "WRITE"    => "Write primitive — directory ACL drives this step.",
-            "LOAD"     => "Click → open the DLL in Analyze.",
+            "LOAD"     => "Click → Scan DLL / Binary",
             "TRIGGER"  => "Click → open the privesc finding source.",
             "PRIV"     => "Privilege gained when the chain fires.",
             "EVIDENCE" => "Click → open Runtime Trace.",
@@ -789,10 +790,32 @@ public partial class AttackPathPage : Page
         }
         if (_focus.Phantom != null)
         {
+            // Importer EXE path is the first preference (analyzing the binary
+            // that imports the phantom is the actionable next step). But ETW
+            // process events frequently expose only ProcessName as ProcessImagePath,
+            // so ImporterRef.ExePath can be a bare filename like "Battle.net.exe".
+            // When that's the case fall back to the phantom's synthesized path
+            // (DirectoryPath + DllName) so AnalyzePage's FilePathBox shows a
+            // full path the user can act on, not a stranded filename.
+            string? target = null;
             var imp = _focus.Phantom.Importers.FirstOrDefault();
-            if (imp == null) return;
+            if (imp != null && !string.IsNullOrEmpty(imp.ExePath)
+                && Path.IsPathRooted(imp.ExePath) && File.Exists(imp.ExePath))
+            {
+                target = imp.ExePath;
+            }
+            else if (!string.IsNullOrEmpty(_focus.DllPath))
+            {
+                target = _focus.DllPath;
+            }
+            else if (!string.IsNullOrEmpty(_focus.Phantom.DirectoryPath)
+                  && !string.IsNullOrEmpty(_focus.Phantom.DllName))
+            {
+                target = Path.Combine(_focus.Phantom.DirectoryPath, _focus.Phantom.DllName);
+            }
+            if (target == null) return;
             _main.CurrentAnalysis = null;
-            _main.CurrentDllPath = imp.ExePath;
+            _main.CurrentDllPath = target;
             _main.NavigateTo(new AnalyzePage(_main));
             return;
         }

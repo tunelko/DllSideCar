@@ -392,29 +392,43 @@
                                PopupAnimation="Fade" HorizontalOffset="2" VerticalOffset="4">
                             <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource RingStrong}"
                                     BorderThickness="1" CornerRadius="8" Padding="4,6"
-                                    MinWidth="240">
+                                    MinWidth="320">
                                 <Border.Effect>
                                     <DropShadowEffect ShadowDepth="4" Opacity="0.5" BlurRadius="12"/>
                                 </Border.Effect>
                                 <StackPanel>
                                     <Button Style="{StaticResource NavButton}" Click="OpenSessionMenu_Click"
                                             Padding="12,8" FontSize="13">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#x1F4C2;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Open Session" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                            <TextBlock Text="  restore last saved state" Foreground="{StaticResource Overlay}"
-                                                       FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="&#x1F4C2;" Width="22" TextAlignment="Center" VerticalAlignment="Top" Margin="0,1,8,0"/>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="Open Session"/>
+                                                <TextBlock Text="Restore the last saved state — active page, scan results, trace events, wizard progress."
+                                                           Foreground="{StaticResource Overlay}" FontSize="11"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </Button>
                                     <Border Height="1" Background="{StaticResource Ring}" Margin="8,4"/>
                                     <Button Style="{StaticResource NavButton}" Click="DeleteSessionMenu_Click"
                                             Padding="12,8" FontSize="13">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#x1F5D1;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Delete Session" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                            <TextBlock Text="  clear in-memory + saved snapshot" Foreground="{StaticResource Overlay}"
-                                                       FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="&#x1F5D1;" Width="22" TextAlignment="Center" VerticalAlignment="Top" Margin="0,1,8,0"/>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="Delete Session"/>
+                                                <TextBlock Text="Clear the in-memory state and every saved snapshot from disk."
+                                                           Foreground="{StaticResource Overlay}" FontSize="11"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </Button>
                                 </StackPanel>
                             </Border>
@@ -438,38 +452,42 @@
                                PopupAnimation="Fade" HorizontalOffset="-2" VerticalOffset="4">
                             <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource RingStrong}"
                                     BorderThickness="1" CornerRadius="8" Padding="4,6"
-                                    MinWidth="260">
+                                    MinWidth="320">
                                 <Border.Effect>
                                     <DropShadowEffect ShadowDepth="4" Opacity="0.5" BlurRadius="12"/>
                                 </Border.Effect>
                                 <StackPanel>
-                                    <Button Style="{StaticResource NavButton}" Click="NavBuild_Click"
-                                            Padding="12,8" FontSize="13">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#x2699;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Build Project" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                            <TextBlock Text="  compile C source" Foreground="{StaticResource Overlay}"
-                                                       FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
                                     <Button Style="{StaticResource NavButton}" Click="NavToolkit_Click"
                                             Padding="12,8" FontSize="13">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#x1F9F0;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Toolkit" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                            <TextBlock Text="  external tool status" Foreground="{StaticResource Overlay}"
-                                                       FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="&#x1F9F0;" Width="22" TextAlignment="Center" VerticalAlignment="Top" Margin="0,1,8,0"/>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="Toolkit"/>
+                                                <TextBlock Text="External tool status — paths and health of ProcMon, sigcheck, x64dbg, sysinternals."
+                                                           Foreground="{StaticResource Overlay}" FontSize="11"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </Button>
-                                    <Border Height="1" Background="{StaticResource Ring}" Margin="8,4"/>
                                     <Button Style="{StaticResource NavButton}" Click="NavConfig_Click"
                                             Padding="12,8" FontSize="13">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#x1F527;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Configuration" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                            <TextBlock Text="  paths, XOR keys" Foreground="{StaticResource Overlay}"
-                                                       FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="&#x1F527;" Width="22" TextAlignment="Center" VerticalAlignment="Top" Margin="0,1,8,0"/>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="Configuration"/>
+                                                <TextBlock Text="MinGW toolchain, researcher identity, payload defaults, XOR keys."
+                                                           Foreground="{StaticResource Overlay}" FontSize="11"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </Button>
                                 </StackPanel>
                             </Border>
@@ -478,7 +496,7 @@
                                 Click="HelpDropdown_Click"
                                 ToolTip="Help / About" Margin="6,0,0,0">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x2753;" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBlock Text="&#x1F6DF;" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                 <TextBlock Text="Help" VerticalAlignment="Center"/>
                                 <TextBlock Text=" &#x25BE;" FontSize="10" Foreground="{StaticResource Overlay}"
                                            VerticalAlignment="Center" Margin="6,0,0,0"/>
@@ -489,56 +507,91 @@
                                PopupAnimation="Fade" HorizontalOffset="-2" VerticalOffset="4">
                             <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource RingStrong}"
                                     BorderThickness="1" CornerRadius="8" Padding="4,6"
-                                    MinWidth="240">
+                                    MinWidth="320">
                                 <Border.Effect>
                                     <DropShadowEffect ShadowDepth="4" Opacity="0.5" BlurRadius="12"/>
                                 </Border.Effect>
                                 <StackPanel>
                                     <Button Style="{StaticResource NavButton}" Click="NavReference_Click"
                                             Padding="12,8" FontSize="13">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#x1F4D1;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Reference" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                            <TextBlock Text="  scoring, columns, quick-start" Foreground="{StaticResource Overlay}"
-                                                       FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="&#x1F4D1;" Width="22" TextAlignment="Center" VerticalAlignment="Top" Margin="0,1,8,0"/>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="Reference"/>
+                                                <TextBlock Text="Scoring model, column meanings, glossary, quick-start steps."
+                                                           Foreground="{StaticResource Overlay}" FontSize="11"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </Button>
                                     <Button Style="{StaticResource NavButton}" Click="NavReadDocs_Click"
                                             Padding="12,8" FontSize="13">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#x1F4D6;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Read the docs" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                            <TextBlock Text="  open repository" Foreground="{StaticResource Overlay}"
-                                                       FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="&#x1F4D6;" Width="22" TextAlignment="Center" VerticalAlignment="Top" Margin="0,1,8,0"/>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="Read the docs"/>
+                                                <TextBlock Text="Open the project repository in your browser."
+                                                           Foreground="{StaticResource Overlay}" FontSize="11"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </Button>
                                     <Button Style="{StaticResource NavButton}" Click="NavCheckUpdates_Click"
                                             Padding="12,8" FontSize="13">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#x1F504;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Check for updates" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                            <TextBlock Text="  coming soon" Foreground="{StaticResource Overlay}"
-                                                       FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="&#x1F504;" Width="22" TextAlignment="Center" VerticalAlignment="Top" Margin="0,1,8,0"/>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="Check for updates"/>
+                                                <TextBlock Text="Compare the local version against the latest GitHub release (coming soon)."
+                                                           Foreground="{StaticResource Overlay}" FontSize="11"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </Button>
                                     <Border Height="1" Background="{StaticResource Ring}" Margin="8,4"/>
                                     <Button Style="{StaticResource NavButton}" Click="NavStartTour_Click"
                                             Padding="12,8" FontSize="13">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#x1F9ED;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Start Help Wizard Tour" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                            <TextBlock Text="  guided config walkthrough" Foreground="{StaticResource Overlay}"
-                                                       FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="&#x1F9ED;" Width="22" TextAlignment="Center" VerticalAlignment="Top" Margin="0,1,8,0"/>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="Start Help Wizard Tour"/>
+                                                <TextBlock Text="Spotlight walkthrough of Configuration with required fields highlighted step by step."
+                                                           Foreground="{StaticResource Overlay}" FontSize="11"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </Button>
                                     <Button Style="{StaticResource NavButton}" Click="NavAbout_Click"
                                             Padding="12,8" FontSize="13">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#x2139;" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                            <TextBlock Text="About DllSidecar" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                            <TextBlock Text="  version, license" Foreground="{StaticResource Overlay}"
-                                                       FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="&#x2139;" Width="22" TextAlignment="Center" VerticalAlignment="Top" Margin="0,1,8,0"/>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="About DllSidecar"/>
+                                                <TextBlock Text="Version, license, researcher attribution and credits."
+                                                           Foreground="{StaticResource Overlay}" FontSize="11"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </Button>
                                 </StackPanel>
                             </Border>

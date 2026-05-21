@@ -12,6 +12,11 @@ public class TracedProcess
     public int DllMissCount { get; set; }
     public List<TracedProcess> Children { get; set; } = [];
 
+    // Token signals captured at process detection time. Drive SandboxClassifier's
+    // dynamic verdict — they trump static filename/ProductName heuristics.
+    public IntegrityLevel IntegrityLevel { get; set; } = IntegrityLevel.Unknown;
+    public bool IsAppContainer { get; set; }
+
     public TimeSpan? Lifetime => ExitTime.HasValue ? ExitTime.Value - StartTime : null;
     public string LifetimeLabel => Lifetime.HasValue
         ? $"{Lifetime.Value.TotalMilliseconds:F0}ms"

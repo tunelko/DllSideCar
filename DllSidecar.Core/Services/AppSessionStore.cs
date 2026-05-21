@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DllSidecar.Core.Logging;
 using DllSidecar.Core.Models;
 using DllSidecar.Core.Services.Wizard;
 
@@ -48,6 +49,7 @@ public static class AppSessionStore
     // main app_session.json stays small and human-inspectable. Each file is loaded
     // independently — a corrupt/missing companion never blocks restoring the others.
     private static string EtwResultPath => Path.Combine(Dir, "etw_result.json");
+    private static string ScanResultsPath => Path.Combine(Dir, "scan_results.json");
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -74,13 +76,20 @@ public static class AppSessionStore
 
     public static AppSessionSnapshot? TryLoad()
     {
+        if (!File.Exists(FilePath)) return null;
         try
         {
-            if (!File.Exists(FilePath)) return null;
             var json = File.ReadAllText(FilePath);
             return JsonSerializer.Deserialize<AppSessionSnapshot>(json, JsonOpts);
         }
-        catch { return null; }
+        catch (Exception ex)
+        {
+            // Silent return-null masked real load failures: a researcher who
+            // saved on exit would see an empty app on next launch and assume
+            // "save doesn't work" when the actual symptom is "load threw".
+            Log.Warn("session.load", $"app_session.json deserialize failed: {ex.GetType().Name}: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>Persist the live trace result so a save-and-restart cycle resurrects the
@@ -94,12 +103,48 @@ public static class AppSessionStore
 
     public static EtwTraceResult? TryLoadEtwResult()
     {
+        if (!File.Exists(EtwResultPath)) return null;
         try
         {
-            if (!File.Exists(EtwResultPath)) return null;
-            return JsonSerializer.Deserialize<EtwTraceResult>(File.ReadAllText(EtwResultPath), JsonOpts);
+            var result = JsonSerializer.Deserialize<EtwTraceResult>(File.ReadAllText(EtwResultPath), JsonOpts);
+            if (result != null)
+                Log.Info("session.load",
+                    $"etw_result.json loaded — {result.FilteredEvents} events, {result.ProcessTree.Count} procs");
+            return result;
         }
-        catch { return null; }
+        catch (Exception ex)
+        {
+            Log.Warn("session.load", $"etw_result.json deserialize failed: {ex.GetType().Name}: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>Persist the in-memory ScanResults (existing + promoted phantoms) so a
+    /// RuntimeTrace→Promote→Wizard→Craft chain survives a restart without forcing the
+    /// user to redo Promote. Pass null to clear the on-disk copy.</summary>
+    public static void SaveScanResults(ScanResults? results)
+    {
+        if (results == null) { TryDelete(ScanResultsPath); return; }
+        Directory.CreateDirectory(Dir);
+        File.WriteAllText(ScanResultsPath, JsonSerializer.Serialize(results, JsonOpts));
+    }
+
+    public static ScanResults? TryLoadScanResults()
+    {
+        if (!File.Exists(ScanResultsPath)) return null;
+        try
+        {
+            var result = JsonSerializer.Deserialize<ScanResults>(File.ReadAllText(ScanResultsPath), JsonOpts);
+            if (result != null)
+                Log.Info("session.load",
+                    $"scan_results.json loaded — {result.ExistingCount} existing + {result.PhantomCount} phantoms");
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("session.load", $"scan_results.json deserialize failed: {ex.GetType().Name}: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>Deletes app-level snapshot AND every companion file AND the wizard snapshot.
@@ -108,6 +153,7 @@ public static class AppSessionStore
     {
         TryDelete(FilePath);
         TryDelete(EtwResultPath);
+        TryDelete(ScanResultsPath);
         WizardSessionStore.Delete();
     }
 

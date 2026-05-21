@@ -21,6 +21,11 @@ public class PhantomCandidate
     public PrivescContext? Privesc { get; set; }     // set by PrivescAnalyzer (via any importer)
     public Cve.CveQueryResult? Cve { get; set; }     // set by background CVE query from ScanPage
 
+    /// <summary>Verdict from SandboxClassifier for the primary importer (Importers[0]).
+    /// Set by EtwResultConverter when promoting from a runtime trace. CraftStage
+    /// uses it to gate whether SandboxEscape appears in the Payload picker.</summary>
+    public SandboxKind SandboxKind { get; set; } = SandboxKind.None;
+
     public bool AnyDelayLoad => Importers.Any(i => i.IsDelayLoad);
     public bool AllDelayLoad => Importers.Count > 0 && Importers.All(i => i.IsDelayLoad);
     public bool AnyImporterSigned => Importers.Any(i => i.Signing.IsTrusted);

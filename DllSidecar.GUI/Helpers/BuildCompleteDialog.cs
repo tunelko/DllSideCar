@@ -8,9 +8,8 @@ namespace DllSidecar.GUI.Helpers;
 /// <summary>
 /// Post-build confirmation modal. Surfaces the on-disk location of the compiled
 /// PoC so the researcher doesn't have to scroll the log to find it, with a
-/// one-click Open-in-Explorer action. Used by BuildPage (standalone compile) and
-/// GeneratePage (one-click generate-and-build) so both code paths land on the
-/// same UX.
+/// one-click Open-in-Explorer action. Used by GeneratePage (one-click
+/// generate-and-build) and the Wizard's CraftStage (auto-build).
 /// </summary>
 public static class BuildCompleteDialog
 {

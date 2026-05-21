@@ -107,6 +107,22 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
             // CraftStage is the only reliable vendor source here.
             if (!string.IsNullOrWhiteSpace(_session.Vendor))
                 ctx.Vendor = _session.Vendor;
+
+            // Title placeholder {Product} resolves from ctx.Product. Phantom flow used
+            // to leave Product null and the rendered title read "DLL Sideloading in via
+            // bcrypt.dll" — the empty space between "in" and "via" gave the bug away.
+            // Resolve from PE version info on the Host EXE if available, then walk down
+            // a deterministic fallback ladder so Product is *always* populated.
+            ctx.Product = ResolveProductForPhantom(p, _session.CraftHostExePath);
+            ctx.PePath = _session.CraftHostExePath; // so the importer EXE path is visible in the advisory header
+
+            // Architecture from the host EXE (when available) so the advisory matches the
+            // arch CraftStage picked. Falls back to "x64" — phantom flow has no PE to read.
+            if (!string.IsNullOrEmpty(_session.CraftHostExePath) && File.Exists(_session.CraftHostExePath))
+            {
+                try { ctx.Architecture = Core.Services.PeAnalyzer.Analyze(_session.CraftHostExePath).Arch; }
+                catch { }
+            }
         }
 
         ctx.GeneratedDllPath = _session.BuiltDllPath ?? _session.GeneratedOutputDir;
@@ -141,6 +157,63 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
         _shell.RefreshChrome(); // disk snapshot checkpoint
     }
 
+    /// <summary>
+    /// Determine a non-empty Product name for a phantom-flow advisory. Order:
+    ///  1. Host EXE's PE ProductName (richest — author-curated product label).
+    ///  2. Host EXE's filename without extension (e.g. "Battle.net").
+    ///  3. Any importer's PE ProductName (still author-curated).
+    ///  4. First importer's filename without extension.
+    ///  5. Phantom directory leaf (e.g. "Battle.net" from "C:\Program Files\Battle.net").
+    ///  6. Phantom DLL basename without extension.
+    ///  7. "Unknown product" — never let the title render with an empty {Product}.
+    /// </summary>
+    private static string ResolveProductForPhantom(Core.Models.PhantomCandidate p, string? hostExePath)
+    {
+        string? FromPeProduct(string? path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
+            try
+            {
+                var pn = Core.Services.PeAnalyzer.Analyze(path).ProductName;
+                return string.IsNullOrWhiteSpace(pn) ? null : pn;
+            }
+            catch { return null; }
+        }
+
+        var fromHost = FromPeProduct(hostExePath);
+        if (!string.IsNullOrWhiteSpace(fromHost)) return fromHost;
+
+        if (!string.IsNullOrWhiteSpace(hostExePath))
+        {
+            var basename = Path.GetFileNameWithoutExtension(hostExePath);
+            if (!string.IsNullOrWhiteSpace(basename)) return basename;
+        }
+
+        foreach (var imp in p.Importers)
+        {
+            var fromImp = FromPeProduct(imp.ExePath);
+            if (!string.IsNullOrWhiteSpace(fromImp)) return fromImp;
+        }
+
+        var firstImp = p.Importers.FirstOrDefault();
+        if (firstImp != null)
+        {
+            var basename = Path.GetFileNameWithoutExtension(firstImp.ExeFilename ?? firstImp.ExePath ?? "");
+            if (!string.IsNullOrWhiteSpace(basename)) return basename;
+        }
+
+        if (!string.IsNullOrEmpty(p.DirectoryPath))
+        {
+            var leaf = new DirectoryInfo(p.DirectoryPath).Name;
+            if (!string.IsNullOrWhiteSpace(leaf)) return leaf;
+        }
+
+        var dllBase = Path.GetFileNameWithoutExtension(p.DllName ?? "");
+        if (!string.IsNullOrWhiteSpace(dllBase)) return dllBase;
+
+        return "Unknown product";
+    }
+
     private void Copy_Click(object sender, RoutedEventArgs e)
     {
         try { System.Windows.Clipboard.SetText(MdView.Text); }
@@ -167,15 +240,8 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
         }
     }
 
-    private async void ExportPdf_Click(object sender, RoutedEventArgs e)
+    private void ExportPdf_Click(object sender, RoutedEventArgs e)
     {
-        var chromium = FindChromium();
-        if (chromium == null)
-        {
-            MessageBox.Show("Chrome or Edge not found — required for PDF export.",
-                "Wizard", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
             Filter = "PDF (*.pdf)|*.pdf|All files|*.*",
@@ -183,25 +249,38 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
         };
         if (dlg.ShowDialog() != true) return;
 
-        _shell.ShowOverlay("Exporting PDF", "Rendering via Chromium...");
+        _shell.ShowOverlay("Exporting PDF", "Rendering...");
         try
         {
-            var pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().UsePipeTables().Build();
-            var html = Markdown.ToHtml(MdView.Text, pipeline);
-            var fullHtml = WrapPdfCss(html);
-            var tmp = Path.Combine(Path.GetTempPath(), $"wizard-{Guid.NewGuid():N}.html");
-            await File.WriteAllTextAsync(tmp, fullHtml, new UTF8Encoding(false));
-
-            try { await RunHeadless(chromium, tmp, dlg.FileName); }
-            finally { try { File.Delete(tmp); } catch (IOException) { } }
+            // Shares the same engine as AdvisoryPage's export — pure C# QuestPDF,
+            // no headless Chrome (which left blank-content PDFs on Edge 148+ for
+            // researchers with Edge already running under their default profile).
+            var title = _session.Advisory?.ResolveTitle();
+            if (string.IsNullOrWhiteSpace(title)) title = "Advisory";
+            Services.MarkdownPdfRenderer.Render(MdView.Text ?? "", title, dlg.FileName);
 
             _session.AdvisoryPdfPath = dlg.FileName;
-            _main.Log($"Wizard PDF exported: {dlg.FileName}");
+            var size = new FileInfo(dlg.FileName).Length;
+            _main.Log($"Wizard PDF exported: {dlg.FileName}  ({size:N0} bytes)");
+
+            // Auto-open with the system's default viewer.
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = dlg.FileName,
+                    UseShellExecute = true,
+                });
+            }
+            catch (Exception openEx)
+            {
+                Log.Warn("wizard.report.pdf", $"Auto-open failed: {openEx.Message}");
+            }
         }
         catch (Exception ex)
         {
             Log.Error("wizard.report.pdf", "PDF export failed", ex);
-            MessageBox.Show($"PDF export failed: {ex.Message}", "Error",
+            MessageBox.Show($"PDF export failed: {ex.GetType().Name}: {ex.Message}", "Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally { _shell.HideOverlay(); }
@@ -209,56 +288,28 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
 
     private string SuggestedFilename(string ext)
     {
-        var vendor = (_session.Advisory?.Vendor ?? "vendor").ToLowerInvariant();
-        var file = Path.GetFileNameWithoutExtension(_session.Advisory?.PeFilename ?? "dll").ToLowerInvariant();
+        // Slug each part so the resulting filename has no spaces / non-ASCII —
+        // Edge's file:// shell-open splits on spaces, which previously broke open.
+        var vendor = Slugify(_session.Advisory?.Vendor ?? "vendor");
+        var file = Slugify(Path.GetFileNameWithoutExtension(_session.Advisory?.PeFilename ?? "dll"));
         var date = DateTime.Today.ToString("yyyyMMdd");
         return $"advisory_{vendor}_{file}_{date}{ext}";
     }
 
-    private static string? FindChromium()
+    private static string Slugify(string input)
     {
-        string[] cands = [
-            Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
-            Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
-            Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
-            Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
-            Environment.ExpandEnvironmentVariables(@"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
-        ];
-        foreach (var c in cands) if (File.Exists(c)) return c;
-        return null;
-    }
-
-    private static async Task RunHeadless(string chrome, string htmlPath, string pdfPath)
-    {
-        var uri = new Uri(htmlPath).AbsoluteUri;
-        var psi = new System.Diagnostics.ProcessStartInfo
+        if (string.IsNullOrWhiteSpace(input)) return "unknown";
+        var sb = new StringBuilder(input.Length);
+        foreach (var ch in input.ToLowerInvariant())
         {
-            FileName = chrome, RedirectStandardOutput = true, RedirectStandardError = true,
-            UseShellExecute = false, CreateNoWindow = true,
-        };
-        psi.ArgumentList.Add("--headless=new");
-        psi.ArgumentList.Add("--disable-gpu");
-        psi.ArgumentList.Add("--no-pdf-header-footer");
-        psi.ArgumentList.Add("--no-sandbox");
-        psi.ArgumentList.Add($"--print-to-pdf={pdfPath}");
-        psi.ArgumentList.Add(uri);
-        using var p = System.Diagnostics.Process.Start(psi)!;
-        await p.WaitForExitAsync();
-        if (p.ExitCode != 0)
-            throw new InvalidOperationException($"Chromium exit {p.ExitCode}: {await p.StandardError.ReadToEndAsync()}");
+            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-')
+                sb.Append(ch);
+            else
+                sb.Append('_');
+        }
+        var s = sb.ToString();
+        while (s.Contains("__")) s = s.Replace("__", "_");
+        s = s.Trim('_');
+        return string.IsNullOrEmpty(s) ? "unknown" : s;
     }
-
-    private static string WrapPdfCss(string html) =>
-        "<!DOCTYPE html><html><head><meta charset='utf-8'><style>" +
-        "body{font-family:'Segoe UI',Arial,sans-serif;color:#171717;font-size:11pt;line-height:1.5;}" +
-        "h1{font-size:20pt;margin:0 0 14pt;border-bottom:1px solid #888;padding-bottom:6pt;}" +
-        "h2{font-size:15pt;margin:18pt 0 8pt;}" +
-        "h3{font-size:12pt;margin:12pt 0 6pt;}" +
-        "code{background:#f0f0f0;color:#b00020;padding:1pt 4pt;font-family:Consolas,monospace;}" +
-        "pre{background:#f8f8f8;border:1px solid #ccc;padding:8pt;}" +
-        "table{border-collapse:collapse;margin:8pt 0;}" +
-        "th,td{border:1px solid #bbb;padding:5pt 10pt;}" +
-        "th{background:#f0f0f0;font-weight:bold;}" +
-        "blockquote{border-left:3pt solid #f39c12;margin:8pt 0;padding:4pt 10pt;background:#fff8e6;}" +
-        "strong{color:#000;}</style></head><body>" + html + "</body></html>";
 }
