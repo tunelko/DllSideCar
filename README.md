@@ -15,10 +15,6 @@ proof-of-concept C source generation, MinGW compilation, and the full
 advisory authoring lifecycle (Markdown / GHSA), with a persisted case
 library and a multi-format export pipeline.
 
-The tool targets independent vulnerability researchers who need a
-reproducible end-to-end workflow from "I just installed software X"
-to "I have a complete, vendor-ready advisory packet".
-
 ## Disclaimer
 
 DllSidecar is a personal-use research tool built and maintained by the
