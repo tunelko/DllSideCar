@@ -133,18 +133,8 @@ public partial class ServiceAuditWindow : Window
     /// </summary>
     private static string ResolveImagePath(ServiceInfo s)
     {
-        if (string.IsNullOrWhiteSpace(s.ImagePath)) return "";
-        var p = s.ImagePath.Trim();
-        if (p.StartsWith('"'))
-        {
-            var end = p.IndexOf('"', 1);
-            if (end > 1) p = p[1..end];
-        }
-        else
-        {
-            var sp = p.IndexOf(' ');
-            if (sp > 0) p = p[..sp];
-        }
+        var p = Core.Helpers.ServiceImagePathParser.ExtractPath(s.ImagePath);
+        if (string.IsNullOrEmpty(p)) return "";
         if (p.StartsWith(@"\??\", StringComparison.Ordinal)) p = p[4..];
         if (p.StartsWith(@"\SystemRoot\", StringComparison.OrdinalIgnoreCase))
             p = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), p[12..]);

@@ -119,19 +119,8 @@ public static class ServiceEnumerator
     /// </summary>
     private static string ExtractImageFile(string imagePath)
     {
-        if (string.IsNullOrWhiteSpace(imagePath)) return "";
-        var s = imagePath.Trim();
-
-        if (s.StartsWith('"'))
-        {
-            var end = s.IndexOf('"', 1);
-            if (end > 1) s = s[1..end];
-        }
-        else
-        {
-            var sp = s.IndexOf(' ');
-            if (sp > 0) s = s[..sp];
-        }
+        var s = Helpers.ServiceImagePathParser.ExtractPath(imagePath);
+        if (string.IsNullOrEmpty(s)) return "";
 
         // Strip NT prefixes (driver paths) and any directory components.
         if (s.StartsWith(@"\??\", StringComparison.Ordinal)) s = s[4..];

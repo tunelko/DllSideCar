@@ -99,21 +99,35 @@ public static class EtwResultConverter
             phantom.Score = ExploitabilityScorer.ScorePhantom(phantom);
             ExploitabilityScorer.ApplyDynamicEvidence(phantom.Score, phantom.Privesc, phantom.Evidence);
 
-            // Sandbox classification for the primary importer (Importers[0] = root
-            // target after the prepend above). Combine static heuristic (filename +
-            // PE ProductName) with the dynamic token signal captured during ETW —
-            // dynamic wins on disagreement. CraftStage / GeneratePage filter the
-            // Payload picker on this field.
-            var primary = phantom.Importers.FirstOrDefault();
-            if (primary != null)
+            // Sandbox classification: scan EVERY importer + every traced process,
+            // not just Importers[0]. Importers[0] is the user-launched root binary
+            // (Acrobat.exe, MobaXterm.exe, …), which is typically High IL and not
+            // sandboxed even when the actual LoadLibrary fires in a sandboxed
+            // grandchild (AcroCEF.exe @ Low IL, msedgewebview2.exe under WV2 …).
+            // Picking the strongest non-None signal across the full chain matches
+            // operator intuition — if ANY process in the trace is sandboxed, the
+            // SandboxEscape payload is the right call.
+            SandboxKind staticKind = SandboxKind.None;
+            foreach (var imp in phantom.Importers)
             {
-                var staticKind = SandboxClassifier.Classify(primary.ExePath);
-                var rootProc = result.RootProcess;
-                var dynamicKind = rootProc != null
-                    ? SandboxClassifier.FromTokenInfo(rootProc.IsAppContainer, rootProc.IntegrityLevel)
-                    : SandboxKind.None;
-                phantom.SandboxKind = SandboxClassifier.Combine(staticKind, dynamicKind);
+                var k = SandboxClassifier.Classify(imp.ExePath);
+                staticKind = SandboxClassifier.Combine(staticKind, k);
+                if (staticKind != SandboxKind.None) break;
             }
+
+            SandboxKind dynamicKind = SandboxKind.None;
+            foreach (var proc in result.ProcessTree)
+            {
+                var k = SandboxClassifier.FromTokenInfo(proc.IsAppContainer, proc.IntegrityLevel);
+                if (k == SandboxKind.None) continue;
+                // First non-None wins; this is the strongest dynamic signal in
+                // the tree. AppContainer beats LowIntegrity beats Renderer purely
+                // because FromTokenInfo returns AppContainer first when both are set.
+                dynamicKind = k;
+                break;
+            }
+
+            phantom.SandboxKind = SandboxClassifier.Combine(staticKind, dynamicKind);
 
             phantoms.Add(phantom);
         }
