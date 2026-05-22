@@ -1,6 +1,12 @@
-![DllSidecar](DllSidecar.GUI/Assets/dllsidecar.png)
-
 # DllSidecar
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=Bv2CSRsU9Yo">
+    <img src="https://img.youtube.com/vi/Bv2CSRsU9Yo/maxresdefault.jpg" alt="DllSidecar — walkthrough" width="900">
+  </a>
+  <br>
+  <sub><i>Click to play on YouTube.</i></sub>
+</p>
 
 A Windows desktop application for DLL sideloading and DLL hijacking
 research (CWE-427, CWE-426). It automates static PE analysis,
@@ -8,10 +14,6 @@ candidate scanning, dynamic correlation with Process Monitor and ETW,
 proof-of-concept C source generation, MinGW compilation, and the full
 advisory authoring lifecycle (Markdown / GHSA), with a persisted case
 library and a multi-format export pipeline.
-
-The tool targets independent vulnerability researchers who need a
-reproducible end-to-end workflow from "I just installed software X"
-to "I have a complete, vendor-ready advisory packet".
 
 ## Disclaimer
 
