@@ -28,7 +28,7 @@ public sealed class HelpTourController
             "SysinternalsSuite — ProcMon and sigcheck auto-resolve from it. Everything else here is optional."),
         new("ResearcherSection",
             "3 · Researcher identity",
-            "REQUIRED for drafting advisories: your Name and Email. The rest (handle, blog, PGP, INCIBE) is " +
+            "REQUIRED for drafting advisories: your Name and Email. The rest (handle, blog, PGP) is " +
             "optional and only appears on the advisories that need it."),
         new("BehaviorSection",
             "4 · Behavior",

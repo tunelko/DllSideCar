@@ -278,8 +278,65 @@ public partial class RuntimeTracePage : Page
         Start_Click(sender, e);
     }
 
+    /// <summary>
+    /// True when the page or MainWindow holds the residue of an earlier trace —
+    /// either an in-memory <see cref="EtwTraceResult"/> (this session) or a hydrated
+    /// one restored from disk on launch, or scan results promoted from such a trace.
+    /// Drives the Start_Click confirmation gate so a researcher doesn't accidentally
+    /// stack a new capture on top of stale rows.
+    /// </summary>
+    private bool HasPreviousTraceData() =>
+        _lastResult != null
+        || _main.LastEtwResult != null
+        || (_main.LastScanResults?.Phantoms.Count ?? 0) > 0
+        || (_main.LastScanResults?.Existing.Count ?? 0) > 0;
+
+    /// <summary>
+    /// Atomic wipe of every trace-related residue: in-memory page state, the
+    /// MainWindow-level handles, the persisted companion files. Wizard state
+    /// is intentionally NOT touched here — that's File → Delete Session's job;
+    /// a researcher mid-wizard who restarts a trace usually wants to replace
+    /// the promoted candidate, not lose the rest of their wizard progress.
+    /// </summary>
+    private void ClearPreviousTraceData()
+    {
+        _lastResult = null;
+        _main.LastEtwResult = null;
+        _main.LastScanResults = null;
+        try { Core.Services.AppSessionStore.SaveEtwResult(null); } catch { /* best effort */ }
+        try { Core.Services.AppSessionStore.SaveScanResults(null); } catch { /* best effort */ }
+
+        // Drop the page-level UI bindings too, otherwise the grids would keep
+        // showing the old rows until the new tracer pushes its first event.
+        _allRows.Clear();
+        _rows.Clear();
+        _treeNodes.Clear();
+        DllGrid.ItemsSource = null;
+        ProcessTree.ItemsSource = null;
+        ResetStats();
+    }
+
     private void Start_Click(object sender, RoutedEventArgs e)
     {
+        // Destructive-action gate: if previous trace data (in-memory or restored
+        // from disk) is present, warn before nuking it. The new trace would mix
+        // with stale rows on the same page and leave a stale etw_result.json
+        // sitting next to a fresh capture, so we wipe both halves atomically.
+        if (HasPreviousTraceData())
+        {
+            var answer = MessageBox.Show(
+                "Hay datos de una traza anterior cargados en la página " +
+                "(eventos, árbol de procesos, candidatos promovidos a Scan).\n\n" +
+                "Iniciar una nueva traza descartará todo eso para que solo " +
+                "se muestre la sesión actual.\n\n¿Continuar?",
+                "Descartar traza anterior",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning,
+                MessageBoxResult.Cancel);
+            if (answer != MessageBoxResult.OK) return;
+            ClearPreviousTraceData();
+        }
+
         var filter = new EtwTraceFilter
         {
             IncludeChildren = ChkChildren.IsChecked == true,

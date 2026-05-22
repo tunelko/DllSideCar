@@ -14,8 +14,8 @@ namespace DllSidecar.Core.Services.Advisory;
 /// obtain the authoritative score for the submission.
 ///
 /// User-facing rule of thumb (reflected in AdvisoryPage tooltip):
-///   "Approximate — for INCIBE / public CVE submission always verify against
-///    the FIRST online calculator."
+///   "Approximate — for public CVE submission always verify against the FIRST
+///    online calculator."
 ///
 /// Severity thresholds follow the spec: NONE 0.0, LOW &lt;4.0, MEDIUM &lt;7.0,
 /// HIGH &lt;9.0, CRITICAL ≥9.0.

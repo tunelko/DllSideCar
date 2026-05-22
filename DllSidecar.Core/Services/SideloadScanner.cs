@@ -197,13 +197,18 @@ public class SideloadScanner
 
                 candidate.Score = ExploitabilityScorer.Score(candidate);
 
-                // Static sandbox classification on the first importer. Trace-time
-                // dynamic signal isn't available here (this is a cold static scan),
-                // so the verdict is heuristic-only — but enough to flag AcroCEF /
-                // RdrCEF / msedgewebview2 candidates in the Scan grid.
-                var primaryImp = candidate.Importers.FirstOrDefault();
-                if (primaryImp != null)
-                    candidate.SandboxKind = SandboxClassifier.Classify(primaryImp.ExePath);
+                // Static sandbox classification across EVERY importer. Scanning the
+                // first one alone misses the common case where the user-launched
+                // root (Acrobat.exe) is High IL but a grandchild (AcroCEF.exe) is
+                // the actual sandboxed loader. Trace-time dynamic signal isn't
+                // available here (cold static scan); heuristic-only, but enough
+                // to flag AcroCEF / RdrCEF / msedgewebview2 chains in the Scan grid.
+                candidate.SandboxKind = SandboxKind.None;
+                foreach (var imp in candidate.Importers)
+                {
+                    var k = SandboxClassifier.Classify(imp.ExePath);
+                    if (k != SandboxKind.None) { candidate.SandboxKind = k; break; }
+                }
 
                 // Apply filters — per-axis first, then derived Total (back-compat)
                 if (candidate.Score.Exploitability < options.MinExploitability) return;
@@ -292,12 +297,16 @@ public class SideloadScanner
 
                 ph.Score = ExploitabilityScorer.ScorePhantom(ph);
 
-                // Static sandbox classification on the first importer (same as the
-                // Existing-candidate branch above). Dynamic signal arrives later
-                // if this phantom is also surfaced via runtime trace + Promote.
-                var primaryPhImp = ph.Importers.FirstOrDefault();
-                if (primaryPhImp != null)
-                    ph.SandboxKind = SandboxClassifier.Classify(primaryPhImp.ExePath);
+                // Static sandbox classification across EVERY importer (same scan
+                // strategy as the Existing-candidate branch above). Dynamic signal
+                // arrives later if this phantom is also surfaced via runtime trace
+                // + Promote, and the converter then re-evaluates including tokens.
+                ph.SandboxKind = SandboxKind.None;
+                foreach (var imp in ph.Importers)
+                {
+                    var k = SandboxClassifier.Classify(imp.ExePath);
+                    if (k != SandboxKind.None) { ph.SandboxKind = k; break; }
+                }
 
                 if (ph.Score.Exploitability < options.MinExploitability) continue;
                 if (ph.Score.Impact < options.MinImpact) continue;

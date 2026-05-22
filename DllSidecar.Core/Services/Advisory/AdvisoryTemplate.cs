@@ -208,7 +208,12 @@ public static class AdvisoryTemplate
                $"executing any code present in DllMain or in the resolved exports.";
     }
 
-    private static string DefaultImpactText(AdvisoryContext ctx)
+    /// <summary>
+    /// Default Impact narrative used by every renderer when the user hasn't supplied
+    /// a custom one in ctx.Impact. Internal so GhsaRenderer can reuse the same
+    /// synthesizer instead of leaving italic GitHub placeholders behind.
+    /// </summary>
+    internal static string DefaultImpactText(AdvisoryContext ctx)
     {
         var hasPrivesc = ctx.Privesc?.HighestSeverity >= PrivescSeverity.High;
         if (hasPrivesc)
@@ -220,6 +225,23 @@ public static class AdvisoryTemplate
         return "Arbitrary code execution in the context of the user running the application. Does not cross integrity boundaries by itself " +
                "but can be chained with other vulnerabilities for privilege escalation.";
     }
+
+    /// <summary>
+    /// Default Technical-details narrative — same shape as <see cref="VulnDetailsText"/>
+    /// but exposed for cross-renderer reuse.
+    /// </summary>
+    internal static string DefaultVulnDetailsText(AdvisoryContext ctx) => VulnDetailsText(ctx);
+
+    /// <summary>
+    /// Vendor-side mitigation block, ready to drop into a renderer's "Patches" or
+    /// "Recommended Mitigations" section when ctx.ProposedSolution is empty.
+    /// Bullet list joined by newlines so the caller can wrap it however it likes.
+    /// </summary>
+    internal static string DefaultMitigationsText() =>
+        "- Set `DependentLoadFlags` to `LOAD_LIBRARY_SEARCH_SYSTEM32` (0x800) on the importing binary, or call `SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32)` early in the process startup.\n" +
+        "- Load DLLs by absolute path from a protected location.\n" +
+        "- Restrict the install directory ACLs to `BUILTIN\\Administrators` and `NT AUTHORITY\\SYSTEM` only — no write permission for low-privilege principals.\n" +
+        "- Sign all bundled DLLs and verify the signature at load time.";
 
     private static string ShortDesc(string s, int max) =>
         s.Length <= max ? s : s[..(max - 1)] + "…";

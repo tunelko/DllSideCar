@@ -156,10 +156,10 @@ public partial class MainWindow : Window
         string? RuntimeProcess = null,
         int RuntimeEventCount = 0);
 
-    // Active renderer id ("markdown" / "incibe" / "ghsa") to restore when reopening an
-    // advisory. Without this, AdvisoryPage always boots with Markdown selected and any
-    // RerenderEditor() (Template Fields apply, Vendor edit, combo change) silently
-    // overwrites the editor with Markdown — losing INCIBE/GHSA bodies.
+    // Active renderer id ("markdown" / "ghsa") to restore when reopening an advisory.
+    // Without this, AdvisoryPage always boots with Markdown selected and any RerenderEditor()
+    // (Template Fields apply, Vendor edit, combo change) silently overwrites the editor with
+    // Markdown — losing non-Markdown bodies.
     public string? PendingAdvisoryTemplateId { get; set; }
 
     // Sidebar collapse state — bound via RelativeSource in XAML to toggle label visibility.

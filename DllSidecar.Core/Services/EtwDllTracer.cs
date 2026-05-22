@@ -555,7 +555,15 @@ public class EtwDllTracer : IDisposable
                 }
             }
             var rName = data.ProcessName + ".exe";
-            var rPath = data.ImageFileName ?? "";
+            // ETW's data.ImageFileName is unreliable for newly-started processes —
+            // it arrives as a kernel device path (\Device\HarddiskVolume3\...) or
+            // a bare basename depending on the kernel build. Neither helps the
+            // downstream consumers (CraftStage Host EXE, AttackPath Analyze).
+            // The process is guaranteed alive at this point (PID just appeared in
+            // ETW), so QueryFullProcessImageName gives us the canonical drive-
+            // letter path. Falls back to whatever ETW handed us only if Win32
+            // refuses the lookup (process died between events, etc.).
+            var rPath = ResolveImagePathForLivePid(data.ProcessID, data.ImageFileName);
             // First match becomes the "root" for tree-building purposes;
             // subsequent matches are tagged as roots too so they all show up
             // at the top level of the process tree.
@@ -563,7 +571,7 @@ public class EtwDllTracer : IDisposable
             if (isFirst) _rootPid = data.ProcessID;
             _trackedPids[data.ProcessID] = new ProcessInfo(rName, rPath, 0, true);
             _processEvents.Add(new ProcessLifecycle(data.ProcessID, 0, rName, rPath, data.TimeStamp, true));
-            Log.Info("etw", $"Watch-by-name matched: {rName} (PID {data.ProcessID})");
+            Log.Info("etw", $"Watch-by-name matched: {rName} (PID {data.ProcessID}) at {rPath}");
             StatusChanged?.Invoke($"Adopted {rName} (PID {data.ProcessID})");
             NotifyProcessDetected(data.ProcessID, 0, rName, rPath, true);
             return;
@@ -573,7 +581,12 @@ public class EtwDllTracer : IDisposable
         if (!_trackedPids.ContainsKey(data.ParentID)) return;
 
         var name = data.ProcessName + ".exe";
-        var imagePath = data.ImageFileName;
+        // Same path-quality issue as the Watch branch above: ETW's ImageFileName
+        // is unreliable for fresh PIDs, so we resolve via Win32 while the child
+        // is still alive. Downstream code (EtwResultConverter, CraftStage) reads
+        // these paths verbatim — if they're basenames the Host EXE field ends
+        // up degraded after Promote.
+        var imagePath = ResolveImagePathForLivePid(data.ProcessID, data.ImageFileName);
         _trackedPids[data.ProcessID] = new ProcessInfo(name, imagePath, data.ParentID, false);
         _processEvents.Add(new ProcessLifecycle(data.ProcessID, data.ParentID, name, imagePath, data.TimeStamp, false));
 
@@ -581,6 +594,27 @@ public class EtwDllTracer : IDisposable
         StatusChanged?.Invoke($"Child: {name} (PID {data.ProcessID})");
 
         NotifyProcessDetected(data.ProcessID, data.ParentID, name, imagePath, false);
+    }
+
+    /// <summary>
+    /// Best-effort rooted full-path resolver for a process the ETW kernel just
+    /// announced. <see cref="ProcessImagePath.TryGet"/> uses
+    /// <c>QueryFullProcessImageName</c> which works cross-architecture (x64 host
+    /// reading an x86 process and vice versa). When the Win32 call returns
+    /// something rooted we trust it; otherwise we fall through to whatever ETW
+    /// gave us (basename / kernel device path / null) so the lifecycle record
+    /// still has *some* identifier downstream.
+    /// </summary>
+    private static string ResolveImagePathForLivePid(int pid, string? etwImagePath)
+    {
+        try
+        {
+            var win32 = Helpers.ProcessImagePath.TryGet(pid);
+            if (!string.IsNullOrEmpty(win32) && Path.IsPathRooted(win32))
+                return win32;
+        }
+        catch { /* swallow — fall through to ETW value */ }
+        return etwImagePath ?? "";
     }
 
     private void OnProcessStop(ProcessTraceData data)

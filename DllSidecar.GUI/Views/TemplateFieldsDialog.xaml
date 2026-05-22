@@ -28,46 +28,13 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel>
 
-                <!-- Attack type + Impact category -->
-                <StackPanel x:Name="RowAttackImpact" Margin="0,0,0,14">
-                    <TextBlock Text="CLASSIFICATION" Foreground="{StaticResource Blue}" FontWeight="Bold"
-                               FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,0,0,6"/>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="20"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="Attack type" Foreground="{StaticResource Subtext}" FontSize="11" Margin="0,0,0,3"/>
-                            <ComboBox x:Name="CbAttackType" Height="26">
-                                <ComboBoxItem Content="Local"/>
-                                <ComboBoxItem Content="Remote"/>
-                                <ComboBoxItem Content="Physical"/>
-                                <ComboBoxItem Content="ContextDependent"/>
-                                <ComboBoxItem Content="Other"/>
-                            </ComboBox>
-                        </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="Impact category" Foreground="{StaticResource Subtext}" FontSize="11" Margin="0,0,0,3"/>
-                            <ComboBox x:Name="CbImpact" Height="26">
-                                <ComboBoxItem Content="CodeExecution"/>
-                                <ComboBoxItem Content="DenialOfService"/>
-                                <ComboBoxItem Content="EscalationOfPrivileges"/>
-                                <ComboBoxItem Content="InformationDisclosure"/>
-                                <ComboBoxItem Content="Other"/>
-                            </ComboBox>
-                        </StackPanel>
-                    </Grid>
-                </StackPanel>
-
                 <!-- Vulnerability type text -->
                 <StackPanel x:Name="RowVulnType" Margin="0,0,0,14">
                     <TextBlock Text="VULNERABILITY TYPE (FREE TEXT)" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,0,0,6"/>
                     <TextBox x:Name="TbVulnType" Padding="8,6" FontSize="12"/>
                     <TextBlock Foreground="{StaticResource Overlay}" FontSize="10" Margin="0,3,0,0" TextWrapping="Wrap"
-                               Text="INCIBE: this is the text that appears next to the 'Other or unknown' checkbox."/>
+                               Text="Free-text description of the weakness, used by renderers that surface it verbatim."/>
                 </StackPanel>
 
                 <!-- Vendor POC -->

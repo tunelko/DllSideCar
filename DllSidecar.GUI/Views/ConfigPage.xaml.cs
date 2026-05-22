@@ -109,8 +109,6 @@ public partial class ConfigPage : Page
         ResearcherEmailBox.Text  = cfg.Researcher.Email;
         PgpFingerprintBox.Text   = cfg.Researcher.PgpFingerprint;
         PgpKeyIdBox.Text         = cfg.Researcher.PgpKeyId;
-        IncibeOptInBox.IsChecked = cfg.Researcher.IncibeRankingOptIn;
-        IncibeDisplayNameBox.Text = cfg.Researcher.IncibePublicDisplayName;
 
         // Behavior
         AutoCveLookupBox.IsChecked = cfg.AutoCveLookup;
@@ -222,8 +220,6 @@ public partial class ConfigPage : Page
         cfg.Researcher.Email          = ResearcherEmailBox.Text.Trim();
         cfg.Researcher.PgpFingerprint = PgpFingerprintBox.Text.Trim();
         cfg.Researcher.PgpKeyId       = PgpKeyIdBox.Text.Trim();
-        cfg.Researcher.IncibeRankingOptIn      = IncibeOptInBox.IsChecked == true;
-        cfg.Researcher.IncibePublicDisplayName = IncibeDisplayNameBox.Text.Trim();
 
         cfg.AutoCveLookup = AutoCveLookupBox.IsChecked == true;
 

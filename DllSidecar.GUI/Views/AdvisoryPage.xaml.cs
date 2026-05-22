@@ -102,7 +102,7 @@ public partial class AdvisoryPage : Page
             _main.PendingAdvisoryTemplateId = null;
 
             // Restore the renderer that was active when the advisory was last saved BEFORE any
-            // render call — otherwise an INCIBE/GHSA body would briefly fall through the Markdown
+            // render call — otherwise a non-Markdown body would briefly fall through the Markdown
             // renderer and a subsequent Template Fields apply would silently overwrite it.
             ApplyPendingTemplate(templateId);
 
@@ -212,8 +212,8 @@ public partial class AdvisoryPage : Page
         ctx.CvssScore = score;
         ctx.CvssSeverity = severity;
 
-        // Pull researcher identity (Name / Handle / Blog / Email / PGP / INCIBE display)
-        // from Configuration so the renderers don't emit "Researcher: ()" placeholders.
+        // Pull researcher identity (Name / Handle / Blog / Email / PGP) from Configuration so
+        // the renderers don't emit "Researcher: ()" placeholders.
         ctx.ApplyResearcherFromConfig();
 
         return ctx;
@@ -326,7 +326,7 @@ public partial class AdvisoryPage : Page
     /// against <see cref="AdvisoryRenderers.ById"/>; falls back to Markdown if the id is null,
     /// blank, or unknown (e.g. a renderer was removed in a future build). Caller must invoke
     /// this BEFORE any RerenderEditor / Render call so the editor doesn't briefly hold Markdown
-    /// content for an INCIBE/GHSA advisory.
+    /// content for a non-Markdown advisory.
     /// </summary>
     /// <summary>
     /// Refresh button labels and tooltips that depend on the active renderer or on whether
@@ -347,8 +347,8 @@ public partial class AdvisoryPage : Page
 
         if (SaveHtmlBtn != null)
         {
-            // HTML export only meaningful for Markdown — INCIBE TXT and GHSA YAML have no
-            // markup the converter would render usefully, just escape the whole thing as <pre>.
+            // HTML export only meaningful for Markdown — GHSA YAML has no markup the converter
+            // would render usefully, just escape the whole thing as <pre>.
             SaveHtmlBtn.Visibility = _activeRenderer.Id == "markdown"
                 ? System.Windows.Visibility.Visible
                 : System.Windows.Visibility.Collapsed;
@@ -559,10 +559,8 @@ public partial class AdvisoryPage : Page
             string body;
             // Markdig is meaningful for every markdown-producing renderer. We key off the
             // active renderer's FileExtension ("md") instead of the renderer Id so future
-            // markdown variants (e.g. a slimmer 'vendor-email.md') auto-render without
-            // having to touch this switch. INCIBE keeps its plain pre.raw path because
-            // its template is ASCII-art bordered text Markdig would mangle into stray
-            // <em>/<p> wrappers.
+            // markdown variants (e.g. a slimmer 'vendor-email.md') auto-render without having
+            // to touch this switch. Plain-text formats fall through to the pre.raw path.
             if (string.Equals(_activeRenderer.FileExtension, ".md", StringComparison.OrdinalIgnoreCase))
             {
                 body = Markdown.ToHtml(src, _mdPipeline);
@@ -601,8 +599,8 @@ public partial class AdvisoryPage : Page
                     "font-family:'Cascadia Mono',Consolas,monospace;font-size:12px;}" +
                "pre{background:#111111;border:1px solid #262626;border-radius:6px;padding:12px;overflow:auto;}" +
                "pre code{background:transparent;color:#ededed;padding:0;}" +
-               // pre.raw is used by the non-markdown preview path (INCIBE TXT) — full
-               // viewport, no border/wrapper, so the ASCII-art INCIBE banner doesn't get clipped.
+               // pre.raw is used by the non-markdown preview path — full viewport, no border /
+               // wrapper, so ASCII-art content doesn't get clipped.
                "pre.raw{background:transparent;border:none;padding:16px;margin:0;color:#ededed;" +
                        "font-family:'Cascadia Mono',Consolas,monospace;font-size:12px;line-height:1.45;white-space:pre;}" +
                "table{border-collapse:collapse;margin:12px 0;}" +
@@ -727,7 +725,7 @@ public partial class AdvisoryPage : Page
             // Persist the editor content as an Artifact under the active template's folder.
             // The editor IS the canonical draft at save time, so the file on disk must mirror
             // it verbatim — re-rendering from _ctx here would silently discard manual edits to
-            // INCIBE/GHSA bodies (DB MarkdownBody would have them, disk artifact would not).
+            // non-Markdown bodies (DB MarkdownBody would have them, disk artifact would not).
             try
             {
                 var kind = _activeRenderer.Id switch
@@ -739,8 +737,8 @@ public partial class AdvisoryPage : Page
                 _main.Log($"Artifact saved: {art.Path}");
                 FooterStatus.Text += $"   →   {_activeRenderer.DisplayName} rendered at {art.Path}";
 
-                // Keep all the advisory's other rendered artifacts (markdown / incibe / ghsa)
-                // consistent with the new metadata. Without this, a Save with a different vendor
+                // Keep all the advisory's other rendered artifacts (markdown / ghsa) consistent
+                // with the new metadata. Without this, a Save with a different vendor
                 // or title leaves stale renders on disk that contradict the DB record (this is
                 // the second half of the urlmon class of bug — the .md said urlmon but the
                 // record said profapi). Manual edits to non-active templates aren't possible
@@ -825,10 +823,8 @@ public partial class AdvisoryPage : Page
         record.DisclosedOn = ctx.DisclosedOn;
 
         // Template Fields (schema v4) — these come from TemplateFieldsDialog and live entirely
-        // on the record. Researcher PGP / INCIBE rank fields are persisted verbatim; on Load we
-        // fall back to ConfigManager.Current.Researcher when the record's value is blank.
-        record.AttackType = ctx.AttackType.ToString();
-        record.ImpactCategory = ctx.ImpactCategory.ToString();
+        // on the record. Researcher PGP fields are persisted verbatim; on Load we fall back to
+        // ConfigManager.Current.Researcher when the record's value is blank.
         record.VulnerabilityTypeText = NullIfBlank(ctx.VulnerabilityTypeText);
         record.VendorUrl = NullIfBlank(ctx.VendorUrl);
         record.VendorPocName = NullIfBlank(ctx.VendorPocName);
@@ -844,8 +840,6 @@ public partial class AdvisoryPage : Page
         record.CvssV4Severity = NullIfBlank(ctx.CvssV4Severity);
         record.ResearcherPgpFingerprint = NullIfBlank(ctx.ResearcherPgpFingerprint);
         record.ResearcherPgpKeyId = NullIfBlank(ctx.ResearcherPgpKeyId);
-        record.IncibeRankingOptIn = ctx.IncibeRankingOptIn;
-        record.IncibePublicDisplayName = NullIfBlank(ctx.IncibePublicDisplayName);
     }
 
     // ---------- Save / Print / Copy ----------
