@@ -1,12 +1,8 @@
-<p align="center">
-  <img src="DllSidecar.GUI/Assets/dllsidecar.png" alt="DllSidecar" width="280">
-</p>
-
 # DllSidecar
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=Bv2CSRsU9Yo">
-    <img src="https://img.youtube.com/vi/Bv2CSRsU9Yo/maxresdefault.jpg" alt="DllSidecar — walkthrough" width="640">
+    <img src="https://img.youtube.com/vi/Bv2CSRsU9Yo/maxresdefault.jpg" alt="DllSidecar — walkthrough" width="900">
   </a>
   <br>
   <sub><i>Click to play on YouTube.</i></sub>
