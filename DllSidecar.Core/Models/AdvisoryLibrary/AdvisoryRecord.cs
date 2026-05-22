@@ -53,10 +53,6 @@ public sealed class AdvisoryRecord
     public string? LastExportedPdfPath { get; set; }
 
     // ---- Schema v4 — Template Fields persistence ----
-    // Enums (AttackType, ImpactCategory) are stored as TEXT (.ToString()) for human-readable
-    // SQLite contents and resilience to enum integer renumbering. Parse with Enum.TryParse on read.
-    public string? AttackType { get; set; }
-    public string? ImpactCategory { get; set; }
     public string? VulnerabilityTypeText { get; set; }
     public string? VendorUrl { get; set; }
     public string? VendorPocName { get; set; }
@@ -73,15 +69,13 @@ public sealed class AdvisoryRecord
     // Researcher-identity overrides — null means "fall back to AppConfig.Researcher at load time".
     public string? ResearcherPgpFingerprint { get; set; }
     public string? ResearcherPgpKeyId { get; set; }
-    public bool? IncibeRankingOptIn { get; set; }
-    public string? IncibePublicDisplayName { get; set; }
 
     // ---- Schema v5 — active template restoration ----
     /// <summary>
-    /// Renderer id ("markdown" / "incibe" / "ghsa") that was active the last time this advisory
-    /// was saved. Restored on reopen so editing INCIBE/GHSA bodies doesn't silently revert to
-    /// Markdown the moment the user touches Template Fields or the Vendor box. Null on legacy
-    /// rows or when the renderer is unknown — AdvisoryPage falls back to "markdown".
+    /// Renderer id ("markdown" / "ghsa") that was active the last time this advisory was saved.
+    /// Restored on reopen so editing non-Markdown bodies doesn't silently revert to Markdown
+    /// the moment the user touches Template Fields or the Vendor box. Null on legacy rows or
+    /// when the renderer is unknown — AdvisoryPage falls back to "markdown".
     /// </summary>
     public string? LastTemplateId { get; set; }
 
@@ -121,16 +115,16 @@ public sealed class AdvisoryArtifact
     public string? Sha256 { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     /// <summary>
-    /// Renderer that produced this artifact (e.g. "markdown", "incibe", "ghsa"). Used
-    /// by the Library tree to group files into format folders. Null for user-uploaded
-    /// attachments that aren't tied to a template.
+    /// Renderer that produced this artifact (e.g. "markdown", "ghsa"). Used by the Library
+    /// tree to group files into format folders. Null for user-uploaded attachments that
+    /// aren't tied to a template.
     /// </summary>
     public string? TemplateId { get; set; }
     /// <summary>
     /// Workflow state for THIS artifact, independent of the parent advisory's status. Each
-    /// format (Markdown / INCIBE / GHSA) tracks its own lifecycle because submission flows
-    /// differ (INCIBE → CNA, GHSA → GitHub, Markdown → blog) and shouldn't bleed into each
-    /// other. Defaults to Draft on create.
+    /// format (Markdown / GHSA) tracks its own lifecycle because submission flows differ
+    /// (GHSA → GitHub, Markdown → blog) and shouldn't bleed into each other. Defaults to
+    /// Draft on create.
     /// </summary>
     public AdvisoryStatus Status { get; set; } = AdvisoryStatus.Draft;
 }
@@ -169,6 +163,6 @@ public sealed class AdvisoryCreateOptions
     public string? SourceScanDir { get; set; }
     public string? SourceCandidateKind { get; set; }
     public string? SourceCandidateKey { get; set; }
-    /// <summary>Active renderer id at create time (e.g. "incibe"). Persisted to advisory_records.last_template_id.</summary>
+    /// <summary>Active renderer id at create time (e.g. "ghsa"). Persisted to advisory_records.last_template_id.</summary>
     public string? LastTemplateId { get; set; }
 }

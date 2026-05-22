@@ -126,25 +126,6 @@
                             <TextBox   Grid.Row="5" Grid.Column="0" x:Name="PgpFingerprintBox" FontFamily="{StaticResource FontMono}"/>
                             <TextBox   Grid.Row="5" Grid.Column="1" x:Name="PgpKeyIdBox"       FontFamily="{StaticResource FontMono}" Margin="10,0,0,0"/>
                         </Grid>
-
-                        <Grid Margin="0,10,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <CheckBox Grid.Column="0" x:Name="IncibeOptInBox" Content="Opt in to INCIBE CVE ranking"
-                                      Foreground="{StaticResource Text}" VerticalAlignment="Center"/>
-                            <Grid Grid.Column="1" Margin="20,0,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="INCIBE public display name:"
-                                           Foreground="{StaticResource Subtext}" VerticalAlignment="Center"
-                                           Margin="0,0,8,0"/>
-                                <TextBox Grid.Column="1" x:Name="IncibeDisplayNameBox" FontFamily="{StaticResource FontMono}"/>
-                            </Grid>
-                        </Grid>
                     </StackPanel>
                 </Border>
 

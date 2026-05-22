@@ -85,7 +85,7 @@
         </Border>
 
         <!-- Template-specific form fields (collapsible). Fields that don't apply to the active
-             template (e.g. INCIBE's Attack Type on Markdown) stay hidden so the form isn't a soup. -->
+             template stay hidden so the form isn't a soup. -->
         <!-- Single pane with Edit/Preview toggle -->
         <Border Grid.Row="3" Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
                 BorderThickness="1" CornerRadius="6">

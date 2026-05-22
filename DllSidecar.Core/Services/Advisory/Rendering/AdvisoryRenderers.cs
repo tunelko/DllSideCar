@@ -13,7 +13,6 @@ public static class AdvisoryRenderers
     public static IReadOnlyList<IAdvisoryRenderer> All { get; } = new IAdvisoryRenderer[]
     {
         new MarkdownRenderer(),
-        new IncibeCnaRenderer(),
         new GhsaRenderer(),
     };
 

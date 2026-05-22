@@ -1,5 +1,6 @@
 using System.Text;
 using DllSidecar.Core.Models.Advisory;
+using DllSidecar.Core.Services.Advisory;
 
 namespace DllSidecar.Core.Services.Advisory.Rendering;
 
@@ -60,9 +61,25 @@ public sealed class GhsaRenderer : IAdvisoryRenderer
     {
         var sb = new StringBuilder();
 
-        // Summary callout — first sentence of the attack scenario, surfaced as a quote
-        // so the reader gets the vulnerability in one line before scrolling.
-        var summary = FirstSentence(ctx.AttackScenario);
+        // Resolve narrative fields up front. If the user hasn't typed a custom Impact /
+        // AttackScenario / ProposedSolution, fall back to the same synthesizer the Markdown
+        // renderer uses — otherwise a switch from Markdown to GHSA on a fully populated
+        // advisory would surface italic GitHub placeholders even though the ctx carries
+        // enough metadata (vendor, product, importer, install dir, privesc) to draft a
+        // sensible default for every section.
+        var resolvedImpact = string.IsNullOrWhiteSpace(ctx.Impact)
+            ? AdvisoryTemplate.DefaultImpactText(ctx)
+            : ctx.Impact.Trim();
+        var resolvedScenario = string.IsNullOrWhiteSpace(ctx.AttackScenario)
+            ? AdvisoryTemplate.DefaultVulnDetailsText(ctx)
+            : ctx.AttackScenario.Trim();
+        var resolvedPatches = string.IsNullOrWhiteSpace(ctx.ProposedSolution)
+            ? AdvisoryTemplate.DefaultMitigationsText()
+            : ctx.ProposedSolution.Trim();
+
+        // Summary callout — first sentence of the (resolved) attack scenario, surfaced as a
+        // quote so the reader gets the vulnerability in one line before scrolling.
+        var summary = FirstSentence(resolvedScenario);
         if (!string.IsNullOrWhiteSpace(summary))
         {
             sb.AppendLine($"> **Summary**: {summary}");
@@ -94,27 +111,20 @@ public sealed class GhsaRenderer : IAdvisoryRenderer
         // Canonical GitHub template sections start here.
         sb.AppendLine("### Impact");
         sb.AppendLine();
-        sb.AppendLine(string.IsNullOrWhiteSpace(ctx.Impact)
-            ? "_What kind of vulnerability is it? Who is impacted?_"
-            : ctx.Impact.Trim());
+        sb.AppendLine(resolvedImpact);
         sb.AppendLine();
 
         // Technical details — sits between Impact and Patches; the template doesn't include
         // it but DLL-sideloading findings need the search-order narrative so the reviewer
         // can map "loader looks for X.dll in <dir>" to the proof-of-concept payload path.
-        if (!string.IsNullOrWhiteSpace(ctx.AttackScenario))
-        {
-            sb.AppendLine("### Technical details");
-            sb.AppendLine();
-            sb.AppendLine(ctx.AttackScenario.Trim());
-            sb.AppendLine();
-        }
+        sb.AppendLine("### Technical details");
+        sb.AppendLine();
+        sb.AppendLine(resolvedScenario);
+        sb.AppendLine();
 
         sb.AppendLine("### Patches");
         sb.AppendLine();
-        sb.AppendLine(string.IsNullOrWhiteSpace(ctx.ProposedSolution)
-            ? "_Has the problem been patched? What versions should users upgrade to?_"
-            : ctx.ProposedSolution.Trim());
+        sb.AppendLine(resolvedPatches);
         sb.AppendLine();
 
         // Workarounds — AdvisoryContext doesn't carry a dedicated field for this yet, so
@@ -157,12 +167,37 @@ public sealed class GhsaRenderer : IAdvisoryRenderer
     /// Returns text up to the first sentence-ending punctuation or newline. Used to derive
     /// the one-line Summary callout from the AttackScenario without having to track a
     /// separate field on the context.
+    ///
+    /// A "sentence end" is a period followed by whitespace or the end of the string — not
+    /// any period at all, otherwise filenames like <c>Agent.exe</c> truncate the summary
+    /// at the first dot.
     /// </summary>
     private static string FirstSentence(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return "";
         var trimmed = text.Trim();
-        var idx = trimmed.IndexOfAny(new[] { '.', '\n', '\r' });
+
+        // Newline always ends the summary — we want one line, not the whole paragraph.
+        var newlineIdx = trimmed.IndexOfAny(new[] { '\n', '\r' });
+
+        // Scan for a period that's actually a sentence terminator: followed by whitespace
+        // or end-of-string. Skip periods embedded in filenames / version strings.
+        var periodIdx = -1;
+        for (int i = 0; i < trimmed.Length; i++)
+        {
+            if (trimmed[i] != '.') continue;
+            if (i == trimmed.Length - 1 || char.IsWhiteSpace(trimmed[i + 1]))
+            {
+                periodIdx = i;
+                break;
+            }
+        }
+
+        var idx = -1;
+        if (newlineIdx >= 0 && periodIdx >= 0) idx = Math.Min(newlineIdx, periodIdx);
+        else if (newlineIdx >= 0) idx = newlineIdx;
+        else if (periodIdx >= 0) idx = periodIdx;
+
         return idx > 0 ? trimmed[..idx].Trim() : trimmed;
     }
 

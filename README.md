@@ -6,8 +6,8 @@ A Windows desktop application for DLL sideloading and DLL hijacking
 research (CWE-427, CWE-426). It automates static PE analysis,
 candidate scanning, dynamic correlation with Process Monitor and ETW,
 proof-of-concept C source generation, MinGW compilation, and the full
-advisory authoring lifecycle (Markdown / INCIBE CNA / GHSA), with a
-persisted case library and a multi-format export pipeline.
+advisory authoring lifecycle (Markdown / GHSA), with a persisted case
+library and a multi-format export pipeline.
 
 The tool targets independent vulnerability researchers who need a
 reproducible end-to-end workflow from "I just installed software X"
@@ -104,9 +104,9 @@ any direct or indirect damage arising from its use.
 
 ### Advisory authoring
 
-- **Three render targets**: Markdown (with HTML preview via Markdig),
-  INCIBE CNA, and GHSA. Each format is treated as an independent
-  artifact with its own status workflow.
+- **Two render targets**: Markdown (with HTML preview via Markdig) and
+  GHSA. Each format is treated as an independent artifact with its own
+  status workflow.
 - **CVSS v3.1 and v4.0 calculators** with vector parsing, score
   recomputation, and qualitative severity output.
 - **Case library** (SQLite): persisted advisory records, per-vendor

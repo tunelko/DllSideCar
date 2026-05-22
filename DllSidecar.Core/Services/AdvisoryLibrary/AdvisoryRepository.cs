@@ -11,7 +11,7 @@ namespace DllSidecar.Core.Services.AdvisoryLibrary;
 /// </summary>
 public sealed class AdvisoryRepository
 {
-    private const string SchemaVersion = "7";
+    private const string SchemaVersion = "8";
 
     private static readonly string BaseDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -73,8 +73,8 @@ public sealed class AdvisoryRepository
                 catch { /* idempotent */ }
                 existing = "3";
             }
-            // v3 → v4: Template Fields persistence (19 columns) — INCIBE/GHSA classification,
-            // vendor PoC, affected components/requirements/solution, CVSS v4, researcher PGP overrides
+            // v3 → v4: Template Fields persistence — classification, vendor PoC, affected
+            // components/requirements/solution, CVSS v4, researcher PGP overrides.
             if (existing == "3")
             {
                 foreach (var col in V4NewColumns)
@@ -85,7 +85,7 @@ public sealed class AdvisoryRepository
                 existing = "4";
             }
             // v4 → v5: persist the active template per advisory so reopen restores the renderer
-            // (previously every reopen reverted to Markdown and could overwrite INCIBE/GHSA bodies).
+            // (previously every reopen reverted to Markdown and could overwrite non-Markdown bodies).
             if (existing == "4")
             {
                 try { await ExecNonQueryAsync(conn, "ALTER TABLE advisory_records ADD COLUMN last_template_id TEXT;"); }
@@ -101,9 +101,9 @@ public sealed class AdvisoryRepository
                 catch { /* idempotent */ }
                 existing = "6";
             }
-            // v6 → v7: per-artifact workflow status. Each format (markdown / incibe / ghsa) tracks
-            // its own state because submission lifecycles differ (INCIBE → CNA, MARKDOWN → blog,
-            // GHSA → GitHub). Backfill from the parent record so existing rows keep visible status.
+            // v6 → v7: per-artifact workflow status. Each format tracks its own state because
+            // submission lifecycles differ (markdown → blog, ghsa → GitHub). Backfill from the
+            // parent record so existing rows keep visible status.
             if (existing == "6")
             {
                 try { await ExecNonQueryAsync(conn, "ALTER TABLE advisory_artifacts ADD COLUMN status INTEGER NOT NULL DEFAULT 0;"); }
@@ -114,6 +114,42 @@ public sealed class AdvisoryRepository
                     ) WHERE status = 0;"); }
                 catch { /* best effort */ }
                 existing = "7";
+            }
+            // v7 → v8: drop the four classification / external-ranking columns that backed a
+            // template renderer pruned from the registry, plus a sweep of any artifact rows
+            // (and their backing files on disk) produced by that renderer. Best-effort — the
+            // ALTER TABLE DROP COLUMN form requires SQLite >= 3.35 (March 2021); on older
+            // engines the columns are simply ignored by the rest of the code path.
+            if (existing == "7")
+            {
+                // First unlink the physical artifact files so we don't orphan them once the
+                // DB rows go. Snapshot paths in a list — iterating the reader while issuing
+                // another command on the same connection deadlocks SQLite.
+                var orphanPaths = new List<string>();
+                try
+                {
+                    await using var sel = conn.CreateCommand();
+                    sel.CommandText = "SELECT path FROM advisory_artifacts WHERE template_id = 'incibe';";
+                    await using var rdr = await sel.ExecuteReaderAsync();
+                    while (await rdr.ReadAsync())
+                        if (!rdr.IsDBNull(0)) orphanPaths.Add(rdr.GetString(0));
+                }
+                catch { /* artifact table might not exist yet on a freshly-created v8 schema */ }
+
+                foreach (var p in orphanPaths)
+                {
+                    try { if (File.Exists(p)) File.Delete(p); } catch { /* best effort */ }
+                }
+
+                try { await ExecNonQueryAsync(conn, "DELETE FROM advisory_artifacts WHERE template_id = 'incibe';"); }
+                catch { /* idempotent */ }
+
+                foreach (var col in new[] { "attack_type", "impact_category", "incibe_ranking_opt_in", "incibe_public_display_name" })
+                {
+                    try { await ExecNonQueryAsync(conn, $"ALTER TABLE advisory_records DROP COLUMN {col};"); }
+                    catch { /* idempotent / unsupported on legacy SQLite — column becomes dead weight */ }
+                }
+                existing = "8";
             }
             await using var updVersion = conn.CreateCommand();
             updVersion.CommandText = "UPDATE schema_info SET value=$v WHERE key='version';";
@@ -164,9 +200,7 @@ public sealed class AdvisoryRepository
             SourceCandidateKind = options?.SourceCandidateKind,
             SourceCandidateKey = options?.SourceCandidateKey,
             // Template Fields (schema v4) — copy verbatim from ctx; reload uses ConfigManager
-            // fallback for the four researcher-identity fields when these come back null.
-            AttackType = ctx.AttackType.ToString(),
-            ImpactCategory = ctx.ImpactCategory.ToString(),
+            // fallback for the researcher-identity fields when these come back null.
             VulnerabilityTypeText = NullIfBlank(ctx.VulnerabilityTypeText),
             VendorUrl = NullIfBlank(ctx.VendorUrl),
             VendorPocName = NullIfBlank(ctx.VendorPocName),
@@ -182,8 +216,6 @@ public sealed class AdvisoryRepository
             CvssV4Severity = NullIfBlank(ctx.CvssV4Severity),
             ResearcherPgpFingerprint = NullIfBlank(ctx.ResearcherPgpFingerprint),
             ResearcherPgpKeyId = NullIfBlank(ctx.ResearcherPgpKeyId),
-            IncibeRankingOptIn = ctx.IncibeRankingOptIn,
-            IncibePublicDisplayName = NullIfBlank(ctx.IncibePublicDisplayName),
             LastTemplateId = options?.LastTemplateId,
         };
 
@@ -971,7 +1003,6 @@ public sealed class AdvisoryRepository
     private static string ExtensionForTemplate(string templateId) => templateId switch
     {
         "markdown" => ".md",
-        "incibe"   => ".txt",
         "ghsa"     => ".yaml",
         _          => ".txt",
     };
@@ -1353,8 +1384,6 @@ public sealed class AdvisoryRepository
         cmd.Parameters.AddWithValue("$lem", (object?)r.LastExportedMarkdownPath ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$lep", (object?)r.LastExportedPdfPath ?? DBNull.Value);
         // Schema v4 — Template Fields
-        cmd.Parameters.AddWithValue("$atk",    (object?)r.AttackType ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$imp",    (object?)r.ImpactCategory ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$vtt",    (object?)r.VulnerabilityTypeText ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$vurl",   (object?)r.VendorUrl ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$vpn",    (object?)r.VendorPocName ?? DBNull.Value);
@@ -1370,8 +1399,6 @@ public sealed class AdvisoryRepository
         cmd.Parameters.AddWithValue("$cv4sev", (object?)r.CvssV4Severity ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$rpgpf",  (object?)r.ResearcherPgpFingerprint ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$rpgpk",  (object?)r.ResearcherPgpKeyId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$incoi",  r.IncibeRankingOptIn.HasValue ? (object)(r.IncibeRankingOptIn.Value ? 1 : 0) : DBNull.Value);
-        cmd.Parameters.AddWithValue("$incdn",  (object?)r.IncibePublicDisplayName ?? DBNull.Value);
         // Schema v5 — active template id
         cmd.Parameters.AddWithValue("$lastpl", (object?)r.LastTemplateId ?? DBNull.Value);
         // Schema v6 — per-vendor sequence number
@@ -1423,8 +1450,6 @@ public sealed class AdvisoryRepository
         rec.LastExportedMarkdownPath = r.IsDBNull(i) ? null : r.GetString(i); i++;
         rec.LastExportedPdfPath = r.IsDBNull(i) ? null : r.GetString(i); i++;
         // Schema v4 — Template Fields
-        rec.AttackType             = r.IsDBNull(i) ? null : r.GetString(i); i++;
-        rec.ImpactCategory         = r.IsDBNull(i) ? null : r.GetString(i); i++;
         rec.VulnerabilityTypeText  = r.IsDBNull(i) ? null : r.GetString(i); i++;
         rec.VendorUrl              = r.IsDBNull(i) ? null : r.GetString(i); i++;
         rec.VendorPocName          = r.IsDBNull(i) ? null : r.GetString(i); i++;
@@ -1440,8 +1465,6 @@ public sealed class AdvisoryRepository
         rec.CvssV4Severity         = r.IsDBNull(i) ? null : r.GetString(i); i++;
         rec.ResearcherPgpFingerprint = r.IsDBNull(i) ? null : r.GetString(i); i++;
         rec.ResearcherPgpKeyId       = r.IsDBNull(i) ? null : r.GetString(i); i++;
-        rec.IncibeRankingOptIn       = r.IsDBNull(i) ? null : (bool?)(r.GetInt32(i) == 1); i++;
-        rec.IncibePublicDisplayName  = r.IsDBNull(i) ? null : r.GetString(i); i++;
         // Schema v5 — active template id (null on legacy rows; AdvisoryPage falls back to "markdown")
         rec.LastTemplateId           = r.IsDBNull(i) ? null : r.GetString(i); i++;
         // Schema v6 — per-vendor sequence number (null on legacy rows; allocated on first write)
@@ -1471,8 +1494,6 @@ public sealed class AdvisoryRepository
     /// </summary>
     private static readonly string[] V4NewColumns =
     [
-        "attack_type TEXT",
-        "impact_category TEXT",
         "vulnerability_type_text TEXT",
         "vendor_url TEXT",
         "vendor_poc_name TEXT",
@@ -1488,8 +1509,6 @@ public sealed class AdvisoryRepository
         "cvss_v4_severity TEXT",
         "researcher_pgp_fingerprint TEXT",
         "researcher_pgp_key_id TEXT",
-        "incibe_ranking_opt_in INTEGER",
-        "incibe_public_display_name TEXT",
     ];
 
     private const string SchemaSql = @"
@@ -1539,9 +1558,7 @@ CREATE TABLE IF NOT EXISTS advisory_records (
     last_exported_pdf_path TEXT,
     is_deleted INTEGER NOT NULL DEFAULT 0,
     deleted_at_utc TEXT,
-    -- Template Fields (schema v4) — INCIBE/GHSA classification & PGP overrides
-    attack_type TEXT,
-    impact_category TEXT,
+    -- Template Fields (schema v4) — vendor / classification / PGP overrides
     vulnerability_type_text TEXT,
     vendor_url TEXT,
     vendor_poc_name TEXT,
@@ -1557,9 +1574,7 @@ CREATE TABLE IF NOT EXISTS advisory_records (
     cvss_v4_severity TEXT,
     researcher_pgp_fingerprint TEXT,
     researcher_pgp_key_id TEXT,
-    incibe_ranking_opt_in INTEGER,
-    incibe_public_display_name TEXT,
-    -- Schema v5 — active template id (markdown / incibe / ghsa) so reopen restores the renderer
+    -- Schema v5 — active template id (markdown / ghsa) so reopen restores the renderer
     last_template_id TEXT,
     -- Schema v6 — per-vendor sequence number (1-based) for human-readable filenames
     sequence_number INTEGER
@@ -1623,14 +1638,13 @@ CREATE INDEX IF NOT EXISTS ix_links_advisory_kind ON advisory_links(advisory_id,
         markdown_body, notes,
         source_scan_dir, source_candidate_kind, source_candidate_key,
         last_exported_markdown_path, last_exported_pdf_path,
-        attack_type, impact_category, vulnerability_type_text,
+        vulnerability_type_text,
         vendor_url, vendor_poc_name, vendor_poc_email,
         device_url_reference, device_brief_summary,
         affected_components, previous_requirements, proposed_solution,
         has_contacted_vendor_note,
         cvss_v4_vector, cvss_v4_score, cvss_v4_severity,
         researcher_pgp_fingerprint, researcher_pgp_key_id,
-        incibe_ranking_opt_in, incibe_public_display_name,
         last_template_id,
         sequence_number";
 
@@ -1649,14 +1663,13 @@ CREATE INDEX IF NOT EXISTS ix_links_advisory_kind ON advisory_links(advisory_id,
          markdown_body, notes,
          source_scan_dir, source_candidate_kind, source_candidate_key,
          last_exported_markdown_path, last_exported_pdf_path,
-         attack_type, impact_category, vulnerability_type_text,
+         vulnerability_type_text,
          vendor_url, vendor_poc_name, vendor_poc_email,
          device_url_reference, device_brief_summary,
          affected_components, previous_requirements, proposed_solution,
          has_contacted_vendor_note,
          cvss_v4_vector, cvss_v4_score, cvss_v4_severity,
          researcher_pgp_fingerprint, researcher_pgp_key_id,
-         incibe_ranking_opt_in, incibe_public_display_name,
          last_template_id,
          sequence_number)
         VALUES ($id, $created, $updated, $status, $title,
@@ -1671,14 +1684,13 @@ CREATE INDEX IF NOT EXISTS ix_links_advisory_kind ON advisory_links(advisory_id,
          $md, $notes,
          $scd, $sck, $sckey,
          $lem, $lep,
-         $atk, $imp, $vtt,
+         $vtt,
          $vurl, $vpn, $vpe,
          $duref, $dbsum,
          $afcomp, $prereq, $propsol,
          $hcvn,
          $cv4v, $cv4s, $cv4sev,
          $rpgpf, $rpgpk,
-         $incoi, $incdn,
          $lastpl,
          $seqn);";
 
@@ -1695,14 +1707,13 @@ CREATE INDEX IF NOT EXISTS ix_links_advisory_kind ON advisory_links(advisory_id,
          markdown_body=$md, notes=$notes,
          source_scan_dir=$scd, source_candidate_kind=$sck, source_candidate_key=$sckey,
          last_exported_markdown_path=$lem, last_exported_pdf_path=$lep,
-         attack_type=$atk, impact_category=$imp, vulnerability_type_text=$vtt,
+         vulnerability_type_text=$vtt,
          vendor_url=$vurl, vendor_poc_name=$vpn, vendor_poc_email=$vpe,
          device_url_reference=$duref, device_brief_summary=$dbsum,
          affected_components=$afcomp, previous_requirements=$prereq, proposed_solution=$propsol,
          has_contacted_vendor_note=$hcvn,
          cvss_v4_vector=$cv4v, cvss_v4_score=$cv4s, cvss_v4_severity=$cv4sev,
          researcher_pgp_fingerprint=$rpgpf, researcher_pgp_key_id=$rpgpk,
-         incibe_ranking_opt_in=$incoi, incibe_public_display_name=$incdn,
          last_template_id=$lastpl,
          sequence_number=$seqn
          WHERE id=$id;";

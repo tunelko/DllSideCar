@@ -4,12 +4,6 @@ using DllSidecar.Core.Models.Privesc;
 
 namespace DllSidecar.Core.Models.Advisory;
 
-/// <summary>Attack vector classification used by INCIBE CNA form.</summary>
-public enum AttackType { ContextDependent, Local, Physical, Remote, Other }
-
-/// <summary>Impact category classification used by INCIBE CNA form.</summary>
-public enum ImpactCategory { CodeExecution, DenialOfService, EscalationOfPrivileges, InformationDisclosure, Other }
-
 /// <summary>
 /// Everything needed to fill the advisory markdown template. Populated from the
 /// current PE analysis + optional privesc findings + optional CVE dedup results.
@@ -27,8 +21,6 @@ public class AdvisoryContext
     public string ResearcherEmail { get; set; } = "";
     public string ResearcherPgpFingerprint { get; set; } = "";
     public string ResearcherPgpKeyId { get; set; } = "";
-    public bool IncibeRankingOptIn { get; set; } = true;
-    public string IncibePublicDisplayName { get; set; } = "";
 
     // Target
     public string? Vendor { get; set; }
@@ -49,8 +41,6 @@ public class AdvisoryContext
     public string CweName { get; set; } = "Uncontrolled Search Path Element";
     public string VulnType { get; set; } = "DLL Sideloading";
     public string VulnerabilityTypeText { get; set; } = "DLL Sideloading / Uncontrolled Search Path Element (CWE-427)";
-    public AttackType AttackType { get; set; } = AttackType.Local;
-    public ImpactCategory ImpactCategory { get; set; } = ImpactCategory.CodeExecution;
     public string AttackScenario { get; set; } = "";
     public string Impact { get; set; } = "";
     public string ProposedSolution { get; set; } = "";
@@ -77,7 +67,7 @@ public class AdvisoryContext
     public double CvssScore { get; set; }
     public string CvssSeverity { get; set; } = "HIGH";
 
-    // CVSS v4.0 (required by INCIBE CNA submissions, optional elsewhere)
+    // CVSS v4.0 (optional — surfaced in Template Fields for renderers that consume it).
     public CvssV4Vector CvssV4 { get; set; } = new();
     public double CvssV4Score { get; set; }
     public string CvssV4Severity { get; set; } = "HIGH";
@@ -115,7 +105,7 @@ public class AdvisoryContext
     /// projecting from a Library record, so renderers never emit "Researcher: ()" when
     /// the user has set their identity in Configuration. Only blank fields are touched —
     /// any value the caller already populated wins, which is the contract every advisory
-    /// renderer (GHSA, INCIBE, Markdown) and the persistence layer rely on.
+    /// renderer (GHSA, Markdown) and the persistence layer rely on.
     /// </summary>
     public void ApplyResearcherFromConfig()
     {
@@ -126,6 +116,5 @@ public class AdvisoryContext
         if (string.IsNullOrWhiteSpace(ResearcherEmail)) ResearcherEmail = r.Email ?? "";
         if (string.IsNullOrWhiteSpace(ResearcherPgpFingerprint)) ResearcherPgpFingerprint = r.PgpFingerprint ?? "";
         if (string.IsNullOrWhiteSpace(ResearcherPgpKeyId)) ResearcherPgpKeyId = r.PgpKeyId ?? "";
-        if (string.IsNullOrWhiteSpace(IncibePublicDisplayName)) IncibePublicDisplayName = r.IncibePublicDisplayName ?? "";
     }
 }

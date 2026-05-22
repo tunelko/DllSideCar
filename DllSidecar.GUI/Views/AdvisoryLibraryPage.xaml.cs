@@ -859,8 +859,8 @@ public partial class AdvisoryLibraryPage : Page
 
         // If the user opened from a specific file leaf, edit THAT file's template — not the
         // advisory's last_template_id, which may correspond to a different artifact and would
-        // cause the editor to mis-render (e.g. opening .md but seeing INCIBE selected, then
-        // Save creating a duplicate file in the wrong format folder).
+        // cause the editor to mis-render (e.g. opening .md but seeing another renderer selected,
+        // then Save creating a duplicate file in the wrong format folder).
         if (_selectedLeaf?.Artifact != null
             && !string.IsNullOrWhiteSpace(_selectedLeaf.Artifact.TemplateId))
         {
@@ -886,9 +886,9 @@ public partial class AdvisoryLibraryPage : Page
         var id = _loaded.Id;
 
         // Per-format status: if a FileLeaf is the active selection (main tree, not Trash),
-        // change ONLY that artifact's status. Each format (markdown / incibe / ghsa) tracks
-        // its own workflow state because submission lifecycles differ — INCIBE may already
-        // be in CveAssigned while Markdown is still Draft, etc.
+        // change ONLY that artifact's status. Each format (markdown / ghsa) tracks its own
+        // workflow state because submission lifecycles differ — GHSA may already be in
+        // CveAssigned while Markdown is still Draft, etc.
         if (_selectedLeaf?.Artifact != null && !_selectedIsTrashed)
         {
             var artifact = _selectedLeaf.Artifact;
@@ -985,8 +985,8 @@ public partial class AdvisoryLibraryPage : Page
     private static Core.Models.Advisory.AdvisoryContext ProjectToContext(AdvisoryRecord r)
     {
         // Researcher identity falls back to AppConfig when the record's stored value is blank
-        // (the four PGP / INCIBE rank fields are user-level, not finding-level — only persisted
-        // per-advisory when the user explicitly overrode the default at draft time).
+        // (PGP fields are user-level, not finding-level — only persisted per-advisory when the
+        // user explicitly overrode the default at draft time).
         var researcher = Core.Configuration.ConfigManager.Current.Researcher;
 
         // Map back to AdvisoryContext so AdvisoryPage can re-render or let user edit.
@@ -1040,10 +1040,6 @@ public partial class AdvisoryLibraryPage : Page
             ResearcherPgpKeyId = !string.IsNullOrWhiteSpace(r.ResearcherPgpKeyId)
                 ? r.ResearcherPgpKeyId!
                 : researcher.PgpKeyId,
-            IncibeRankingOptIn = r.IncibeRankingOptIn ?? researcher.IncibeRankingOptIn,
-            IncibePublicDisplayName = !string.IsNullOrWhiteSpace(r.IncibePublicDisplayName)
-                ? r.IncibePublicDisplayName!
-                : researcher.IncibePublicDisplayName,
         };
         // Decode CVSS v3.1 vector if stored
         if (!string.IsNullOrWhiteSpace(r.CvssVector))
@@ -1051,13 +1047,6 @@ public partial class AdvisoryLibraryPage : Page
         // Decode CVSS v4.0 vector if stored
         if (!string.IsNullOrWhiteSpace(r.CvssV4Vector))
             ctx.CvssV4 = Core.Services.Advisory.CvssV4Calculator.ParseVector(r.CvssV4Vector) ?? ctx.CvssV4;
-        // Parse classification enums (TEXT in DB)
-        if (!string.IsNullOrWhiteSpace(r.AttackType)
-            && Enum.TryParse<Core.Models.Advisory.AttackType>(r.AttackType, out var atk))
-            ctx.AttackType = atk;
-        if (!string.IsNullOrWhiteSpace(r.ImpactCategory)
-            && Enum.TryParse<Core.Models.Advisory.ImpactCategory>(r.ImpactCategory, out var imp))
-            ctx.ImpactCategory = imp;
 
         // Records persisted before the researcher-hydration fix stored Name/Handle/Blog/Email
         // as blank strings. Re-apply the config fallback so loading an old advisory still
@@ -1150,7 +1139,7 @@ public partial class AdvisoryLibraryPage : Page
         }
     }
 
-    /// <summary>Leaf: a single rendered file (markdown / INCIBE / GHSA / future).</summary>
+    /// <summary>Leaf: a single rendered file (markdown / GHSA / future).</summary>
     public sealed class FileLeafNode
     {
         public AdvisoryArtifact Artifact { get; }
@@ -1172,8 +1161,8 @@ public partial class AdvisoryLibraryPage : Page
         public string FullPath => Artifact.Path;
 
         // Display: title comes from the owning advisory, but the status pill comes from the
-        // ARTIFACT — each format (markdown / incibe / ghsa) tracks its own workflow state so
-        // changing one leaf doesn't visually flip its siblings under the same vendor.
+        // ARTIFACT — each format (markdown / ghsa) tracks its own workflow state so changing
+        // one leaf doesn't visually flip its siblings under the same vendor.
         public string OwnerTitle => Owner?.Title ?? "";
         public Visibility OwnerTitleVisibility => Owner == null ? Visibility.Collapsed : Visibility.Visible;
         public string StatusLabel => Artifact.Status.ToString().ToUpperInvariant();
@@ -1190,8 +1179,7 @@ public partial class AdvisoryLibraryPage : Page
         // Format chip — Markdown and GHSA now share the .md extension, so the filename
         // alone is ambiguous in the flat tree (one advisory can have two .md siblings).
         // The chip surfaces the renderer id so the row reads unambiguously without
-        // having to open each file. INCIBE keeps its .txt extension but gets a chip
-        // for visual consistency.
+        // having to open each file.
         public string FormatLabel
         {
             get

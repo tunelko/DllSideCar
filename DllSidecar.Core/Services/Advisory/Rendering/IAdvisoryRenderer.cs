@@ -3,17 +3,17 @@ using DllSidecar.Core.Models.Advisory;
 namespace DllSidecar.Core.Services.Advisory.Rendering;
 
 /// <summary>
-/// One implementation per destination (Markdown, INCIBE CNA, GHSA, future CSAF, ...).
+/// One implementation per destination (Markdown, GHSA, future CSAF, ...).
 /// Each renderer reads what it needs from the shared AdvisoryContext; the UI
 /// dynamically shows the form fields each renderer declares as required via
 /// <see cref="FieldHints"/>.
 /// </summary>
 public interface IAdvisoryRenderer
 {
-    /// <summary>Stable identifier used in file paths and artifact kind (e.g. "markdown", "incibe", "ghsa").</summary>
+    /// <summary>Stable identifier used in file paths and artifact kind (e.g. "markdown", "ghsa").</summary>
     string Id { get; }
 
-    /// <summary>User-facing label in the template dropdown (e.g. "Markdown", "INCIBE CNA", "GHSA").</summary>
+    /// <summary>User-facing label in the template dropdown (e.g. "Markdown", "GHSA").</summary>
     string DisplayName { get; }
 
     /// <summary>Preferred file extension including dot (".md", ".txt", ".yaml").</summary>
@@ -78,5 +78,4 @@ public enum AdvisoryField
     WritableByPrincipals,
     DirectoryLowPrivWritable,
     ResearcherPgp,
-    IncibeRanking,
 }

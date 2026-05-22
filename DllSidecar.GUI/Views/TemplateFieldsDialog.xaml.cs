@@ -36,8 +36,6 @@ public partial class TemplateFieldsDialog : Window
     private void ApplyFieldVisibility()
     {
         var hints = _renderer.FieldHints;
-        RowAttackImpact.Visibility  = (hints.Contains(AdvisoryField.AttackType) || hints.Contains(AdvisoryField.ImpactCategory))
-            ? Visibility.Visible : Visibility.Collapsed;
         RowVulnType.Visibility      = hints.Contains(AdvisoryField.VulnerabilityTypeText) ? Visibility.Visible : Visibility.Collapsed;
         RowVendorPoc.Visibility     = hints.Contains(AdvisoryField.VendorPocName)         ? Visibility.Visible : Visibility.Collapsed;
         RowAffected.Visibility      = hints.Contains(AdvisoryField.AffectedComponents)    ? Visibility.Visible : Visibility.Collapsed;
@@ -48,11 +46,6 @@ public partial class TemplateFieldsDialog : Window
 
     private void PushCtxIntoControls()
     {
-        foreach (ComboBoxItem it in CbAttackType.Items)
-            if ((string)it.Content == _ctx.AttackType.ToString()) { CbAttackType.SelectedItem = it; break; }
-        foreach (ComboBoxItem it in CbImpact.Items)
-            if ((string)it.Content == _ctx.ImpactCategory.ToString()) { CbImpact.SelectedItem = it; break; }
-
         TbVulnType.Text     = _ctx.VulnerabilityTypeText ?? "";
         TbPocName.Text      = _ctx.VendorPocName ?? "";
         TbPocEmail.Text     = _ctx.VendorPocEmail ?? "";
@@ -67,14 +60,6 @@ public partial class TemplateFieldsDialog : Window
 
     private void PullControlsIntoCtx()
     {
-        if (CbAttackType.SelectedItem is ComboBoxItem at
-            && Enum.TryParse<AttackType>((string)at.Content, out var atVal))
-            _ctx.AttackType = atVal;
-
-        if (CbImpact.SelectedItem is ComboBoxItem ic
-            && Enum.TryParse<ImpactCategory>((string)ic.Content, out var icVal))
-            _ctx.ImpactCategory = icVal;
-
         if (!string.IsNullOrWhiteSpace(TbVulnType.Text))
             _ctx.VulnerabilityTypeText = TbVulnType.Text.Trim();
 

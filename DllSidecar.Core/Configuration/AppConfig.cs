@@ -62,10 +62,6 @@ public class ResearcherConfig
     public string Email { get; set; } = "";
     public string PgpFingerprint { get; set; } = "";  // e.g. "ECFE8F52A79544C4D5CEC31D816793CF3167C4D2"
     public string PgpKeyId { get; set; } = "";        // short id, e.g. "816793CF3167C4D2"
-
-    // INCIBE CVE ranking (see https://www.incibe.es/.../asignacion-publicacion-cve)
-    public bool IncibeRankingOptIn { get; set; } = true;
-    public string IncibePublicDisplayName { get; set; } = "";  // falls back to Name + Handle if empty
 }
 
 /// <summary>
