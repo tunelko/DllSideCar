@@ -91,7 +91,7 @@
                 BorderThickness="1" CornerRadius="6">
             <DockPanel>
                 <!-- Top toolbar: template selector + edit/preview toggle -->
-                <Grid DockPanel.Dock="Top" Background="{StaticResource Surface0}" Height="34">
+                <Grid DockPanel.Dock="Top" Background="{StaticResource Surface0}" Height="40">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>

@@ -62,7 +62,7 @@
                 <StackPanel x:Name="RowAffected" Margin="0,0,0,14">
                     <TextBlock Text="AFFECTED COMPONENTS" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,0,0,6"/>
-                    <TextBox x:Name="TbAffected" MinHeight="72" MaxHeight="140"
+                    <TextBox x:Name="TbAffected" MinHeight="90"
                              AcceptsReturn="True" TextWrapping="Wrap"
                              FontFamily="{StaticResource FontMono}" FontSize="11" Padding="8,6"
                              VerticalScrollBarVisibility="Auto"/>
@@ -74,7 +74,7 @@
                 <StackPanel x:Name="RowRequirements" Margin="0,0,0,14">
                     <TextBlock Text="PREVIOUS REQUIREMENTS" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,0,0,6"/>
-                    <TextBox x:Name="TbRequirements" MinHeight="72" MaxHeight="140"
+                    <TextBox x:Name="TbRequirements" MinHeight="90"
                              AcceptsReturn="True" TextWrapping="Wrap"
                              FontFamily="{StaticResource FontMono}" FontSize="11" Padding="8,6"
                              VerticalScrollBarVisibility="Auto"/>
@@ -86,7 +86,7 @@
                 <StackPanel x:Name="RowSolution" Margin="0,0,0,14">
                     <TextBlock Text="PROPOSED SOLUTION" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                FontSize="10" FontFamily="{StaticResource FontMono}" Margin="0,0,0,6"/>
-                    <TextBox x:Name="TbSolution" MinHeight="100" MaxHeight="200"
+                    <TextBox x:Name="TbSolution" MinHeight="130"
                              AcceptsReturn="True" TextWrapping="Wrap"
                              FontFamily="{StaticResource FontMono}" FontSize="11" Padding="8,6"
                              VerticalScrollBarVisibility="Auto"/>
