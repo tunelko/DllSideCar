@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Iced" Version="1.21.0" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
     <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.2.3" />
     <PackageReference Include="PeNet" Version="5.0.0" />
   </ItemGroup>
