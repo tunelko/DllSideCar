@@ -6,7 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="Markdig" Version="0.37.0" />
+    <PackageReference Include="Markdig" Version="1.2.0" />
     <PackageReference Include="QuestPDF" Version="2026.5.0" />
   </ItemGroup>
 
