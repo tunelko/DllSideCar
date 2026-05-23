@@ -63,30 +63,48 @@ public partial class AdvisoryPage : Page
 
     private void ReloadContext_Click(object sender, RoutedEventArgs e)
     {
-        // Guard against the urlmon-class bug: if the editor is currently bound to an
-        // existing Library record, rebuilding ctx from CurrentAnalysis (a possibly
-        // unrelated PE) would silently swap identity. Force the user to be explicit.
+        // Reload semantics depend on whether the DLL/PE in the current analysis matches
+        // the one bound to the active Library record:
+        //   - Same DLL/PE      → warn (rebuild discards manual editor edits) and PRESERVE
+        //                        the binding so the next Save updates the same record.
+        //   - Different DLL/PE → silently detach + reload. The Save-time identity guard
+        //                        (see SaveToLibrary_Click) already covers any accidental
+        //                        overwrite, so a modal here only fear-mongers when the
+        //                        user is clearly switching subjects.
         if (!string.IsNullOrEmpty(_main.PendingAdvisoryRecordId))
         {
             var pe = _main.CurrentAnalysis;
-            var newPe = pe?.Filename ?? "(no PE loaded)";
-            var choice = MessageBox.Show(
-                "This editor is bound to an existing Library record.\n" +
-                $"'Reload context' will rebuild the form from the current PE analysis ({newPe})\n" +
-                "and DROP the link to the existing record. The next Save will create a NEW advisory.\n\n" +
-                "Continue?",
-                "Detach from record?",
-                MessageBoxButton.OKCancel,
-                MessageBoxImage.Warning,
-                MessageBoxResult.Cancel);
-            if (choice != MessageBoxResult.OK) return;
-            // Detach explicitly so Save creates new instead of overwriting the old record.
+            var newDll  = (pe?.Filename ?? "").Trim();
+            var boundDll = (_ctx.PeFilename ?? "").Trim();
+            var sameDll = !string.IsNullOrEmpty(newDll)
+                       && !string.IsNullOrEmpty(boundDll)
+                       && string.Equals(newDll, boundDll, StringComparison.OrdinalIgnoreCase);
+
+            if (sameDll)
+            {
+                var choice = MessageBox.Show(
+                    $"Reload context from '{newDll}'?\n\n" +
+                    "The form will be rebuilt from the current analysis and any manual edits in the editor will be discarded. " +
+                    "The link to the existing Library record is preserved (the next Save updates the same advisory).",
+                    "Reload context",
+                    MessageBoxButton.OKCancel,
+                    MessageBoxImage.Question,
+                    MessageBoxResult.Cancel);
+                if (choice != MessageBoxResult.OK) return;
+                ReloadContext(preserveRecordId: true);
+                UpdateDynamicLabels();
+                return;
+            }
+
+            // Different DLL/PE — detach silently. UpdateDynamicLabels refreshes the
+            // Save button label from "Update record · …" to "Create library record".
             _main.PendingAdvisoryRecordId = null;
         }
         ReloadContext();
+        UpdateDynamicLabels();
     }
 
-    private void ReloadContext()
+    private void ReloadContext(bool preserveRecordId = false)
     {
         // Wizard handoff — if ReportStage stashed an AdvisoryContext + markdown,
         // adopt them verbatim (preserves any edits the user made inside the Report
@@ -100,6 +118,12 @@ public partial class AdvisoryPage : Page
             _main.PendingAdvisoryContext = null;
             _main.PendingAdvisoryMarkdown = null;
             _main.PendingAdvisoryTemplateId = null;
+            // Wizard handoff is always a fresh research flow — even if it happens to target
+            // the same DLL/PE as a previously-opened Library record, the leftover record id
+            // from that session would mis-bind the new draft on Save (Save-time identity guard
+            // fires when ctx.PeFilename != record.PeFilename). Drop it here unless the caller
+            // explicitly asked to preserve it.
+            if (!preserveRecordId) _main.PendingAdvisoryRecordId = null;
 
             // Restore the renderer that was active when the advisory was last saved BEFORE any
             // render call — otherwise a non-Markdown body would briefly fall through the Markdown
@@ -132,7 +156,9 @@ public partial class AdvisoryPage : Page
 
         // Fresh context — drop any pending library record id so next "Save to Library"
         // creates a new row instead of overwriting the one that was last opened.
-        _main.PendingAdvisoryRecordId = null;
+        // Callers reloading after confirming "same DLL/PE" pass preserveRecordId=true so the
+        // binding survives and Save updates the existing record instead of duplicating it.
+        if (!preserveRecordId) _main.PendingAdvisoryRecordId = null;
 
         var pe = _main.CurrentAnalysis;
         _ctx = BuildContextFromSession(pe);
