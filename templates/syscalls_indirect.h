@@ -13,6 +13,16 @@
  * x64 only. On x86 the existing syscalls.h indirect-via-ntdll-stub
  * path is already the canonical approach.
  *
+ * Approach: the HalosGate neighbour-walk pattern (locate the SSN by
+ * scanning adjacent Nt* prologues when the resolved stub itself is
+ * hooked) is publicly attributed to SEKTOR7 Institute and has been
+ * widely re-implemented across the offensive security community. The
+ * code in this file is an original implementation: a bidirectional
+ * walk, an ntdll-wide scan for the "syscall; ret" gadget (vs the
+ * common fixed-offset jump into the resolved stub itself), and a
+ * single naked C trampoline that receives the SSN as its first
+ * argument under the Windows x64 ABI rather than via shared globals.
+ *
  * @tunelko — BugAInters 2026
  */
 

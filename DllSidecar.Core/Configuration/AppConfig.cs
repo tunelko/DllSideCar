@@ -108,6 +108,8 @@ public class GeneratePageState
     public bool Syscalls { get; set; }
     public bool IndirectSyscalls { get; set; }
     public bool EncryptStrings { get; set; }
+    public bool UnhookNtdll { get; set; }
+    public bool PatchEtw { get; set; }
     public int EntryDelayMs { get; set; }
 
     // Metadata / build

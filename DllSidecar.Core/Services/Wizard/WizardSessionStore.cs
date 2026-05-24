@@ -46,6 +46,8 @@ public sealed class WizardSessionSnapshot
     public bool CraftSyscalls { get; set; }
     public bool CraftIndirectSyscalls { get; set; }
     public bool CraftEncryptStrings { get; set; }
+    public bool CraftUnhookNtdll { get; set; }
+    public bool CraftPatchEtw { get; set; }
     public int CraftEntryDelayMs { get; set; }
     public bool CraftCloneMeta { get; set; }
     public bool CraftTimestampStomp { get; set; }
@@ -114,6 +116,8 @@ public static class WizardSessionStore
                 CraftSyscalls = session.CraftSyscalls,
                 CraftIndirectSyscalls = session.CraftIndirectSyscalls,
                 CraftEncryptStrings = session.CraftEncryptStrings,
+                CraftUnhookNtdll = session.CraftUnhookNtdll,
+                CraftPatchEtw = session.CraftPatchEtw,
                 CraftEntryDelayMs = session.CraftEntryDelayMs,
                 CraftCloneMeta = session.CraftCloneMeta,
                 CraftTimestampStomp = session.CraftTimestampStomp,
@@ -179,6 +183,8 @@ public static class WizardSessionStore
         target.CraftSyscalls = snap.CraftSyscalls;
         target.CraftIndirectSyscalls = snap.CraftIndirectSyscalls;
         target.CraftEncryptStrings = snap.CraftEncryptStrings;
+        target.CraftUnhookNtdll = snap.CraftUnhookNtdll;
+        target.CraftPatchEtw = snap.CraftPatchEtw;
         target.CraftEntryDelayMs = snap.CraftEntryDelayMs;
         target.CraftCloneMeta = snap.CraftCloneMeta;
         target.CraftTimestampStomp = snap.CraftTimestampStomp;

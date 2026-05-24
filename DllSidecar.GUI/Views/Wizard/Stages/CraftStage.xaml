@@ -179,6 +179,12 @@
                                 <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,5"/>
                                 <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,5"/>
                                 <CheckBox x:Name="ChkIndirectSyscalls" Content="Indirect syscalls — gadget jump into ntdll (x64 only)" Margin="0,5"/>
+                                <CheckBox x:Name="ChkUnhookNtdll" Content="Unhook ntdll — restore .text from disk in DllMain"
+                                          ToolTip="Maps a fresh ntdll.dll from disk and overwrites the in-process .text, removing user-mode EDR hooks installed on the Nt* prologues. Runs once at DllMain entry, before any sc_init / payload."
+                                          Margin="0,5"/>
+                                <CheckBox x:Name="ChkPatchEtw" Content="Patch ETW — neutralize EtwEventWrite in DllMain"
+                                          ToolTip="Overwrites the first byte of ntdll!EtwEventWrite with 0xC3 (RET), blinding the ETW providers many EDRs subscribe to (notably Microsoft-Windows-Threat-Intelligence). Runs right after Unhook ntdll, before sc_init / payload."
+                                          Margin="0,5"/>
                                 <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,5"/>
 
                                 <!-- Same pattern as the standalone Generate page: the key
