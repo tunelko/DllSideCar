@@ -218,7 +218,30 @@
                                 <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,0">
                                     <CheckBox x:Name="ChkDInvoke" Content="DInvoke — PEB walk, clean IAT" Margin="0,5"/>
                                     <CheckBox x:Name="ChkSyscalls" Content="Direct syscalls (x64 only)" Margin="0,5"/>
+                                    <CheckBox x:Name="ChkIndirectSyscalls" Content="Indirect syscalls — gadget jump into ntdll (x64 only)" Margin="0,5"/>
                                     <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,5"/>
+
+                                    <!-- Real XOR key — this exact byte sequence ends up as
+                                         g_xkey[32] inside the generated DLL. Auto-generate
+                                         picks fresh bytes; the value displayed when the
+                                         user clicks Generate is what gets embedded. -->
+                                    <StackPanel x:Name="XorKeyRow" Margin="22,4,0,4" Visibility="Collapsed">
+                                        <TextBlock Text="g_xkey[32] embedded into the generated DLL"
+                                                   Foreground="{StaticResource Subtext}" FontSize="11" Margin="0,0,0,3"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" x:Name="XorKeyBox" IsReadOnly="True"
+                                                     FontFamily="{StaticResource FontMono}" FontSize="11"
+                                                     Padding="6,4"
+                                                     ToolTip="The exact bytes embedded as static const unsigned char g_xkey[32] in the generated .c. Same on every PoC built from this page until Auto-generate is pressed."/>
+                                            <Button Grid.Column="1" Content="Auto-generate"
+                                                    Style="{StaticResource SecondaryButton}"
+                                                    Margin="8,0,0,0" Click="XorAutoGen_Click"/>
+                                        </Grid>
+                                    </StackPanel>
                                 </StackPanel>
                                 <Border Grid.Row="1" Grid.Column="1" Margin="20,0,0,0"
                                         Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
@@ -231,17 +254,12 @@
                                         </Grid.ColumnDefinitions>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Delay (ms)"
                                                    Foreground="{StaticResource Subtext}" FontSize="11"
-                                                   VerticalAlignment="Center" Margin="0,0,12,8"/>
+                                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
                                         <TextBox Grid.Row="0" Grid.Column="1" x:Name="DelayBox" Text="0"
-                                                 Margin="0,0,0,8" Padding="8,5"/>
-                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="XOR key"
-                                                   Foreground="{StaticResource Subtext}" FontSize="11"
-                                                   VerticalAlignment="Center" Margin="0,8,12,0"/>
-                                        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="XorKeyCombo" Margin="0,8,0,0"/>
+                                                 Padding="8,5"/>
                                     </Grid>
                                 </Border>
                             </Grid>

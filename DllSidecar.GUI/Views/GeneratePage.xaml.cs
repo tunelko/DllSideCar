@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
 using DllSidecar.Core.Configuration;
+using DllSidecar.Core.Helpers;
 using DllSidecar.Core.Models;
 using DllSidecar.Core.Services;
 
@@ -10,6 +11,12 @@ namespace DllSidecar.GUI.Views;
 
 public partial class GeneratePage : Page
 {
+    // The exact bytes that get baked into g_xkey[32] in the generated .c.
+    // Fresh on page open; the user refreshes explicitly via Auto-generate.
+    // What appears in XorKeyBox when the user hits Generate is exactly what
+    // travels into TemplateConfig.LongXorKey — no surprise re-randomisation.
+    private byte[] _xorKey = XorCryptor.RandomKey(32);
+
     private readonly MainWindow _main;
     // Mode is driven by the [Proxy | Sideload] segmented switch in the page header.
     // Tracer is no longer reachable from the UI; default starts at Proxy and the
@@ -64,7 +71,7 @@ public partial class GeneratePage : Page
 
         PageTitle.Text = "DLL Techniques";
 
-        PopulateXorKeys();
+        RenderXorKey();
         UpdateDeployBanner();
 
         // Prefer a pre-existing CurrentAnalysis (e.g. synthesized phantom) over re-analyzing
@@ -194,11 +201,9 @@ public partial class GeneratePage : Page
 
             ChkDInvoke.IsChecked = s.DInvoke;
             ChkSyscalls.IsChecked = s.Syscalls;
+            ChkIndirectSyscalls.IsChecked = s.IndirectSyscalls;
             ChkEncrypt.IsChecked = s.EncryptStrings;
             DelayBox.Text = s.EntryDelayMs.ToString();
-            if (s.XorKeyIndex >= 0 && s.XorKeyIndex < XorKeyCombo.Items.Count)
-                XorKeyCombo.SelectedIndex = s.XorKeyIndex;
-
             ChkCloneMeta.IsChecked = s.CloneMeta;
             ChkStomp.IsChecked = s.TimestampStomp;
             ChkAutoBuild.IsChecked = s.AutoBuild;
@@ -225,9 +230,9 @@ public partial class GeneratePage : Page
         s.ThreadModeIndex = ThreadCombo.SelectedIndex;
         s.DInvoke = ChkDInvoke.IsChecked == true;
         s.Syscalls = ChkSyscalls.IsChecked == true;
+        s.IndirectSyscalls = ChkIndirectSyscalls.IsChecked == true;
         s.EncryptStrings = ChkEncrypt.IsChecked == true;
         if (int.TryParse(DelayBox.Text, out var ms)) s.EntryDelayMs = ms;
-        s.XorKeyIndex = XorKeyCombo.SelectedIndex;
         s.CloneMeta = ChkCloneMeta.IsChecked == true;
         s.TimestampStomp = ChkStomp.IsChecked == true;
         s.AutoBuild = ChkAutoBuild.IsChecked == true;
@@ -252,9 +257,23 @@ public partial class GeneratePage : Page
 
         ChkDInvoke.Checked += OnChanged; ChkDInvoke.Unchecked += OnChanged;
         ChkSyscalls.Checked += OnChanged; ChkSyscalls.Unchecked += OnChanged;
+        ChkIndirectSyscalls.Checked += OnChanged; ChkIndirectSyscalls.Unchecked += OnChanged;
         ChkEncrypt.Checked += OnChanged; ChkEncrypt.Unchecked += OnChanged;
+
+        // XOR key row only makes sense when string encryption is on. Show it as
+        // a consequence of the checkbox so the user is never staring at a key
+        // they have no way to opt into.
+        ChkEncrypt.Checked   += (_, _) => XorKeyRow.Visibility = Visibility.Visible;
+        ChkEncrypt.Unchecked += (_, _) => XorKeyRow.Visibility = Visibility.Collapsed;
+        XorKeyRow.Visibility = ChkEncrypt.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+
+        // Direct and Indirect syscalls share the same sc_NtFoo() wrapper names in
+        // the emitted C, so including both headers would duplicate definitions.
+        // Enforce mutual exclusion at the UI layer so the user picks one path
+        // (or none); the model layer trusts the flags as-is.
+        ChkSyscalls.Checked += (_, _) => { if (ChkIndirectSyscalls.IsChecked == true) ChkIndirectSyscalls.IsChecked = false; };
+        ChkIndirectSyscalls.Checked += (_, _) => { if (ChkSyscalls.IsChecked == true) ChkSyscalls.IsChecked = false; };
         DelayBox.TextChanged += OnChanged;
-        XorKeyCombo.SelectionChanged += OnChanged;
 
         ChkCloneMeta.Checked += OnChanged; ChkCloneMeta.Unchecked += OnChanged;
         ChkStomp.Checked += OnChanged; ChkStomp.Unchecked += OnChanged;
@@ -392,12 +411,34 @@ public partial class GeneratePage : Page
             ChkSyscalls.IsChecked = false;
             ChkSyscalls.IsEnabled = false;
             ChkSyscalls.ToolTip = "Disabled — Direct syscalls require x64. On x86 it's not benign: sc_init reads i686 ntdll prologues that don't match the x64-assumed layout and corrupts global state, breaking the PoC.";
+            if (ChkIndirectSyscalls != null)
+            {
+                ChkIndirectSyscalls.IsChecked = false;
+                ChkIndirectSyscalls.IsEnabled = false;
+                ChkIndirectSyscalls.ToolTip = "Disabled — Indirect syscalls require x64. The trampoline reads the x64 ntdll stub layout and the syscall;ret gadget; neither is present on i686.";
+            }
         }
         else
         {
             ChkSyscalls.IsEnabled = true;
             ChkSyscalls.ToolTip = "Resolve and call NT* APIs via SSN + syscall instruction instead of going through ntdll export addresses. Bypasses user-mode hooks.";
+            if (ChkIndirectSyscalls != null)
+            {
+                ChkIndirectSyscalls.IsEnabled = true;
+                ChkIndirectSyscalls.ToolTip = "Same SSN resolution as Direct, but the syscall instruction is executed from inside ntdll via a cached gadget jump. A stack walk attributes the call to ntdll, not to this DLL. Mutually exclusive with Direct syscalls.";
+            }
         }
+    }
+
+    private void XorAutoGen_Click(object sender, RoutedEventArgs e)
+    {
+        _xorKey = XorCryptor.RandomKey(32);
+        RenderXorKey();
+    }
+
+    private void RenderXorKey()
+    {
+        XorKeyBox.Text = "{ " + XorCryptor.ToHexArray(_xorKey) + " }";
     }
 
     private void RenderAutoModeText(GenerationMode? mode, int exportCount)
@@ -411,16 +452,6 @@ public partial class GeneratePage : Page
                 : $"No system match found — will emit {exportCount} empty stubs (host may reject)");
         AutoModeText.Text = $"◆ Mode: {modeLabel}   ·   {detail}";
         AutoModeText.Visibility = Visibility.Visible;
-    }
-
-    private void PopulateXorKeys()
-    {
-        var cfg = ConfigManager.Current.Xor;
-        XorKeyCombo.Items.Clear();
-        foreach (var k in cfg.PresetKeys)
-            XorKeyCombo.Items.Add($"0x{k:X2}");
-        var idx = cfg.PresetKeys.IndexOf(cfg.DefaultKey);
-        XorKeyCombo.SelectedIndex = idx >= 0 ? idx : 0;
     }
 
     private void Browse_Click(object sender, RoutedEventArgs e)
@@ -555,23 +586,22 @@ public partial class GeneratePage : Page
         SetStatus("Generating...", StatusKind.Info);
         Overlay.Show("Generating " + _mode, $"Target: {_analysis.Filename}");
 
-        var xorCfg = ConfigManager.Current.Xor;
-        byte xorKey = xorCfg.DefaultKey;
-        if (XorKeyCombo.SelectedIndex >= 0 && XorKeyCombo.SelectedIndex < xorCfg.PresetKeys.Count)
-            xorKey = xorCfg.PresetKeys[XorKeyCombo.SelectedIndex];
-
         var config = new TemplateConfig
         {
             Mode = _mode,
             DInvoke = ChkDInvoke.IsChecked == true,
             DirectSyscalls = ChkSyscalls.IsChecked == true,
+            IndirectSyscalls = ChkIndirectSyscalls.IsChecked == true,
             EncryptStrings = ChkEncrypt.IsChecked == true,
             CloneMetadata = ChkCloneMeta.IsChecked == true,
             StompTimestamps = ChkStomp.IsChecked == true,
             Payload = (PayloadType)PayloadCombo.SelectedIndex,
             PayloadData = PayloadDataBox.Text.Trim(),
             Thread = (ThreadMode)ThreadCombo.SelectedIndex,
-            XorKey = xorKey,
+            // The XOR key the user just saw in the XorKeyRow textbox is the
+            // exact byte sequence that ends up baked into g_xkey[32] in the
+            // generated .c. No silent re-randomisation inside TemplateEngine.
+            LongXorKey = _xorKey,
             // Pull the researcher attribution from the Configuration page so the
             // /* Generated by DllSidecar — <handle> */ header reflects the user
             // who is actually building the PoC, not the source-tree default.
@@ -642,6 +672,8 @@ public partial class GeneratePage : Page
             File.Copy(Path.Combine(templatesDir, "dinvoke.h"), Path.Combine(outputDir, "dinvoke.h"), true);
         if (config.DirectSyscalls && File.Exists(Path.Combine(templatesDir, "syscalls.h")))
             File.Copy(Path.Combine(templatesDir, "syscalls.h"), Path.Combine(outputDir, "syscalls.h"), true);
+        if (config.IndirectSyscalls && File.Exists(Path.Combine(templatesDir, "syscalls_indirect.h")))
+            File.Copy(Path.Combine(templatesDir, "syscalls_indirect.h"), Path.Combine(outputDir, "syscalls_indirect.h"), true);
         if (config.EncryptStrings && File.Exists(Path.Combine(templatesDir, "cryptor.h")))
             File.Copy(Path.Combine(templatesDir, "cryptor.h"), Path.Combine(outputDir, "cryptor.h"), true);
 
@@ -764,6 +796,7 @@ public partial class GeneratePage : Page
     {
         ChkDInvoke.IsChecked = false;
         ChkSyscalls.IsChecked = false;
+        ChkIndirectSyscalls.IsChecked = false;
         ChkEncrypt.IsChecked = false;
         ChkCloneMeta.IsChecked = false;
         ChkStomp.IsChecked = false;
@@ -780,7 +813,6 @@ public partial class GeneratePage : Page
         FireTimeoutBox.Text = "15";
         FireTimeoutRow.Visibility = Visibility.Collapsed;
         OutputPanel.Visibility = Visibility.Collapsed;
-        PopulateXorKeys();
         SetStatus("Form reset to Starter defaults", StatusKind.Info);
     }
 

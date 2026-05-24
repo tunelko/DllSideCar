@@ -5,12 +5,31 @@ public class TemplateConfig
     public bool DInvoke { get; set; }
     public bool EncryptStrings { get; set; }
     public bool DirectSyscalls { get; set; }
+
+    // When set, the generator emits syscalls_indirect.h instead of syscalls.h.
+    // The two modes are mutually exclusive; the UI layer is responsible for
+    // enforcing the radio-button-style exclusivity. Indirect mode routes the
+    // syscall instruction through a "syscall; ret" gadget located inside ntdll
+    // so a stack walk attributes the call to ntdll, not to the generated DLL.
+    // x64-only; on x86 the existing DirectSyscalls path is already indirect by
+    // necessity, so this flag is ignored when the target arch is x86.
+    public bool IndirectSyscalls { get; set; }
+
+    // True when ANY syscall path is enabled. Both modes expose the same
+    // sc_NtFoo() wrapper names, so generator callsites that emit those calls
+    // can branch on this single flag instead of repeating (Direct || Indirect).
+    public bool AnySyscalls => DirectSyscalls || IndirectSyscalls;
     public int DelayMs { get; set; }
     public PayloadType Payload { get; set; } = PayloadType.MessageBox;
     public string PayloadData { get; set; } = "";
     public string? TargetExport { get; set; }
     public ThreadMode Thread { get; set; } = ThreadMode.Calling;
-    public byte XorKey { get; set; } = (byte)Random.Shared.Next(0x10, 0xFE);
+    // Multi-byte rotating XOR key used by the generator when EncryptStrings is on.
+    // Defaults to 32 random bytes per TemplateConfig instance — every produced
+    // PoC ships with a unique key, defeating bulk YARA matches on the byte
+    // array embedded in .rdata. The ConfigPage demo widget lets the researcher
+    // preview the same encoding interactively.
+    public byte[] LongXorKey { get; set; } = Helpers.XorCryptor.RandomKey(32);
     // Empty default so the distributed installer ships with no maintainer
     // identity in the generated PoCs. GeneratePage / CraftStage populate this
     // from ConfigManager.Current.Researcher.Handle when the user has filled

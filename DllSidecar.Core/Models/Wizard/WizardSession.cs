@@ -100,9 +100,9 @@ public class WizardSession
     public int CraftThreadModeIndex { get; set; }
     public bool CraftDInvoke { get; set; }
     public bool CraftSyscalls { get; set; }
+    public bool CraftIndirectSyscalls { get; set; }
     public bool CraftEncryptStrings { get; set; }
     public int CraftEntryDelayMs { get; set; }
-    public int CraftXorKeyIndex { get; set; }
     public bool CraftCloneMeta { get; set; }
     public bool CraftTimestampStomp { get; set; }
     public bool CraftAutoBuild { get; set; } = true;
