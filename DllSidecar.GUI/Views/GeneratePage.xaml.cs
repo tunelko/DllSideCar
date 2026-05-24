@@ -202,6 +202,8 @@ public partial class GeneratePage : Page
             ChkDInvoke.IsChecked = s.DInvoke;
             ChkSyscalls.IsChecked = s.Syscalls;
             ChkIndirectSyscalls.IsChecked = s.IndirectSyscalls;
+            ChkUnhookNtdll.IsChecked = s.UnhookNtdll;
+            ChkPatchEtw.IsChecked = s.PatchEtw;
             ChkEncrypt.IsChecked = s.EncryptStrings;
             DelayBox.Text = s.EntryDelayMs.ToString();
             ChkCloneMeta.IsChecked = s.CloneMeta;
@@ -231,6 +233,8 @@ public partial class GeneratePage : Page
         s.DInvoke = ChkDInvoke.IsChecked == true;
         s.Syscalls = ChkSyscalls.IsChecked == true;
         s.IndirectSyscalls = ChkIndirectSyscalls.IsChecked == true;
+        s.UnhookNtdll = ChkUnhookNtdll.IsChecked == true;
+        s.PatchEtw = ChkPatchEtw.IsChecked == true;
         s.EncryptStrings = ChkEncrypt.IsChecked == true;
         if (int.TryParse(DelayBox.Text, out var ms)) s.EntryDelayMs = ms;
         s.CloneMeta = ChkCloneMeta.IsChecked == true;
@@ -258,6 +262,8 @@ public partial class GeneratePage : Page
         ChkDInvoke.Checked += OnChanged; ChkDInvoke.Unchecked += OnChanged;
         ChkSyscalls.Checked += OnChanged; ChkSyscalls.Unchecked += OnChanged;
         ChkIndirectSyscalls.Checked += OnChanged; ChkIndirectSyscalls.Unchecked += OnChanged;
+        ChkUnhookNtdll.Checked += OnChanged; ChkUnhookNtdll.Unchecked += OnChanged;
+        ChkPatchEtw.Checked += OnChanged; ChkPatchEtw.Unchecked += OnChanged;
         ChkEncrypt.Checked += OnChanged; ChkEncrypt.Unchecked += OnChanged;
 
         // XOR key row only makes sense when string encryption is on. Show it as
@@ -592,6 +598,8 @@ public partial class GeneratePage : Page
             DInvoke = ChkDInvoke.IsChecked == true,
             DirectSyscalls = ChkSyscalls.IsChecked == true,
             IndirectSyscalls = ChkIndirectSyscalls.IsChecked == true,
+            UnhookNtdll = ChkUnhookNtdll.IsChecked == true,
+            PatchEtw = ChkPatchEtw.IsChecked == true,
             EncryptStrings = ChkEncrypt.IsChecked == true,
             CloneMetadata = ChkCloneMeta.IsChecked == true,
             StompTimestamps = ChkStomp.IsChecked == true,
@@ -676,6 +684,10 @@ public partial class GeneratePage : Page
             File.Copy(Path.Combine(templatesDir, "syscalls_indirect.h"), Path.Combine(outputDir, "syscalls_indirect.h"), true);
         if (config.EncryptStrings && File.Exists(Path.Combine(templatesDir, "cryptor.h")))
             File.Copy(Path.Combine(templatesDir, "cryptor.h"), Path.Combine(outputDir, "cryptor.h"), true);
+        if (config.UnhookNtdll && File.Exists(Path.Combine(templatesDir, "unhook.h")))
+            File.Copy(Path.Combine(templatesDir, "unhook.h"), Path.Combine(outputDir, "unhook.h"), true);
+        if (config.PatchEtw && File.Exists(Path.Combine(templatesDir, "etw.h")))
+            File.Copy(Path.Combine(templatesDir, "etw.h"), Path.Combine(outputDir, "etw.h"), true);
 
         var outputInfo = new System.Text.StringBuilder();
         foreach (var (name, content) in files)
@@ -797,6 +809,8 @@ public partial class GeneratePage : Page
         ChkDInvoke.IsChecked = false;
         ChkSyscalls.IsChecked = false;
         ChkIndirectSyscalls.IsChecked = false;
+        ChkUnhookNtdll.IsChecked = false;
+        ChkPatchEtw.IsChecked = false;
         ChkEncrypt.IsChecked = false;
         ChkCloneMeta.IsChecked = false;
         ChkStomp.IsChecked = false;

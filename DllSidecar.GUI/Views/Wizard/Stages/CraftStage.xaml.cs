@@ -117,6 +117,8 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             ChkDInvoke.IsChecked = _session.CraftDInvoke;
             ChkSyscalls.IsChecked = _session.CraftSyscalls;
             ChkIndirectSyscalls.IsChecked = _session.CraftIndirectSyscalls;
+            ChkUnhookNtdll.IsChecked = _session.CraftUnhookNtdll;
+            ChkPatchEtw.IsChecked = _session.CraftPatchEtw;
             ChkEncrypt.IsChecked = _session.CraftEncryptStrings;
             DelayBox.Text = _session.CraftEntryDelayMs.ToString();
 
@@ -147,6 +149,8 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         _session.CraftDInvoke = ChkDInvoke.IsChecked == true;
         _session.CraftSyscalls = ChkSyscalls.IsChecked == true;
         _session.CraftIndirectSyscalls = ChkIndirectSyscalls.IsChecked == true;
+        _session.CraftUnhookNtdll = ChkUnhookNtdll.IsChecked == true;
+        _session.CraftPatchEtw = ChkPatchEtw.IsChecked == true;
         _session.CraftEncryptStrings = ChkEncrypt.IsChecked == true;
         if (int.TryParse(DelayBox.Text, out var ms)) _session.CraftEntryDelayMs = ms;
 
@@ -177,6 +181,8 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         ChkDInvoke.Checked += OnChanged; ChkDInvoke.Unchecked += OnChanged;
         ChkSyscalls.Checked += OnChanged; ChkSyscalls.Unchecked += OnChanged;
         ChkIndirectSyscalls.Checked += OnChanged; ChkIndirectSyscalls.Unchecked += OnChanged;
+        ChkUnhookNtdll.Checked += OnChanged; ChkUnhookNtdll.Unchecked += OnChanged;
+        ChkPatchEtw.Checked += OnChanged; ChkPatchEtw.Unchecked += OnChanged;
         ChkEncrypt.Checked += OnChanged; ChkEncrypt.Unchecked += OnChanged;
 
         ChkEncrypt.Checked   += (_, _) => XorKeyRow.Visibility = Visibility.Visible;
@@ -228,6 +234,8 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         bool dinvoke = ChkDInvoke.IsChecked == true;
         bool syscalls = ChkSyscalls.IsChecked == true;
         bool indirectSyscalls = ChkIndirectSyscalls.IsChecked == true;
+        bool unhookNtdll = ChkUnhookNtdll.IsChecked == true;
+        bool patchEtw = ChkPatchEtw.IsChecked == true;
         bool encrypt = ChkEncrypt.IsChecked == true;
         bool writeProof = ChkWriteProof.IsChecked == true;
         bool waitBlock = WaitBlock.IsChecked == true;
@@ -254,7 +262,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         {
             await Task.Run(() => GenerateAndBuild(
                 payloadIdx, payloadData, threadIdx, autoBuild, cloneMeta, stomp,
-                dinvoke, syscalls, indirectSyscalls, encrypt, writeProof, waitBlock,
+                dinvoke, syscalls, indirectSyscalls, unhookNtdll, patchEtw, encrypt, writeProof, waitBlock,
                 delayMs, preDelay, fireTimeout, xorKey, targetExport, hostExe,
                 sandboxTargets));
             StatusLine.Text = _session.BuiltDllPath != null
@@ -617,7 +625,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
     private void GenerateAndBuild(
         int payloadIdx, string payloadData, int threadIdx,
         bool autoBuild, bool cloneMeta, bool stomp,
-        bool dinvoke, bool syscalls, bool indirectSyscalls, bool encrypt, bool writeProof, bool waitBlock,
+        bool dinvoke, bool syscalls, bool indirectSyscalls, bool unhookNtdll, bool patchEtw, bool encrypt, bool writeProof, bool waitBlock,
         int delayMs, int preDelay, int fireTimeout,
         byte[] xorKey,
         string? targetExport, string hostExe, string sandboxTargets)
@@ -635,6 +643,8 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             DInvoke = dinvoke,
             DirectSyscalls = syscalls,
             IndirectSyscalls = indirectSyscalls,
+            UnhookNtdll = unhookNtdll,
+            PatchEtw = patchEtw,
             EncryptStrings = encrypt,
             DelayMs = delayMs,
             LongXorKey = xorKey,
@@ -684,6 +694,10 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             File.Copy(Path.Combine(templatesDir, "syscalls_indirect.h"), Path.Combine(outputDir, "syscalls_indirect.h"), true);
         if (config.EncryptStrings && File.Exists(Path.Combine(templatesDir, "cryptor.h")))
             File.Copy(Path.Combine(templatesDir, "cryptor.h"), Path.Combine(outputDir, "cryptor.h"), true);
+        if (config.UnhookNtdll && File.Exists(Path.Combine(templatesDir, "unhook.h")))
+            File.Copy(Path.Combine(templatesDir, "unhook.h"), Path.Combine(outputDir, "unhook.h"), true);
+        if (config.PatchEtw && File.Exists(Path.Combine(templatesDir, "etw.h")))
+            File.Copy(Path.Combine(templatesDir, "etw.h"), Path.Combine(outputDir, "etw.h"), true);
 
         foreach (var (name, content) in files)
             File.WriteAllText(Path.Combine(outputDir, name), content);
