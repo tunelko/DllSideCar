@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
 using DllSidecar.Core.Configuration;
+using DllSidecar.Core.Helpers;
 using DllSidecar.Core.Logging;
 using DllSidecar.Core.Models;
 using DllSidecar.Core.Models.Wizard;
@@ -24,6 +25,10 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
     private bool _suppressPersist;
     private string? _systemOrigPath;
 
+    // Same role as in GeneratePage: the exact 32 bytes that get baked into
+    // g_xkey[32] in the produced DLL when EncryptStrings is on.
+    private byte[] _xorKey = XorCryptor.RandomKey(32);
+
     // AppPaths handles dev-vs-installed path resolution — see GeneratePage's
     // identical refactor for the rationale.
 
@@ -38,7 +43,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         _shell = shell;
         InitializeComponent();
 
-        PopulateXorKeys();
+        RenderXorKey();
         ResolveTarget();
         PopulateFromAnalysis();
         SelectDefaultMode();
@@ -111,10 +116,9 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
 
             ChkDInvoke.IsChecked = _session.CraftDInvoke;
             ChkSyscalls.IsChecked = _session.CraftSyscalls;
+            ChkIndirectSyscalls.IsChecked = _session.CraftIndirectSyscalls;
             ChkEncrypt.IsChecked = _session.CraftEncryptStrings;
             DelayBox.Text = _session.CraftEntryDelayMs.ToString();
-            if (_session.CraftXorKeyIndex >= 0 && _session.CraftXorKeyIndex < XorKeyCombo.Items.Count)
-                XorKeyCombo.SelectedIndex = _session.CraftXorKeyIndex;
 
             ChkCloneMeta.IsChecked = _session.CraftCloneMeta;
             ChkStomp.IsChecked = _session.CraftTimestampStomp;
@@ -142,9 +146,9 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
 
         _session.CraftDInvoke = ChkDInvoke.IsChecked == true;
         _session.CraftSyscalls = ChkSyscalls.IsChecked == true;
+        _session.CraftIndirectSyscalls = ChkIndirectSyscalls.IsChecked == true;
         _session.CraftEncryptStrings = ChkEncrypt.IsChecked == true;
         if (int.TryParse(DelayBox.Text, out var ms)) _session.CraftEntryDelayMs = ms;
-        _session.CraftXorKeyIndex = XorKeyCombo.SelectedIndex;
 
         _session.CraftCloneMeta = ChkCloneMeta.IsChecked == true;
         _session.CraftTimestampStomp = ChkStomp.IsChecked == true;
@@ -172,9 +176,19 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
 
         ChkDInvoke.Checked += OnChanged; ChkDInvoke.Unchecked += OnChanged;
         ChkSyscalls.Checked += OnChanged; ChkSyscalls.Unchecked += OnChanged;
+        ChkIndirectSyscalls.Checked += OnChanged; ChkIndirectSyscalls.Unchecked += OnChanged;
         ChkEncrypt.Checked += OnChanged; ChkEncrypt.Unchecked += OnChanged;
+
+        ChkEncrypt.Checked   += (_, _) => XorKeyRow.Visibility = Visibility.Visible;
+        ChkEncrypt.Unchecked += (_, _) => XorKeyRow.Visibility = Visibility.Collapsed;
+        XorKeyRow.Visibility = ChkEncrypt.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+
+        // Same mutual exclusion the standalone Generate page enforces — Direct
+        // and Indirect syscall headers define the same sc_NtFoo() wrappers, so
+        // both at once would not compile. See the matching block in GeneratePage.
+        ChkSyscalls.Checked += (_, _) => { if (ChkIndirectSyscalls.IsChecked == true) ChkIndirectSyscalls.IsChecked = false; };
+        ChkIndirectSyscalls.Checked += (_, _) => { if (ChkSyscalls.IsChecked == true) ChkSyscalls.IsChecked = false; };
         DelayBox.TextChanged += OnChanged;
-        XorKeyCombo.SelectionChanged += OnChanged;
 
         ChkCloneMeta.Checked += OnChanged; ChkCloneMeta.Unchecked += OnChanged;
         ChkStomp.Checked += OnChanged; ChkStomp.Unchecked += OnChanged;
@@ -213,18 +227,13 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         bool stomp = ChkStomp.IsChecked == true;
         bool dinvoke = ChkDInvoke.IsChecked == true;
         bool syscalls = ChkSyscalls.IsChecked == true;
+        bool indirectSyscalls = ChkIndirectSyscalls.IsChecked == true;
         bool encrypt = ChkEncrypt.IsChecked == true;
         bool writeProof = ChkWriteProof.IsChecked == true;
         bool waitBlock = WaitBlock.IsChecked == true;
         int.TryParse(DelayBox.Text, out int delayMs);
         int.TryParse(PreLaunchDelayBox.Text, out int preDelay);
         int.TryParse(FireTimeoutBox.Text, out int fireTimeout);
-
-        // XOR key from configured preset
-        var xorCfg = ConfigManager.Current.Xor;
-        byte xorKey = xorCfg.DefaultKey;
-        if (XorKeyCombo.SelectedIndex >= 0 && XorKeyCombo.SelectedIndex < xorCfg.PresetKeys.Count)
-            xorKey = xorCfg.PresetKeys[XorKeyCombo.SelectedIndex];
 
         string? targetExport = null;
         if (_session.CraftMode == GenerationMode.Proxy
@@ -236,12 +245,16 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         string hostExe = HostExeBox.Text.Trim();
         string sandboxTargets = SandboxTargetsBox?.Text?.Trim() ?? "";
 
+        // Snapshot the key buffer so the worker thread doesn't race a click on
+        // Auto-generate while the build is in flight.
+        byte[] xorKey = (byte[])_xorKey.Clone();
+
         _shell.ShowOverlay("Generating + building", $"Crafting {_session.CraftMode} for {_target.Filename}...");
         try
         {
             await Task.Run(() => GenerateAndBuild(
                 payloadIdx, payloadData, threadIdx, autoBuild, cloneMeta, stomp,
-                dinvoke, syscalls, encrypt, writeProof, waitBlock,
+                dinvoke, syscalls, indirectSyscalls, encrypt, writeProof, waitBlock,
                 delayMs, preDelay, fireTimeout, xorKey, targetExport, hostExe,
                 sandboxTargets));
             StatusLine.Text = _session.BuiltDllPath != null
@@ -352,14 +365,15 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         ExportCombo.SelectedIndex = 0;
     }
 
-    private void PopulateXorKeys()
+    private void XorAutoGen_Click(object sender, RoutedEventArgs e)
     {
-        var cfg = ConfigManager.Current.Xor;
-        XorKeyCombo.Items.Clear();
-        foreach (var k in cfg.PresetKeys)
-            XorKeyCombo.Items.Add($"0x{k:X2}");
-        var idx = cfg.PresetKeys.IndexOf(cfg.DefaultKey);
-        XorKeyCombo.SelectedIndex = idx >= 0 ? idx : 0;
+        _xorKey = XorCryptor.RandomKey(32);
+        RenderXorKey();
+    }
+
+    private void RenderXorKey()
+    {
+        XorKeyBox.Text = "{ " + XorCryptor.ToHexArray(_xorKey) + " }";
     }
 
     private void SelectDefaultMode()
@@ -578,11 +592,22 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             ChkSyscalls.IsChecked = false;
             ChkSyscalls.IsEnabled = false;
             ChkSyscalls.ToolTip = "Disabled — Direct syscalls require x64. On x86 sc_init corrupts global state, breaking the PoC.";
+            if (ChkIndirectSyscalls != null)
+            {
+                ChkIndirectSyscalls.IsChecked = false;
+                ChkIndirectSyscalls.IsEnabled = false;
+                ChkIndirectSyscalls.ToolTip = "Disabled — Indirect syscalls require x64. The trampoline assumes the x64 ntdll stub layout and the syscall;ret gadget.";
+            }
         }
         else
         {
             ChkSyscalls.IsEnabled = true;
             ChkSyscalls.ToolTip = "Resolve and call NT* APIs via SSN + syscall instruction instead of going through ntdll export addresses.";
+            if (ChkIndirectSyscalls != null)
+            {
+                ChkIndirectSyscalls.IsEnabled = true;
+                ChkIndirectSyscalls.ToolTip = "Same SSN resolution as Direct, but the syscall instruction is executed from inside ntdll via a cached gadget jump. Mutually exclusive with Direct syscalls.";
+            }
         }
     }
 
@@ -592,8 +617,9 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
     private void GenerateAndBuild(
         int payloadIdx, string payloadData, int threadIdx,
         bool autoBuild, bool cloneMeta, bool stomp,
-        bool dinvoke, bool syscalls, bool encrypt, bool writeProof, bool waitBlock,
-        int delayMs, int preDelay, int fireTimeout, byte xorKey,
+        bool dinvoke, bool syscalls, bool indirectSyscalls, bool encrypt, bool writeProof, bool waitBlock,
+        int delayMs, int preDelay, int fireTimeout,
+        byte[] xorKey,
         string? targetExport, string hostExe, string sandboxTargets)
     {
         if (_target == null) return;
@@ -608,9 +634,10 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             StompTimestamps = stomp,
             DInvoke = dinvoke,
             DirectSyscalls = syscalls,
+            IndirectSyscalls = indirectSyscalls,
             EncryptStrings = encrypt,
             DelayMs = delayMs,
-            XorKey = xorKey,
+            LongXorKey = xorKey,
             TargetExport = targetExport,
             // Researcher attribution from the Configuration page (matches GeneratePage).
             Researcher = Core.Configuration.ConfigManager.Current.Researcher.Handle ?? "",
@@ -653,6 +680,8 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             File.Copy(Path.Combine(templatesDir, "dinvoke.h"), Path.Combine(outputDir, "dinvoke.h"), true);
         if (config.DirectSyscalls && File.Exists(Path.Combine(templatesDir, "syscalls.h")))
             File.Copy(Path.Combine(templatesDir, "syscalls.h"), Path.Combine(outputDir, "syscalls.h"), true);
+        if (config.IndirectSyscalls && File.Exists(Path.Combine(templatesDir, "syscalls_indirect.h")))
+            File.Copy(Path.Combine(templatesDir, "syscalls_indirect.h"), Path.Combine(outputDir, "syscalls_indirect.h"), true);
         if (config.EncryptStrings && File.Exists(Path.Combine(templatesDir, "cryptor.h")))
             File.Copy(Path.Combine(templatesDir, "cryptor.h"), Path.Combine(outputDir, "cryptor.h"), true);
 
