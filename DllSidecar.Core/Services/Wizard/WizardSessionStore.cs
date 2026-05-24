@@ -44,9 +44,11 @@ public sealed class WizardSessionSnapshot
     public int CraftThreadModeIndex { get; set; }
     public bool CraftDInvoke { get; set; }
     public bool CraftSyscalls { get; set; }
+    public bool CraftIndirectSyscalls { get; set; }
     public bool CraftEncryptStrings { get; set; }
+    public bool CraftUnhookNtdll { get; set; }
+    public bool CraftPatchEtw { get; set; }
     public int CraftEntryDelayMs { get; set; }
-    public int CraftXorKeyIndex { get; set; }
     public bool CraftCloneMeta { get; set; }
     public bool CraftTimestampStomp { get; set; }
     public bool CraftAutoBuild { get; set; } = true;
@@ -112,9 +114,11 @@ public static class WizardSessionStore
                 CraftThreadModeIndex = session.CraftThreadModeIndex,
                 CraftDInvoke = session.CraftDInvoke,
                 CraftSyscalls = session.CraftSyscalls,
+                CraftIndirectSyscalls = session.CraftIndirectSyscalls,
                 CraftEncryptStrings = session.CraftEncryptStrings,
+                CraftUnhookNtdll = session.CraftUnhookNtdll,
+                CraftPatchEtw = session.CraftPatchEtw,
                 CraftEntryDelayMs = session.CraftEntryDelayMs,
-                CraftXorKeyIndex = session.CraftXorKeyIndex,
                 CraftCloneMeta = session.CraftCloneMeta,
                 CraftTimestampStomp = session.CraftTimestampStomp,
                 CraftAutoBuild = session.CraftAutoBuild,
@@ -177,9 +181,11 @@ public static class WizardSessionStore
         target.CraftThreadModeIndex = snap.CraftThreadModeIndex;
         target.CraftDInvoke = snap.CraftDInvoke;
         target.CraftSyscalls = snap.CraftSyscalls;
+        target.CraftIndirectSyscalls = snap.CraftIndirectSyscalls;
         target.CraftEncryptStrings = snap.CraftEncryptStrings;
+        target.CraftUnhookNtdll = snap.CraftUnhookNtdll;
+        target.CraftPatchEtw = snap.CraftPatchEtw;
         target.CraftEntryDelayMs = snap.CraftEntryDelayMs;
-        target.CraftXorKeyIndex = snap.CraftXorKeyIndex;
         target.CraftCloneMeta = snap.CraftCloneMeta;
         target.CraftTimestampStomp = snap.CraftTimestampStomp;
         target.CraftAutoBuild = snap.CraftAutoBuild;

@@ -3,7 +3,6 @@ namespace DllSidecar.Core.Configuration;
 public class AppConfig
 {
     public MingwConfig Mingw { get; set; } = new();
-    public XorConfig Xor { get; set; } = new();
     public PathsConfig Paths { get; set; } = new();
     public ToolsConfig Tools { get; set; } = new();
     public UiStateConfig UiState { get; set; } = new();
@@ -107,9 +106,11 @@ public class GeneratePageState
     // Evasion
     public bool DInvoke { get; set; }
     public bool Syscalls { get; set; }
+    public bool IndirectSyscalls { get; set; }
     public bool EncryptStrings { get; set; }
+    public bool UnhookNtdll { get; set; }
+    public bool PatchEtw { get; set; }
     public int EntryDelayMs { get; set; }
-    public int XorKeyIndex { get; set; }
 
     // Metadata / build
     public bool CloneMeta { get; set; }
@@ -163,12 +164,6 @@ public class MingwConfig
         "x64" => [Mingw64BinDir, MsysUsrBinDir],
         _ => [],
     };
-}
-
-public class XorConfig
-{
-    public byte DefaultKey { get; set; } = 0x5A;
-    public List<byte> PresetKeys { get; set; } = [0x5A, 0xA5, 0xFF, 0x13, 0x37, 0x42, 0x69];
 }
 
 public class PathsConfig
