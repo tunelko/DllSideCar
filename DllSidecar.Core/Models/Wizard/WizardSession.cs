@@ -18,20 +18,12 @@ public enum WizardStage
 
 public enum WizardInputKind
 {
-    // Explicit numeric IDs preserve back-compat with persisted
-    // wizard_session.json snapshots written before the Installer-extract
-    // feature was removed. Value 0 used to be 'Installer'; keeping the
-    // gap means an old snapshot with InputKind=1 still deserializes as
-    // InstallDirectory, not SinglePe.
-    InstallDirectory = 1, // a directory, scan it
-    SinglePe = 2,         // skip scanning — go straight to Craft
+    // Explicit numeric IDs preserve back-compat with persisted wizard_session.json snapshots (value 0 was the removed 'Installer').
+    InstallDirectory = 1,
+    SinglePe = 2,
 }
 
-/// <summary>
-/// Which of the three entry points the user chose on the Input stage. Drives
-/// the routing: ScanFolder → Survey, AnalyzeBinary → Pick (bypass scan),
-/// RuntimeTrace → hand off to RuntimeTracePage (user returns via promotion).
-/// </summary>
+/// <summary>Entry point chosen on the Input stage; drives stage routing.</summary>
 public enum WizardEntryPoint
 {
     ScanFolder,
@@ -39,11 +31,7 @@ public enum WizardEntryPoint
     RuntimeTrace,
 }
 
-/// <summary>
-/// Research goal declared up-front. Used by SurveyStage to bias scoring emphasis
-/// and default filters — e.g. LocalPrivesc prefers writable service/task paths
-/// over user-only ACLs, Persistence favours COM hijack + Program Files writes.
-/// </summary>
+/// <summary>Research goal declared up-front; biases SurveyStage scoring and defaults.</summary>
 public enum WizardHuntingGoal
 {
     ArbitraryCode,    // any user-context RCE — default
@@ -51,11 +39,7 @@ public enum WizardHuntingGoal
     Persistence,      // survives reboot, COM hijack, writable Program Files
 }
 
-/// <summary>
-/// All state accumulated as the user (or express automation) moves through the wizard.
-/// Single instance per wizard session — passed to every stage. Lost on wizard close
-/// unless the user confirms completion of Report stage.
-/// </summary>
+/// <summary>State accumulated as the user moves through wizard stages.</summary>
 public class WizardSession
 {
     public WizardStage CurrentStage { get; set; } = WizardStage.Input;
@@ -84,14 +68,9 @@ public class WizardSession
     public string? GeneratedOutputDir { get; set; }
     public string? BuiltDllPath { get; set; }
 
-    // Craft UI state — survives back/forward navigation within the wizard AND (when
-    // snapshotted) across app restarts. Every user input in CraftStage writes here.
+    // Craft UI state — persisted across navigation and (snapshotted) app restarts.
     public string? CraftHostExePath { get; set; }
-    /// <summary>
-    /// Vendor resolved from the Host EXE's PE version info (CompanyName) when CraftStage
-    /// sees a valid host path. Feeds <see cref="ReportStage"/> and the Library so phantom
-    /// advisories (no target PE) still end up under the correct vendor folder.
-    /// </summary>
+    /// <summary>Vendor resolved from the Host EXE's CompanyName; used by ReportStage and the Library.</summary>
     public string? Vendor { get; set; }
     public string? CraftArchOverride { get; set; }               // "x86" / "x64"
     public int CraftPayloadIndex { get; set; }

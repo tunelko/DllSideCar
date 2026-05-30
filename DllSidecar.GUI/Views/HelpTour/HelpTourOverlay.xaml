@@ -12,8 +12,7 @@
             <Rectangle x:Name="DimLeft"   Fill="#CC000000"/>
             <Rectangle x:Name="DimRight"  Fill="#CC000000"/>
 
-            <!-- Spotlight outline: phosphor border drawn around the cutout to
-                 draw the eye even when the contained element is busy. -->
+            <!-- Spotlight outline: phosphor border around the cutout. -->
             <Rectangle x:Name="Spotlight" Stroke="#00F0A3" StrokeThickness="2"
                        Fill="Transparent" RadiusX="6" RadiusY="6"
                        IsHitTestVisible="False"/>

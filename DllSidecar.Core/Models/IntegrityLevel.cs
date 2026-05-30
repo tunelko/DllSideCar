@@ -1,9 +1,6 @@
 namespace DllSidecar.Core.Models;
 
-/// <summary>Windows token integrity level, mapped from the RID in the IL SID
-/// (S-1-16-{rid}). Captured by EtwDllTracer when a process is detected, used by
-/// SandboxClassifier to decide whether a target is sandboxed enough to need the
-/// SandboxEscape payload variant.</summary>
+/// <summary>Windows token integrity level mapped from the RID in S-1-16-{rid}.</summary>
 public enum IntegrityLevel
 {
     Unknown = 0,

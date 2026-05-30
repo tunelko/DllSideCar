@@ -5,17 +5,7 @@ using DllSidecar.Core.Services.Advisory;
 namespace DllSidecar.Core.Services.Advisory.Rendering;
 
 /// <summary>
-/// Renders the GHSA (GitHub Security Advisory) format the researcher pastes into
-/// the GitHub web editor at https://github.com/&lt;owner&gt;/&lt;repo&gt;/security/advisories/new.
-///
-/// Output is pure Markdown — the canonical four sections GitHub pre-fills (Impact /
-/// Patches / Workarounds / References) plus the contextual blocks reviewers always ask
-/// for (Affected component, Technical details, CVE, Credits). The old OSV YAML
-/// front-matter (schema-version, ecosystem, affected ranges …) was removed in
-/// v1.1.9 — it duplicated the body, confused the preview, and only mattered for
-/// direct PRs into github/advisory-database, a workflow DllSidecar's researcher
-/// does not use (the central DB is fed automatically by GitHub once a published
-/// repo advisory gets an assigned CVE).
+/// Renders the GHSA Markdown body (Impact / Technical details / Patches / Workarounds / References / CVE / Credits).
 /// </summary>
 public sealed class GhsaRenderer : IAdvisoryRenderer
 {
@@ -48,25 +38,13 @@ public sealed class GhsaRenderer : IAdvisoryRenderer
     }
 
     /// <summary>
-    /// Builds the GHSA markdown body. Layout follows GitHub's official "Draft a new security
-    /// advisory" web form template (Impact / Patches / Workarounds / References) so the
-    /// researcher can copy-paste the output straight into the GitHub advisory editor without
-    /// re-sectioning. Around that scaffold we add the contextual blocks reviewers always ask
-    /// for first — affected component (vendor / product / binary / arch / install dir / CWE /
-    /// CVSS), a one-line summary callout, technical details, CVE status, and credits.
-    /// Blank fields fall back to the italicised prompt text GitHub itself uses, so empty
-    /// renders still read as a fill-in-the-blanks template instead of an inconsistent dump.
+    /// Builds the GHSA markdown body following GitHub's web form template.
     /// </summary>
     private static string ComposeBody(AdvisoryContext ctx)
     {
         var sb = new StringBuilder();
 
-        // Resolve narrative fields up front. If the user hasn't typed a custom Impact /
-        // AttackScenario / ProposedSolution, fall back to the same synthesizer the Markdown
-        // renderer uses — otherwise a switch from Markdown to GHSA on a fully populated
-        // advisory would surface italic GitHub placeholders even though the ctx carries
-        // enough metadata (vendor, product, importer, install dir, privesc) to draft a
-        // sensible default for every section.
+        // Resolve narrative fields; fall back to synthesizers when blank.
         var resolvedImpact = string.IsNullOrWhiteSpace(ctx.Impact)
             ? AdvisoryTemplate.DefaultImpactText(ctx)
             : ctx.Impact.Trim();
@@ -77,8 +55,7 @@ public sealed class GhsaRenderer : IAdvisoryRenderer
             ? AdvisoryTemplate.DefaultMitigationsText()
             : ctx.ProposedSolution.Trim();
 
-        // Summary callout — first sentence of the (resolved) attack scenario, surfaced as a
-        // quote so the reader gets the vulnerability in one line before scrolling.
+        // Summary callout — first sentence of the attack scenario.
         var summary = FirstSentence(resolvedScenario);
         if (!string.IsNullOrWhiteSpace(summary))
         {
@@ -86,9 +63,7 @@ public sealed class GhsaRenderer : IAdvisoryRenderer
             sb.AppendLine();
         }
 
-        // Affected-component block — the GitHub web template doesn't include this but every
-        // reviewer asks for it on first read ("which binary in which version of which
-        // product?"). Skipping fields we don't have keeps the list tight.
+        // Affected-component block.
         sb.AppendLine("### Affected component");
         sb.AppendLine();
         if (!string.IsNullOrWhiteSpace(ctx.Vendor))
@@ -114,9 +89,7 @@ public sealed class GhsaRenderer : IAdvisoryRenderer
         sb.AppendLine(resolvedImpact);
         sb.AppendLine();
 
-        // Technical details — sits between Impact and Patches; the template doesn't include
-        // it but DLL-sideloading findings need the search-order narrative so the reviewer
-        // can map "loader looks for X.dll in <dir>" to the proof-of-concept payload path.
+        // Technical details — sits between Impact and Patches.
         sb.AppendLine("### Technical details");
         sb.AppendLine();
         sb.AppendLine(resolvedScenario);
@@ -127,9 +100,7 @@ public sealed class GhsaRenderer : IAdvisoryRenderer
         sb.AppendLine(resolvedPatches);
         sb.AppendLine();
 
-        // Workarounds — AdvisoryContext doesn't carry a dedicated field for this yet, so
-        // the placeholder is left for the researcher to fill in before submission. A future
-        // refactor can promote this to a model field if the same workaround keeps recurring.
+        // Workarounds — placeholder; no dedicated context field yet.
         sb.AppendLine("### Workarounds");
         sb.AppendLine();
         sb.AppendLine("_Is there a way for users to fix or remediate the vulnerability without upgrading?_");
@@ -144,8 +115,7 @@ public sealed class GhsaRenderer : IAdvisoryRenderer
                 sb.AppendLine($"{i + 1}. {ctx.References[i]}");
         sb.AppendLine();
 
-        // CVE block — the GitHub UI tracks CVE separately on the form, but having it inline
-        // in the markdown keeps the body self-contained when exported to other CNAs.
+        // CVE block — kept inline so the markdown is self-contained.
         sb.AppendLine("### CVE");
         sb.AppendLine();
         sb.AppendLine(ctx.CveDedup?.HasExactMatch == true
@@ -164,24 +134,17 @@ public sealed class GhsaRenderer : IAdvisoryRenderer
     }
 
     /// <summary>
-    /// Returns text up to the first sentence-ending punctuation or newline. Used to derive
-    /// the one-line Summary callout from the AttackScenario without having to track a
-    /// separate field on the context.
-    ///
-    /// A "sentence end" is a period followed by whitespace or the end of the string — not
-    /// any period at all, otherwise filenames like <c>Agent.exe</c> truncate the summary
-    /// at the first dot.
+    /// Return text up to the first sentence-ending punctuation or newline; preserves embedded dots in filenames.
     /// </summary>
     private static string FirstSentence(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return "";
         var trimmed = text.Trim();
 
-        // Newline always ends the summary — we want one line, not the whole paragraph.
+        // Newline always ends the summary.
         var newlineIdx = trimmed.IndexOfAny(new[] { '\n', '\r' });
 
-        // Scan for a period that's actually a sentence terminator: followed by whitespace
-        // or end-of-string. Skip periods embedded in filenames / version strings.
+        // Period must be followed by whitespace or EOS (skip filename dots).
         var periodIdx = -1;
         for (int i = 0; i < trimmed.Length; i++)
         {

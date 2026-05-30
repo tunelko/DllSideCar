@@ -19,17 +19,10 @@ public partial class ConfigPage : Page
         LoadFromConfig();
     }
 
-    /// <summary>
-    /// Static metadata for each tool row — candidate filenames (used by Detect), browse mode,
-    /// required flag and download URL. Kept here so adding a new tool means: add a property to
-    /// <see cref="ToolsConfig"/>, add a ToolPathRow in XAML, add an entry here. No other changes.
-    /// </summary>
+    /// <summary>Static metadata for each tool row: candidate filenames, browse mode, required flag, download URL.</summary>
     private void ConfigureToolRows()
     {
-        // MinGW dirs are folders with no single canonical filename worth probing — Detect is
-        // hidden for them (the section-level Auto-detect button does the discovery). Browse
-        // opens a folder picker. x64 is a hard requirement for compilation; flag it so the
-        // pill flips to REQUIRED when empty rather than the default OPTIONAL.
+        // MinGW dirs use folder picker; x64 is required for compilation.
         Mingw64Row.BrowseMode = Controls.ToolPathRow.BrowseKind.Folder;
         Mingw64Row.IsRequired = true;
         Mingw32Row.BrowseMode = Controls.ToolPathRow.BrowseKind.Folder;
@@ -40,11 +33,7 @@ public partial class ConfigPage : Page
         SysinternalsRow.DownloadUrl = "https://learn.microsoft.com/sysinternals/downloads/sysinternals-suite";
         ToolsRootRow.BrowseMode    = Controls.ToolPathRow.BrowseKind.Folder;
 
-        // ---- Live bundle context ----
-        // Every file row queries BundleDirsProvider() at probe/detect time so it sees what
-        // the user JUST typed in SysinternalsRow / ToolsRootRow — not the stale, possibly
-        // unsaved ConfigManager.Current values. The lambda is closed over the row references
-        // so it always reads the current text on each invocation.
+        // Live bundle context: file rows read current SysinternalsRow/ToolsRootRow text.
         Func<(string?, string?)> bundleProvider = ()
             => (NullIfBlank(SysinternalsRow.ToolPath), NullIfBlank(ToolsRootRow.ToolPath));
 
@@ -55,9 +44,7 @@ public partial class ConfigPage : Page
         };
         foreach (var row in fileRows) row.BundleDirsProvider = bundleProvider;
 
-        // When SysinternalsRow / ToolsRootRow change, every file row's pill must be
-        // recomputed because "VIA BUNDLE" resolution depends on those values. Without this
-        // the pills only refresh on next page load.
+        // Recompute pills when bundle dirs change.
         SysinternalsRow.ToolPathChanged += (_, _) => { foreach (var r in fileRows) r.RecomputeStatus(); };
         ToolsRootRow.ToolPathChanged    += (_, _) => { foreach (var r in fileRows) r.RecomputeStatus(); };
 
@@ -139,9 +126,7 @@ public partial class ConfigPage : Page
 
     private void AutoDetect_Click(object sender, RoutedEventArgs e)
     {
-        // Probe well-known MSYS2 / mingw-w64 install roots and populate the three MinGW rows
-        // with whatever exists. Section-level so the user gets all three filled in one click;
-        // per-row Detect is hidden for folders since there's no single canonical filename.
+        // Probe well-known MSYS2 / mingw-w64 install roots.
         string[] candidates = [
             @"C:\msys64", @"C:\msys32", @"C:\MinGW", @"D:\msys64",
             @"C:\Program Files\mingw-w64", @"C:\mingw64", @"C:\mingw32",
@@ -223,15 +208,13 @@ public partial class ConfigPage : Page
 
         cfg.AutoCveLookup = AutoCveLookupBox.IsChecked == true;
 
-        // Payload defaults — fall back to current values when blank so a
-        // user emptying the box doesn't generate empty C string literals.
+        // Payload defaults: fall back to current values when blank.
         if (!string.IsNullOrWhiteSpace(MsgBoxTitleBox.Text))
             cfg.Payload.MessageBoxTitle = MsgBoxTitleBox.Text;
         if (!string.IsNullOrWhiteSpace(MsgBoxBodyBox.Text))
             cfg.Payload.MessageBoxBody = MsgBoxBodyBox.Text;
 
-        // Reverse-shell endpoint: same guard. Invalid port falls through to
-        // current value so a typo doesn't quietly stomp the saved 4444 with 0.
+        // Reverse-shell endpoint: invalid port falls through to current value.
         if (!string.IsNullOrWhiteSpace(RevShellHostBox.Text))
             cfg.Payload.ReverseShellHost = RevShellHostBox.Text.Trim();
         if (int.TryParse(RevShellPortBox.Text?.Trim(), out int p) && p > 0 && p < 65536)

@@ -10,10 +10,7 @@ public static class EtwResultConverter
     {
         var phantoms = new List<PhantomCandidate>();
 
-        // The root target is the binary the OPERATOR launched / attached / watched
-        // from RuntimeTracePage. Even when a child process (agent.exe, AcroCEF.exe,
-        // …) physically performs the LoadLibrary, the operator delivers and victim
-        // runs the root — that's what should land in Craft's Host EXE field.
+        // The root target is the operator-launched binary; it goes to Craft's Host EXE.
         var rootPath = result.RootProcess?.ImagePath;
         var rootName = result.RootProcess?.Name;
 
@@ -33,13 +30,7 @@ public static class EtwResultConverter
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            // ETW's ProcessImagePath is frequently just the basename ("Battle.net.exe")
-            // because TraceEvent can't always normalise the kernel device path, and
-            // Process.GetProcessById().MainModule fails for x86 children of an x64
-            // tracer. Fix it up by checking if the basename resolves to a real file
-            // in the phantom's directory — that's where 99% of sideload importers
-            // live. This single change feeds the full path forward to CraftStage's
-            // Host EXE field and AttackPath's Analyze handoff in one shot.
+            // Resolve basenames to full paths via the phantom directory or live processes.
             var importers = processImages
                 .Select(proc => new ImporterRef
                 {
@@ -48,10 +39,7 @@ public static class EtwResultConverter
                 })
                 .ToList();
 
-            // Promote the root target to Importers[0] so every consumer that reads
-            // `Importers.FirstOrDefault()` (CraftStage.Host, ReportStage.ImporterExe,
-            // AttackPath.OpenFocusInAnalyze) gets the operator-facing binary — not
-            // the grandchild that happened to do the actual file probe.
+            // Promote the root target to Importers[0] for downstream consumers.
             if (!string.IsNullOrEmpty(rootPath))
             {
                 var rootBasename = Path.GetFileName(rootPath);
@@ -99,14 +87,7 @@ public static class EtwResultConverter
             phantom.Score = ExploitabilityScorer.ScorePhantom(phantom);
             ExploitabilityScorer.ApplyDynamicEvidence(phantom.Score, phantom.Privesc, phantom.Evidence);
 
-            // Sandbox classification: scan EVERY importer + every traced process,
-            // not just Importers[0]. Importers[0] is the user-launched root binary
-            // (Acrobat.exe, MobaXterm.exe, …), which is typically High IL and not
-            // sandboxed even when the actual LoadLibrary fires in a sandboxed
-            // grandchild (AcroCEF.exe @ Low IL, msedgewebview2.exe under WV2 …).
-            // Picking the strongest non-None signal across the full chain matches
-            // operator intuition — if ANY process in the trace is sandboxed, the
-            // SandboxEscape payload is the right call.
+            // Sandbox classification across every importer + traced process; strongest non-None wins.
             SandboxKind staticKind = SandboxKind.None;
             foreach (var imp in phantom.Importers)
             {
@@ -120,9 +101,7 @@ public static class EtwResultConverter
             {
                 var k = SandboxClassifier.FromTokenInfo(proc.IsAppContainer, proc.IntegrityLevel);
                 if (k == SandboxKind.None) continue;
-                // First non-None wins; this is the strongest dynamic signal in
-                // the tree. AppContainer beats LowIntegrity beats Renderer purely
-                // because FromTokenInfo returns AppContainer first when both are set.
+                // First non-None wins.
                 dynamicKind = k;
                 break;
             }
@@ -140,11 +119,7 @@ public static class EtwResultConverter
     }
 
     /// <summary>
-    /// Turn an importer-process string into a full disk path when ETW only handed us
-    /// a basename. Heuristic ladder: rooted-and-exists → trust it · basename + phantom
-    /// directory → use if file exists · running process with that name → MainModule.FileName
-    /// via Win32 QueryFullProcessImageName (works across x86↔x64). Last resort: return
-    /// the original string so downstream code at least has *something* to show.
+    /// Resolve a basename to a full disk path via phantom directory or live process lookup (QueryFullProcessImageName).
     /// </summary>
     private static string ResolveImporterFullPath(string raw, string phantomDir)
     {
@@ -160,8 +135,7 @@ public static class EtwResultConverter
             if (File.Exists(candidate)) return candidate;
         }
 
-        // Best-effort live-process lookup. ProcessImagePath uses
-        // QueryFullProcessImageName which works cross-arch where MainModule fails.
+        // Best-effort live-process lookup via QueryFullProcessImageName.
         var noExt = Path.GetFileNameWithoutExtension(basename);
         var live = ProcessImagePath.TryGetByName(noExt);
         if (!string.IsNullOrEmpty(live) && File.Exists(live)) return live;
@@ -192,14 +166,19 @@ public static class EtwResultConverter
         }
 
         pr.ByDll.AddRange(result.ByDll);
+
+        // IL map from ETW process tree gates the heuristic against same-name launchers
+        // (Battle.net etc.) that spawn children without ever elevating.
+        var pidIl = result.ProcessTree
+            .GroupBy(p => p.Pid)
+            .ToDictionary(g => g.Key, g => g.First().IntegrityLevel);
+        pr.Transitions = ElevationTransitionDetector.RunFullPipeline(pr.Events, pr.ByDll, pidIl);
+
         return pr;
     }
 
     /// <summary>
-    /// Deduplicated summary: unique (ProcessImage, DllName, Directory) triples.
-    /// Useful for UI display before promotion to full phantom candidates.
-    /// LoadCount / ProbeCount let the UI surface whether each (proc,dll,dir) was
-    /// the loader actually attempting an open or just app-internal probes.
+    /// Deduplicated summary: unique (ProcessImage, DllName, Directory) triples with load/probe counts.
     /// </summary>
     public static List<(string ProcessImage, string DllName, string Directory, int EventCount, bool DirWritable, int LoadCount, int ProbeCount)>
         DeduplicatedSummary(EtwTraceResult result) => DeduplicatedSummary(result.Events);
@@ -210,14 +189,14 @@ public static class EtwResultConverter
         return events
             .GroupBy(e => (
                 Proc: (e.ProcessImagePath ?? e.ProcessName).ToLowerInvariant(),
-                Dll: e.DllName.ToLowerInvariant(),
+                Dll: NormalizeDllName(e.DllName),
                 Dir: e.Directory.ToLowerInvariant()))
             .Select(g =>
             {
                 var first = g.First();
                 return (
                     ProcessImage: first.ProcessImagePath ?? first.ProcessName,
-                    DllName: first.DllName,
+                    DllName: NormalizeDllNameDisplay(first.DllName),
                     Directory: first.Directory,
                     EventCount: g.Count(),
                     DirWritable: IsLikelyUserWritable(first.Directory),
@@ -229,6 +208,22 @@ public static class EtwResultConverter
             .ToList();
     }
 
+    // Windows loader probes both "foo.dll" and "foo.dll.DLL" (double-extension fallback).
+    private static string NormalizeDllName(string dllName)
+    {
+        var s = dllName.ToLowerInvariant();
+        if (s.EndsWith(".dll.dll")) s = s[..^4];
+        return s;
+    }
+    private static string NormalizeDllNameDisplay(string dllName)
+    {
+        if (dllName.EndsWith(".dll.DLL", StringComparison.OrdinalIgnoreCase)) return dllName[..^4];
+        return dllName;
+    }
+
+    /// <summary>
+    /// Coarse path-prefix guess; not an ACL probe. Callers needing a verdict must use <see cref="DirAclCache.Get"/>.
+    /// </summary>
     private static bool IsLikelyUserWritable(string dir)
     {
         if (string.IsNullOrEmpty(dir)) return false;

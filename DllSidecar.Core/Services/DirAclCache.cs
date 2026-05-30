@@ -3,17 +3,7 @@ using DllSidecar.Core.Models;
 namespace DllSidecar.Core.Services;
 
 /// <summary>
-/// Per-session memoization wrapper around <see cref="DirectoryAclChecker.Check"/>.
-/// A single ProcMon CSV can list thousands of NAME-NOT-FOUND rows referencing a
-/// few hundred distinct directories — without caching, ProcmonPage's writability
-/// gate would re-probe each dir hundreds of times (each probe writes + deletes a
-/// temp file). One probe per unique path keeps the parse-completion stall under
-/// a second on typical CSVs.
-///
-/// Case-insensitive on the path key because Windows treats paths that way and
-/// ProcMon export quotes are not normalized. Instance-based so the cache dies
-/// with the owning page — no stale ACLs lingering after the user closes the
-/// session and reinstalls the target.
+/// Per-session, case-insensitive memoization wrapper around <see cref="DirectoryAclChecker.Check"/>.
 /// </summary>
 public sealed class DirAclCache
 {
@@ -32,4 +22,9 @@ public sealed class DirAclCache
 
     public int Count => _cache.Count;
     public void Clear() => _cache.Clear();
+
+    /// <summary>
+    /// Pre-seed a permissions entry; intended for tests.
+    /// </summary>
+    public void Seed(string directory, DirectoryPermissions perms) => _cache[directory] = perms;
 }

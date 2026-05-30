@@ -4,10 +4,7 @@ using DllSidecar.Core.Models;
 namespace DllSidecar.Core.Services;
 
 /// <summary>
-/// Cross-references static scan results with a ProcMon CSV. For each candidate, looks up
-/// the DLL name in the parsed aggregation. If present, attaches a DynamicEvidence and
-/// appends a score factor reflecting that the loader actually tried to resolve this DLL
-/// at runtime — phantom candidates that are ONLY theoretical become confirmed.
+/// Cross-references static scan results with a ProcMon CSV, attaching DynamicEvidence on name matches.
 /// </summary>
 public static class ProcmonCorrelator
 {

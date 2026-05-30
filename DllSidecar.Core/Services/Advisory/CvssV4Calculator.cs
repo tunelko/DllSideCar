@@ -2,29 +2,11 @@ using DllSidecar.Core.Models.Advisory;
 
 namespace DllSidecar.Core.Services.Advisory;
 
-/// <summary>
-/// CVSS 4.0 base score — PRAGMATIC APPROXIMATION.
-///
-/// The full v4.0 spec uses a 270+ entry macro-vector lookup table defined in
-/// https://www.first.org/cvss/v4.0/specification-document. Implementing it
-/// inline here is possible but verbose. For our advisory drafting purposes we
-/// use a heuristic formula that stays within ±0.5 of the official calculator
-/// for most DLL-sideloading-style vectors, and expose the VectorString so the
-/// researcher can copy it into https://www.first.org/cvss/calculator/4.0 to
-/// obtain the authoritative score for the submission.
-///
-/// User-facing rule of thumb (reflected in AdvisoryPage tooltip):
-///   "Approximate — for public CVE submission always verify against the FIRST
-///    online calculator."
-///
-/// Severity thresholds follow the spec: NONE 0.0, LOW &lt;4.0, MEDIUM &lt;7.0,
-/// HIGH &lt;9.0, CRITICAL ≥9.0.
-/// </summary>
+/// <summary>CVSS 4.0 base score — pragmatic approximation; verify final score at https://www.first.org/cvss/calculator/4.0.</summary>
 public static class CvssV4Calculator
 {
     public static (double Score, string Severity) Compute(CvssV4Vector v)
     {
-        // Exploitability sub-score — narrower weights than v3, Attack Requirements new.
         double av = v.AttackVector switch       { 'N' => 0.90, 'A' => 0.70, 'L' => 0.55, 'P' => 0.25, _ => 0.55 };
         double ac = v.AttackComplexity switch   { 'L' => 0.85, 'H' => 0.45, _ => 0.85 };
         double at = v.AttackRequirements switch { 'N' => 1.00, 'P' => 0.55, _ => 1.00 };
@@ -39,7 +21,7 @@ public static class CvssV4Calculator
         double iva = ImpactWeight(v.VulnerableAvailability);
         double vulnImpact = 1 - ((1 - ivc) * (1 - ivi) * (1 - iva));
 
-        // Subsequent-system impact (halved weight: contributes but doesn't dominate)
+        // Subsequent-system impact (halved weight)
         double isc = ImpactWeight(v.SubsequentConfidentiality);
         double isi = ImpactWeight(v.SubsequentIntegrity);
         double isa = ImpactWeight(v.SubsequentAvailability);
@@ -72,10 +54,7 @@ public static class CvssV4Calculator
 
     private static double RoundUp(double value) => Math.Ceiling(value * 10) / 10.0;
 
-    /// <summary>
-    /// Parse a v4.0 vector string "CVSS:4.0/AV:L/AC:L/AT:N/PR:L/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N".
-    /// Returns null when the string cannot be parsed.
-    /// </summary>
+    /// <summary>Parse a CVSS 4.0 vector string; null when unparseable.</summary>
     public static CvssV4Vector? ParseVector(string vector)
     {
         if (string.IsNullOrWhiteSpace(vector)) return null;

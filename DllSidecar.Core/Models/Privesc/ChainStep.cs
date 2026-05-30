@@ -1,9 +1,6 @@
 namespace DllSidecar.Core.Models.Privesc;
 
-/// <summary>
-/// Attack-chain step kind. Ordered from primitive → outcome so a chain reads left-to-right.
-/// Kept intentionally shallow in Sprint 1 — this is the hook for the future Attack Path view.
-/// </summary>
+/// <summary>Attack-chain step kind, ordered primitive → outcome.</summary>
 public enum ChainStepKind
 {
     WritePrimitive,   // "Writable dir" / "Low-priv writable slot"
@@ -13,10 +10,7 @@ public enum ChainStepKind
     RuntimeEvidence,  // "ProcMon confirmed in dir" — only when Confidence is runtime-level
 }
 
-/// <summary>
-/// One step in the exploitation chain for a candidate. Kept small and structured so
-/// the UI can render as pills/nodes later without re-parsing strings.
-/// </summary>
+/// <summary>One step in the exploitation chain for a candidate.</summary>
 public class ChainStep
 {
     public required ChainStepKind Kind { get; set; }

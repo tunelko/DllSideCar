@@ -4,12 +4,7 @@ using System.Windows.Media;
 
 namespace DllSidecar.GUI.Views.HelpTour;
 
-/// <summary>
-/// Full-window dim + spotlight + callout balloon. The controller calls
-/// <see cref="ShowStep"/> with the target FrameworkElement and the step
-/// metadata; the overlay computes the cutout rect, positions the four
-/// dim rectangles around it, and parks the balloon next to it.
-/// </summary>
+/// <summary>Full-window dim + spotlight + callout balloon driven by <see cref="ShowStep"/>.</summary>
 public partial class HelpTourOverlay : UserControl
 {
     public event System.Action? NextClicked;
@@ -43,8 +38,7 @@ public partial class HelpTourOverlay : UserControl
         Visibility = Visibility.Visible;
         Balloon.Visibility = Visibility.Visible;
 
-        // Defer layout — TransformToVisual requires both this overlay and the
-        // target to have finished a layout pass.
+        // Defer: TransformToVisual needs a completed layout pass on both ends.
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new System.Action(Relayout));
     }
 
@@ -67,10 +61,7 @@ public partial class HelpTourOverlay : UserControl
         if (ActualWidth < 1 || ActualHeight < 1) return;
         if (_currentTarget.ActualWidth < 1 || _currentTarget.ActualHeight < 1) return;
 
-        // Force the target's TOP edge to align with the viewport's top inside its
-        // parent ScrollViewer. BringIntoView alone keeps tall sections aligned to
-        // the bottom of the viewport — the user would only see the lower half of
-        // the section card with the upper half clipped above the visible area.
+        // Align target's TOP edge to viewport top in its parent ScrollViewer (BringIntoView alone bottom-aligns tall sections).
         var scroller = FindParentScrollViewer(_currentTarget);
         if (scroller != null)
         {
@@ -98,16 +89,11 @@ public partial class HelpTourOverlay : UserControl
         }
         catch (System.InvalidOperationException)
         {
-            // Target not in the same visual tree (page swapped under us). Bail
-            // — caller will be notified by the close event on the next nav.
+            // Target not in the same visual tree (page swapped under us).
             return;
         }
 
-        // If the section card lives inside a ScrollViewer that's shorter than the
-        // card itself, clip the visible cutout to the ScrollViewer's viewport.
-        // Otherwise the spotlight border would float into the page header above
-        // or the footer below, and the user couldn't tell what's actually in the
-        // highlighted area.
+        // Clip cutout to ScrollViewer viewport so the spotlight doesn't bleed into header/footer.
         Rect visible = targetRect;
         if (scroller != null)
         {
@@ -120,8 +106,7 @@ public partial class HelpTourOverlay : UserControl
         }
         if (visible.IsEmpty) return;
 
-        // Pad the cutout a few pixels so the spotlight border isn't flush against
-        // the field; visually it reads as a halo rather than a frame.
+        // Pad cutout so spotlight reads as a halo, not a flush frame.
         const double pad = 6;
         var cutout = new Rect(
             visible.X - pad,
@@ -150,8 +135,7 @@ public partial class HelpTourOverlay : UserControl
         Canvas.SetLeft(Spotlight, cutout.Left); Canvas.SetTop(Spotlight, cutout.Top);
         Spotlight.Width = cutout.Width; Spotlight.Height = cutout.Height;
 
-        // Position the balloon. Default placement: below the target, horizontally
-        // centred. Fall back to above if no room. Then clamp to overlay edges.
+        // Position balloon: prefer below (centred), fall back to above; clamp to overlay edges.
         Balloon.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
         var balloonW = Balloon.DesiredSize.Width;
         var balloonH = Balloon.DesiredSize.Height;
@@ -167,8 +151,7 @@ public partial class HelpTourOverlay : UserControl
         bool placedHorizontally = placement == BalloonPlacement.Left || placement == BalloonPlacement.Right;
         if (placement == BalloonPlacement.Auto)
         {
-            // Prefer vertical placement (below/above) — feels natural for top-down
-            // forms. Switch to horizontal only when neither vertical side has room.
+            // Prefer vertical; switch to horizontal only when neither side has room.
             if (roomBelow < balloonH + gap && roomAbove < balloonH + gap)
                 placedHorizontally = true;
         }

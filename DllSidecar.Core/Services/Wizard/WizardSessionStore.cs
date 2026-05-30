@@ -5,10 +5,7 @@ using DllSidecar.Core.Models.Wizard;
 namespace DllSidecar.Core.Services.Wizard;
 
 /// <summary>
-/// Snapshot DTO that captures the user-typed / user-chosen state of a WizardSession so
-/// it can survive app restarts. Heavy objects (ScanResults, CveDedup, full PeAnalysis)
-/// are intentionally omitted — when the user resumes we re-run those, but we don't lose
-/// their typed paths, combo selections and advisory draft text.
+/// Snapshot DTO of WizardSession typed state (no heavy re-derivable objects).
 /// </summary>
 public sealed class WizardSessionSnapshot
 {
@@ -22,8 +19,7 @@ public sealed class WizardSessionSnapshot
 
     public string? ProcmonCsvPath { get; set; }
 
-    // Candidate choice recorded by name/path so Pick can rematch when the user resumes
-    // and re-scans. If nothing matches anymore the user just picks again.
+    // Candidate choice by name/path so Pick can rematch on resume.
     public string? ChosenExistingFilename { get; set; }
     public string? ChosenExistingPath { get; set; }
     public string? ChosenPhantomName { get; set; }
@@ -132,11 +128,7 @@ public static class WizardSessionStore
             };
             File.WriteAllText(FilePath, JsonSerializer.Serialize(snap, JsonOpts));
         }
-        catch
-        {
-            // Non-fatal — persistence is best-effort. Losing the snapshot is the same as
-            // closing without saving, which is the pre-existing behaviour.
-        }
+        catch { /* best-effort persistence */ }
     }
 
     public static WizardSessionSnapshot? TryLoad()
@@ -156,8 +148,7 @@ public static class WizardSessionStore
     }
 
     /// <summary>
-    /// Apply a snapshot to a fresh WizardSession so stages see previously typed state.
-    /// Heavy objects (ScanResults/CveDedup) stay null until the user re-runs survey/verify.
+    /// Apply a snapshot; heavy objects stay null until re-run.
     /// </summary>
     public static void Apply(WizardSessionSnapshot snap, WizardSession target)
     {
@@ -195,7 +186,6 @@ public static class WizardSessionStore
         target.CraftFireTimeoutSec = snap.CraftFireTimeoutSec;
         target.AdvisoryMarkdown = snap.AdvisoryMarkdown;
         target.AdvisoryPdfPath = snap.AdvisoryPdfPath;
-        // Candidate objects left null — user re-scans in Survey to re-populate. The
-        // filename/path snapshot fields stay available for a future "auto-rematch".
+        // Candidate objects re-populated by Survey rescan.
     }
 }

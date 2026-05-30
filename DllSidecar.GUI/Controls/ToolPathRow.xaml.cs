@@ -6,17 +6,7 @@ using DllSidecar.Core.Configuration;
 
 namespace DllSidecar.GUI.Controls;
 
-/// <summary>
-/// Reusable row for a single tool path in ConfigPage. Drives the same UX for every tool —
-/// label + status pill + path TextBox + browse + detect + optional download link — so we
-/// don't repeat XAML for each of the 8+ tools backed by AppConfig.Tools.
-///
-/// Status semantics:
-///   OK       = path set and the file (or folder) exists on disk
-///   MISSING  = path set but file/folder is gone — usually means the tool was uninstalled
-///   REQUIRED = empty path AND IsRequired=true — must be set for the related flow to work
-///   OPTIONAL = empty path AND IsRequired=false — fine to leave blank
-/// </summary>
+/// <summary>Reusable row for a single tool path in ConfigPage (label + pill + path + browse/detect).</summary>
 public partial class ToolPathRow : System.Windows.Controls.UserControl
 {
     public enum BrowseKind { File, Folder }
@@ -41,12 +31,7 @@ public partial class ToolPathRow : System.Windows.Controls.UserControl
     /// <summary>File picker vs folder picker for the Browse button.</summary>
     public BrowseKind BrowseMode { get; set; } = BrowseKind.File;
 
-    /// <summary>
-    /// Filenames to look for under the SysinternalsDir / ToolsRootDir / PATH when the user
-    /// presses Detect. Order matters — first match wins. e.g. ["Procmon64.exe", "Procmon.exe"].
-    /// Empty means there's nothing meaningful to auto-detect for this row — the Detect button
-    /// is hidden so the user isn't prompted with a no-op control.
-    /// </summary>
+    /// <summary>Filenames probed under SysinternalsDir / ToolsRootDir / PATH on Detect; first match wins.</summary>
     public string[] CandidateNames
     {
         get => _candidateNames;
@@ -70,20 +55,10 @@ public partial class ToolPathRow : System.Windows.Controls.UserControl
     }
     private string? _downloadUrl;
 
-    /// <summary>
-    /// Callback returning the CURRENT (in-memory, not committed) bundle directories the row
-    /// should probe for resolution. Injected by ConfigPage so Detect and the status pill
-    /// reflect what the user just typed in SysinternalsRow / ToolsRootRow — NOT the stale
-    /// ConfigManager.Current values. When null, falls back to ConfigManager.Current so the
-    /// row works standalone in tests / one-off uses.
-    /// </summary>
+    /// <summary>Callback returning in-memory bundle dirs; falls back to ConfigManager.Current when null.</summary>
     public Func<(string? Sysinternals, string? ToolsRoot)>? BundleDirsProvider { get; set; }
 
-    /// <summary>
-    /// Fired whenever the user (or a programmatic load via <see cref="ToolPath"/>) changes
-    /// the path. ConfigPage subscribes on bundle rows so it can recompute the status pill
-    /// of every dependent file row when SysinternalsRow / ToolsRootRow changes.
-    /// </summary>
+    /// <summary>Fired whenever the path changes (typed or set via ToolPath).</summary>
     public event EventHandler? ToolPathChanged;
 
     /// <summary>Two-way path value. Read by ConfigPage on Save, written on Load.</summary>
@@ -132,11 +107,7 @@ public partial class ToolPathRow : System.Windows.Controls.UserControl
         }
     }
 
-    /// <summary>
-    /// Try to auto-discover the tool by probing well-known locations:
-    /// SysinternalsDir, ToolsRootDir (1-level deep), then PATH. Mirrors what ToolkitChecker
-    /// does internally so what the user sees here matches what the rest of the app sees.
-    /// </summary>
+    /// <summary>Probe SysinternalsDir, ToolsRootDir (1-level deep), then PATH for the tool.</summary>
     private void Detect_Click(object sender, RoutedEventArgs e)
     {
         if (CandidateNames.Length == 0) return;
@@ -147,7 +118,6 @@ public partial class ToolPathRow : System.Windows.Controls.UserControl
         }
         else
         {
-            // Highlight the pill briefly so the user knows we tried but came up empty.
             StatusPill.Text = "NOT FOUND";
             StatusPill.Foreground = new SolidColorBrush(Color.FromRgb(0xF3, 0x8B, 0xA8));
         }
@@ -161,9 +131,6 @@ public partial class ToolPathRow : System.Windows.Controls.UserControl
 
     private string? ProbeForTool()
     {
-        // Pull bundle dirs from the live provider (set by ConfigPage = current row text)
-        // when available; otherwise fall back to ConfigManager.Current. This is what makes
-        // Detect and pill resolution see the user's unsaved edits to SysinternalsRow.
         string? sys = null, root2 = null;
         if (BundleDirsProvider != null)
         {
@@ -187,8 +154,7 @@ public partial class ToolPathRow : System.Windows.Controls.UserControl
             {
                 var direct = Path.Combine(root, name);
                 if (File.Exists(direct)) return direct;
-                // Probe one level of subdirectories (Sysinternals zip extracts flat, but
-                // ToolsRoot may have per-tool subfolders).
+                // Probe one level of subdirectories.
                 try
                 {
                     foreach (var sub in Directory.EnumerateDirectories(root))
@@ -224,10 +190,7 @@ public partial class ToolPathRow : System.Windows.Controls.UserControl
         var raw = (PathBox.Text ?? "").Trim();
         if (string.IsNullOrEmpty(raw))
         {
-            // Empty path is fine if the bundle/root probe would resolve it — that's what
-            // ToolkitChecker does at runtime, and the pill should reflect "the app will
-            // find it" rather than scaring the user with REQUIRED. Pill copy: "VIA BUNDLE"
-            // (teal) so it's visually distinct from a hard-coded OK.
+            // Empty path: probe bundle/root before falling back to REQUIRED/OPTIONAL.
             if (CandidateNames.Length > 0)
             {
                 var resolved = ProbeForTool();

@@ -24,11 +24,11 @@ public class PreflightResult
 /// </summary>
 public enum LaunchMode
 {
-    /// <summary>Try MediumIntegrity first; fall back to SameIntegrity if no shell is available or the de-elevation API fails.</summary>
+    /// <summary>Try MediumIntegrity first; fall back to SameIntegrity.</summary>
     Auto,
-    /// <summary>Inherit the tracer's (elevated) token. Works fine for normal apps (Notepad++, CLI tools). Breaks sandboxed apps.</summary>
+    /// <summary>Inherit the tracer's elevated token.</summary>
     SameIntegrity,
-    /// <summary>Launch via explorer.exe's token. Required for Acrobat/Chrome/Edge/Teams — apps that refuse to run correctly when inheriting a High-IL token.</summary>
+    /// <summary>Launch via explorer.exe's token (required for sandboxed apps).</summary>
     MediumIntegrity,
 }
 
@@ -36,6 +36,13 @@ public class EtwDllTracer : IDisposable
 {
     private readonly EtwTraceFilter _filter;
     private readonly ConcurrentDictionary<int, ProcessInfo> _trackedPids = new();
+    // Negative cache to skip re-probing unrelated PIDs.
+    private readonly ConcurrentDictionary<int, byte> _rejectedPids = new();
+    // UAC chain helpers adopted whenever a target is tracked.
+    private static readonly HashSet<string> UacChainNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "consent.exe",
+    };
     private readonly ConcurrentBag<EtwTraceEvent> _events = new();
     private readonly ConcurrentBag<ProcessLifecycle> _processEvents = new();
     private int _rootPid;
@@ -46,14 +53,9 @@ public class EtwDllTracer : IDisposable
     private bool _disposed;
     private string? _pendingProcessName;
     private string? _pendingExePath;
-    // When set, OnProcessStart adopts every new process whose name matches.
-    // Survives multiple PID generations (e.g. service stop+start cycles).
+    // OnProcessStart adopts every new process whose name matches; survives PID changes.
     private string? _watchProcessName;
-    // Optional command-line substring required for the watch to adopt a match.
-    // Use case: svchost-hosted services. The image basename (svchost.exe) is
-    // shared by hundreds of unrelated svchost groups, so name-only watching
-    // floods with noise. Setting this to "-s BITS" (or whatever -s arg the
-    // service uses) restricts adoption to the right svchost instance.
+    // Optional cmd-line substring filter (e.g. "-s BITS" for svchost-hosted services).
     private string? _watchCmdLineFilter;
 
     public event Action<EtwTraceEvent>? EventCaptured;
@@ -94,7 +96,6 @@ public class EtwDllTracer : IDisposable
 
     /// <summary>
     /// Launch mode: start ETW session first, then launch the EXE.
-    /// Zero events lost — tracing is active before the first LoadLibrary.
     /// </summary>
     public void StartWithExe(string exePath, string? arguments, LaunchMode mode, CancellationToken ct)
     {
@@ -173,8 +174,7 @@ public class EtwDllTracer : IDisposable
                 StatusChanged?.Invoke($"Tracing {name} (PID {_rootPid}, {ilLabel}) — interact with the app, then STOP.");
                 NotifyProcessDetected(_rootPid, 0, name, exePath, true);
 
-                // Same-IL launch: force the window visible because elevated parents produce
-                // invisible windows. Medium-IL launch: the window appears on its own.
+                // Same-IL launch needs an explicit window foreground push.
                 if (!wentMediumIL && proc != null)
                     BringWindowToFront(proc, procBaseName);
             }
@@ -213,9 +213,7 @@ public class EtwDllTracer : IDisposable
         Log.Info("etw", $"Attach mode: PID {pid} ({name}), children={_filter.IncludeChildren}");
         StatusChanged?.Invoke($"Starting trace for {name} (PID {pid})...");
 
-        // ETW only delivers ProcessStart events from now on — pre-existing children
-        // (e.g. Acrobat's AcroCEF/RdrCEF helpers that spawned at app launch) would
-        // otherwise be silently filtered out of FileIOCreate events. Seed them.
+        // Seed pre-existing children since ETW only delivers ProcessStart from now on.
         if (_filter.IncludeChildren)
             SeedExistingDescendants(pid);
 
@@ -226,19 +224,8 @@ public class EtwDllTracer : IDisposable
     }
 
     /// <summary>
-    /// Watch-by-name mode: start the ETW session with no PID and adopt every
-    /// future process whose image name matches <paramref name="processName"/>.
-    /// Then optionally fire a CLI command to trigger the lookup (sc start svc,
-    /// regsvr32 evil.dll, splunk restart, etc.).
-    ///
-    /// <paramref name="cmdLineFilter"/> is an optional case-insensitive substring
-    /// the new process's command line must contain to be adopted. Use this when
-    /// the image name is shared (svchost.exe) — pass "-s BITS" to capture only
-    /// the BITS-hosting svchost group. Empty/null = name-only matching.
-    ///
-    /// Designed for services that change PID across restarts: the session stays
-    /// up across multiple stop/start cycles and aggregates events from every PID
-    /// that matched the name (and the optional cmd-line filter).
+    /// Watch-by-name mode: adopt every future process whose image name matches <paramref name="processName"/>.
+    /// Optional <paramref name="runCommand"/> triggers the load; <paramref name="cmdLineFilter"/> restricts adoption (e.g. svchost groups).
     /// </summary>
     public void StartWatchByName(string processName, string? runCommand, CancellationToken ct, string? cmdLineFilter = null)
     {
@@ -251,7 +238,7 @@ public class EtwDllTracer : IDisposable
         if (preflight.Status != PreflightStatus.Ready)
             throw new InvalidOperationException(preflight.Message);
 
-        // Strip .exe so we match TraceEvent's ProcessName field (basename, no ext).
+        // Strip .exe to match TraceEvent's ProcessName field.
         var bareName = Path.GetFileNameWithoutExtension(processName.Trim());
         if (string.IsNullOrEmpty(bareName))
             throw new ArgumentException($"Could not derive a process name from '{processName}'", nameof(processName));
@@ -264,9 +251,7 @@ public class EtwDllTracer : IDisposable
 
         StartEtwSession(ct);
 
-        // Optionally fire a CLI command to trigger whatever loads the target DLL.
-        // Spawned via cmd.exe /c so users can chain (sc stop x && sc start x),
-        // pipe, redirect — any normal shell construct.
+        // Optionally fire a CLI command via cmd.exe /c to trigger the load.
         if (!string.IsNullOrWhiteSpace(runCommand))
         {
             try
@@ -284,8 +269,7 @@ public class EtwDllTracer : IDisposable
                 if (proc != null)
                 {
                     Log.Info("etw", $"Launched watcher command (PID {proc.Id}): {runCommand}");
-                    // Drain output asynchronously so the command can complete; we
-                    // don't block the caller — the ETW session is the long-running part.
+                    // Drain output asynchronously; ETW session is the long-running part.
                     Task.Run(() =>
                     {
                         try
@@ -306,8 +290,7 @@ public class EtwDllTracer : IDisposable
             catch (Exception ex)
             {
                 Log.Error("etw", $"Failed to launch watcher command '{runCommand}'", ex);
-                // Don't tear down the session — the user may still trigger the target
-                // manually from another shell, and the ETW session is already capturing.
+                // Don't tear down the session; user may still trigger manually.
             }
         }
 
@@ -316,9 +299,7 @@ public class EtwDllTracer : IDisposable
     }
 
     /// <summary>
-    /// Walks the live process tree and adds every descendant of <paramref name="rootPid"/>
-    /// to <see cref="_trackedPids"/>. Uses CreateToolhelp32Snapshot for parent-PID lookup
-    /// (not exposed by System.Diagnostics.Process directly).
+    /// Add every live descendant of <paramref name="rootPid"/> to <see cref="_trackedPids"/> via CreateToolhelp32Snapshot.
     /// </summary>
     private void SeedExistingDescendants(int rootPid)
     {
@@ -394,9 +375,7 @@ public class EtwDllTracer : IDisposable
         try { _processingTask?.Wait(TimeSpan.FromSeconds(3)); } catch { }
         try { _session?.Stop(); } catch { }
 
-        // Watch-by-name targets are typically services (splunkd, sshd, etc.) the
-        // user does NOT want killed on stop. Only kill processes we launched
-        // ourselves via StartWithExe.
+        // Only kill processes launched via StartWithExe; preserve watch-by-name services.
         if (_watchProcessName == null)
             KillTrackedProcesses();
 
@@ -468,7 +447,7 @@ public class EtwDllTracer : IDisposable
             return;
         }
 
-        var path = data.FileName;
+        var path = NtPathNormalizer.Normalize(data.FileName);
         if (string.IsNullOrEmpty(path)) return;
         if (_filter.DllOnly && !path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
         {
@@ -490,8 +469,7 @@ public class EtwDllTracer : IDisposable
 
         Interlocked.Increment(ref _debugPassedFilter);
 
-        // CreateOptions on FileIOCreateTraceData is signed in some TraceEvent
-        // builds; cast through an unchecked uint so the bit pattern is preserved.
+        // Preserve bit pattern across signed/unsigned TraceEvent builds.
         var createOptions = unchecked((uint)data.CreateOptions);
         var ev = new EtwTraceEvent
         {
@@ -518,13 +496,7 @@ public class EtwDllTracer : IDisposable
         {
             _rootPid = data.ProcessID;
             var rName = data.ProcessName + ".exe";
-            // Launch mode: the user-supplied full path is the ground truth — it's
-            // literally what they want to land in Craft's Host EXE field after
-            // Promote. ETW's data.ImageFileName arrives as a kernel device path
-            // ("\Device\HarddiskVolume3\…") or a basename depending on the kernel
-            // build, neither of which is useful for compilation. Prefer the
-            // user's input; fall back to ETW only when StartWithExe wasn't the
-            // entry point (e.g. tracer was attached after process startup).
+            // Prefer user-supplied path; ETW's ImageFileName is unreliable for fresh PIDs.
             var rPath = !string.IsNullOrEmpty(_pendingExePath) ? _pendingExePath : (data.ImageFileName ?? "");
             _trackedPids[data.ProcessID] = new ProcessInfo(rName, rPath, 0, true);
             _processEvents.Add(new ProcessLifecycle(data.ProcessID, 0, rName, rPath, data.TimeStamp, true));
@@ -536,15 +508,12 @@ public class EtwDllTracer : IDisposable
             return;
         }
 
-        // Watch-by-name mode: every new process whose name matches becomes a
-        // tracked root. Allows multiple PID generations (service restarts) to
-        // accumulate into the same trace result.
+        // Watch-by-name: every name-matching new process becomes a tracked root.
         if (_watchProcessName != null
             && string.Equals(data.ProcessName, _watchProcessName, StringComparison.OrdinalIgnoreCase)
             && !_trackedPids.ContainsKey(data.ProcessID))
         {
-            // Optional cmd-line filter: required for svchost-style shared hosts
-            // where many unrelated PIDs share the same image name.
+            // Optional cmd-line filter for svchost-style shared hosts.
             if (_watchCmdLineFilter != null)
             {
                 var cmd = data.CommandLine ?? "";
@@ -555,18 +524,9 @@ public class EtwDllTracer : IDisposable
                 }
             }
             var rName = data.ProcessName + ".exe";
-            // ETW's data.ImageFileName is unreliable for newly-started processes —
-            // it arrives as a kernel device path (\Device\HarddiskVolume3\...) or
-            // a bare basename depending on the kernel build. Neither helps the
-            // downstream consumers (CraftStage Host EXE, AttackPath Analyze).
-            // The process is guaranteed alive at this point (PID just appeared in
-            // ETW), so QueryFullProcessImageName gives us the canonical drive-
-            // letter path. Falls back to whatever ETW handed us only if Win32
-            // refuses the lookup (process died between events, etc.).
+            // Resolve to a rooted path via QueryFullProcessImageName.
             var rPath = ResolveImagePathForLivePid(data.ProcessID, data.ImageFileName);
-            // First match becomes the "root" for tree-building purposes;
-            // subsequent matches are tagged as roots too so they all show up
-            // at the top level of the process tree.
+            // All matches tag as roots so they sit at the top of the tree.
             var isFirst = _rootPid == 0;
             if (isFirst) _rootPid = data.ProcessID;
             _trackedPids[data.ProcessID] = new ProcessInfo(rName, rPath, 0, true);
@@ -578,32 +538,46 @@ public class EtwDllTracer : IDisposable
         }
 
         if (!_filter.IncludeChildren) return;
-        if (!_trackedPids.ContainsKey(data.ParentID)) return;
 
         var name = data.ProcessName + ".exe";
-        // Same path-quality issue as the Watch branch above: ETW's ImageFileName
-        // is unreliable for fresh PIDs, so we resolve via Win32 while the child
-        // is still alive. Downstream code (EtwResultConverter, CraftStage) reads
-        // these paths verbatim — if they're basenames the Host EXE field ends
-        // up degraded after Promote.
+        // Resolve via Win32 while the child is alive.
         var imagePath = ResolveImagePathForLivePid(data.ProcessID, data.ImageFileName);
-        _trackedPids[data.ProcessID] = new ProcessInfo(name, imagePath, data.ParentID, false);
-        _processEvents.Add(new ProcessLifecycle(data.ProcessID, data.ParentID, name, imagePath, data.TimeStamp, false));
 
-        Log.Debug("etw", $"Child process: {name} (PID {data.ProcessID}, parent {data.ParentID})");
-        StatusChanged?.Invoke($"Child: {name} (PID {data.ProcessID})");
+        bool parentIsTracked = _trackedPids.ContainsKey(data.ParentID);
 
-        NotifyProcessDetected(data.ProcessID, data.ParentID, name, imagePath, false);
+        // consent.exe runs the UAC prompt and inherits CWD from the calling app.
+        bool uacChainAdoption = _trackedPids.Count > 0 && UacChainNames.Contains(name);
+
+        bool elevationAdoption = uacChainAdoption;
+        if (!parentIsTracked && !uacChainAdoption)
+        {
+            foreach (var kv in _trackedPids)
+            {
+                var existing = kv.Value;
+                bool pathMatch =
+                    !string.IsNullOrEmpty(imagePath)
+                    && !string.IsNullOrEmpty(existing.ImagePath)
+                    && string.Equals(imagePath, existing.ImagePath, StringComparison.OrdinalIgnoreCase);
+                bool nameMatch =
+                    string.Equals(name, existing.Name, StringComparison.OrdinalIgnoreCase);
+                if (pathMatch || nameMatch) { elevationAdoption = true; break; }
+            }
+            if (!elevationAdoption) return;
+        }
+
+        bool isRoot = elevationAdoption;
+        _trackedPids[data.ProcessID] = new ProcessInfo(name, imagePath, data.ParentID, isRoot);
+        _processEvents.Add(new ProcessLifecycle(data.ProcessID, data.ParentID, name, imagePath, data.TimeStamp, isRoot));
+
+        StatusChanged?.Invoke(elevationAdoption
+            ? $"Elevated sibling adopted: {name} (PID {data.ProcessID})"
+            : $"Child: {name} (PID {data.ProcessID})");
+
+        NotifyProcessDetected(data.ProcessID, data.ParentID, name, imagePath, isRoot);
     }
 
     /// <summary>
-    /// Best-effort rooted full-path resolver for a process the ETW kernel just
-    /// announced. <see cref="ProcessImagePath.TryGet"/> uses
-    /// <c>QueryFullProcessImageName</c> which works cross-architecture (x64 host
-    /// reading an x86 process and vice versa). When the Win32 call returns
-    /// something rooted we trust it; otherwise we fall through to whatever ETW
-    /// gave us (basename / kernel device path / null) so the lifecycle record
-    /// still has *some* identifier downstream.
+    /// Resolve to a rooted path via QueryFullProcessImageName; falls back to ETW value.
     /// </summary>
     private static string ResolveImagePathForLivePid(int pid, string? etwImagePath)
     {
@@ -615,6 +589,41 @@ public class EtwDllTracer : IDisposable
         }
         catch { /* swallow — fall through to ETW value */ }
         return etwImagePath ?? "";
+    }
+
+    /// <summary>Adopt unknown PID if image matches a tracked target or it is a UAC chain helper.</summary>
+    private ProcessInfo? TryLateAdopt(int pid)
+    {
+        string? imagePath;
+        try { imagePath = Helpers.ProcessImagePath.TryGet(pid); }
+        catch { return null; }
+        if (string.IsNullOrEmpty(imagePath)) return null;
+
+        var basename = Path.GetFileName(imagePath);
+
+        bool matched = _trackedPids.Count > 0 && UacChainNames.Contains(basename);
+
+        if (!matched)
+        {
+            foreach (var kv in _trackedPids)
+            {
+                var existing = kv.Value;
+                bool pathMatch =
+                    !string.IsNullOrEmpty(existing.ImagePath)
+                    && string.Equals(imagePath, existing.ImagePath, StringComparison.OrdinalIgnoreCase);
+                bool nameMatch =
+                    string.Equals(basename, existing.Name, StringComparison.OrdinalIgnoreCase);
+                if (pathMatch || nameMatch) { matched = true; break; }
+            }
+        }
+
+        if (!matched) return null;
+
+        var info = new ProcessInfo(basename, imagePath, 0, true);
+        _trackedPids[pid] = info;
+        _processEvents.Add(new ProcessLifecycle(pid, 0, basename, imagePath, DateTime.Now, true));
+        NotifyProcessDetected(pid, 0, basename, imagePath, true);
+        return info;
     }
 
     private void OnProcessStop(ProcessTraceData data)
@@ -635,9 +644,7 @@ public class EtwDllTracer : IDisposable
     {
         try
         {
-            // Sandbox-relevant token signals captured here while the process is
-            // guaranteed alive. Same data is also stamped on the matching
-            // ProcessLifecycle so BuildResult can populate the persisted tree.
+            // Capture token signals while the process is alive.
             var (il, isAc) = CaptureTokenInfo(pid);
             AnnotateLifecycle(pid, il, isAc);
 
@@ -658,10 +665,7 @@ public class EtwDllTracer : IDisposable
 
     private void AnnotateLifecycle(int pid, IntegrityLevel il, bool isAppContainer)
     {
-        // ProcessLifecycle is appended right BEFORE NotifyProcessDetected in every
-        // hook (StartWithExe, AttachToPid, SeedExistingDescendants, OnProcessStart).
-        // The order means the matching record exists by the time we reach here —
-        // we just stamp the token fields on it.
+        // ProcessLifecycle is appended before NotifyProcessDetected; stamp fields here.
         foreach (var pe in _processEvents)
         {
             if (pe.Pid == pid && pe.IntegrityLevel == IntegrityLevel.Unknown)
@@ -766,9 +770,7 @@ public class EtwDllTracer : IDisposable
         try
         {
             using var proc = Process.GetProcessById(pid);
-            // Prefer QueryFullProcessImageName via ProcessImagePath helper — works
-            // cross-arch where Process.MainModule throws (x64 host reading an x86
-            // process or vice versa). MainModule is the last resort.
+            // Prefer QueryFullProcessImageName (cross-arch); MainModule is the fallback.
             var imagePath = ProcessImagePath.TryGet(pid);
             if (string.IsNullOrEmpty(imagePath))
             {
@@ -930,9 +932,7 @@ public class EtwDllTracer : IDisposable
         public bool IsRoot { get; }
         public DateTime? ExitTime { get; set; }
 
-        // Captured at detection time, while the process is still alive — once the
-        // process exits, OpenProcess fails and we can't recover these. Default to
-        // Unknown so a missed-capture path still serializes cleanly.
+        // Captured at detection time; OpenProcess fails after exit.
         public IntegrityLevel IntegrityLevel { get; set; } = IntegrityLevel.Unknown;
         public bool IsAppContainer { get; set; }
 
@@ -947,14 +947,9 @@ public class EtwDllTracer : IDisposable
         }
     }
 
-    // ──────────────── Token signal capture (Phase 2 dynamic) ────────────────
-    //
-    // Queried right after a process is detected (alive guaranteed at that moment).
-    // Failures are swallowed — token info is best-effort; the static classifier
-    // already covers the high-value research targets when this gap appears.
+    // Token signal capture (best-effort; failures fall through to defaults).
 
-    /// <summary>Read the process token and populate (IntegrityLevel, IsAppContainer)
-    /// for use by <see cref="SandboxClassifier"/>. Returns defaults on any failure.</summary>
+    /// <summary>Read the process token and populate (IntegrityLevel, IsAppContainer).</summary>
     private static (IntegrityLevel IL, bool IsAppContainer) CaptureTokenInfo(int pid)
     {
         const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
@@ -994,7 +989,7 @@ public class EtwDllTracer : IDisposable
     private static IntegrityLevel QueryTokenIntegrity(IntPtr hTok)
     {
         const int TokenIntegrityLevel = 25;
-        // First call discovers required buffer size, second call fills it.
+        // First call sizes the buffer; second fills it.
         GetTokenInformation(hTok, TokenIntegrityLevel, IntPtr.Zero, 0, out var needed);
         if (needed == 0) return IntegrityLevel.Unknown;
         IntPtr buf = Marshal.AllocHGlobal((int)needed);
@@ -1002,11 +997,9 @@ public class EtwDllTracer : IDisposable
         {
             if (!GetTokenInformation(hTok, TokenIntegrityLevel, buf, needed, out _))
                 return IntegrityLevel.Unknown;
-            // TOKEN_MANDATORY_LABEL { SID_AND_ATTRIBUTES Label } — Label.Sid is a
-            // pointer to the integrity SID; the last sub-authority is the RID.
+            // TOKEN_MANDATORY_LABEL.Label.Sid: last sub-authority is the RID.
             IntPtr pSid = Marshal.ReadIntPtr(buf);
             if (pSid == IntPtr.Zero) return IntegrityLevel.Unknown;
-            // GetSidSubAuthorityCount returns a pointer to a byte; index its value.
             IntPtr pCount = GetSidSubAuthorityCount(pSid);
             if (pCount == IntPtr.Zero) return IntegrityLevel.Unknown;
             byte count = Marshal.ReadByte(pCount);

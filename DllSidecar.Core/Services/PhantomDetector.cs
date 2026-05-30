@@ -3,15 +3,7 @@ using DllSidecar.Core.Models;
 
 namespace DllSidecar.Core.Services;
 
-/// <summary>
-/// Finds phantom imports — DLL names referenced by a PE that do not resolve to any
-/// real file under the normal Windows loader search sequence:
-///   (1) KnownDLLs (cached, always from System32)
-///   (2) Directory of the importing PE
-///   (3) System directory (System32 for x64 / SysWOW64 for x86 on 64-bit OS)
-/// API sets (api-ms-win-*, ext-ms-win-*) are skipped — they are virtual names
-/// resolved by the loader to real modules.
-/// </summary>
+/// <summary>Finds phantom imports: DLL names that do not resolve under the Windows loader search sequence (KnownDLLs / importer dir / System32 or SysWOW64).</summary>
 public static class PhantomDetector
 {
     private static readonly string System32Dir = Environment.GetFolderPath(Environment.SpecialFolder.System);
@@ -43,18 +35,15 @@ public static class PhantomDetector
 
             var searched = new List<string>();
 
-            // (2) Importer's directory
             var localPath = Path.Combine(importerDir, name);
             searched.Add(localPath);
             if (File.Exists(localPath)) continue;
 
-            // (3) System directory — arch-specific when running under WoW64
             var sysDir = (importer.Arch == "x86" && Is64BitOs) ? SysWow64Dir : System32Dir;
             var sysPath = Path.Combine(sysDir, name);
             searched.Add(sysPath);
             if (File.Exists(sysPath)) continue;
 
-            // Also probe the other system dir — some PEs resolve from either depending on thunking
             var otherSys = sysDir == System32Dir ? SysWow64Dir : System32Dir;
             if (!string.IsNullOrEmpty(otherSys))
             {
@@ -63,7 +52,6 @@ public static class PhantomDetector
                 if (File.Exists(otherPath)) continue;
             }
 
-            // Not found anywhere — phantom
             hits.Add(new PhantomHit
             {
                 DllName = name,

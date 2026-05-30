@@ -6,11 +6,7 @@ using System.Windows.Input;
 
 namespace DllSidecar.GUI.Views;
 
-/// <summary>
-/// Modal that lets the user pick a running process by PID. Renders the live
-/// process tree (parent → children) using the shared BoxedTreeViewItem style.
-/// Returns the chosen PID via <see cref="SelectedPid"/> when DialogResult=true.
-/// </summary>
+/// <summary>Modal to pick a running process by PID; returns via <see cref="SelectedPid"/> when DialogResult=true.</summary>
 public partial class ProcessPickerDialog : Window
 {
     private readonly Dictionary<int, ProcInfo> _allByPid = new();
@@ -63,8 +59,7 @@ public partial class ProcessPickerDialog : Window
 
     private void ApplyFilter()
     {
-        // Checked="True" in XAML can fire the Checked event during InitializeComponent
-        // before sibling controls below the handler's owner exist.
+        // Checked="True" can fire before sibling controls exist.
         if (Tree == null || FilterBox == null || Status == null) return;
 
         var q = FilterBox.Text.Trim();
@@ -90,8 +85,7 @@ public partial class ProcessPickerDialog : Window
             list.Add(p);
         }
 
-        // Recursive build — keep a node only if it matches OR any descendant does
-        // (so ancestors of matches stay visible for context).
+        // Keep a node if it matches or any descendant does (ancestors stay for context).
         ProcNode? Build(ProcInfo p, HashSet<int> visited)
         {
             if (!visited.Add(p.Pid)) return null; // cycle guard
@@ -107,8 +101,7 @@ public partial class ProcessPickerDialog : Window
             return (MatchesSelf(p) || node.Children.Count > 0) ? node : null;
         }
 
-        // Roots: processes whose parent isn't in the snapshot (ParentPid==0 or
-        // parent has died). Self-referential is also treated as root.
+        // Roots: parent missing from snapshot or self-referential.
         var rootInfos = _allByPid.Values
             .Where(p => p.ParentPid == 0 || !_allByPid.ContainsKey(p.ParentPid) || p.ParentPid == p.Pid)
             .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)

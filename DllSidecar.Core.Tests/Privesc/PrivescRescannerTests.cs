@@ -49,8 +49,7 @@ public class PrivescRescannerTests
 
     private static ScanResults WrapFindingOnExisting(PrivescFinding f)
     {
-        // Attach the finding to a synthetic Existing candidate so the collector can find
-        // it via the scan graph walk. The candidate itself is irrelevant for collection.
+        // Attach to a synthetic Existing candidate so the collector finds it.
         var c = new SideloadCandidate
         {
             Dll = new PeAnalysis { Path = "X:\\fake\\host.exe", Filename = "host.exe", Arch = "x64", IsDll = false },
@@ -171,8 +170,7 @@ public class PrivescRescannerTests
     [Fact]
     public void Expand_DoesNotCascade_DiscoveredCandidateDoesNotProduceNewTargets()
     {
-        // Invariant: the scanner calls Expand once. A second pass over its output must
-        // find nothing new because the discovered candidate already lives in the known set.
+        // Invariant: Expand runs once; a second pass over its output finds nothing new.
         var coreDll = typeof(ScoreBreakdown).Assembly.Location;
         var target = new PrivescRescanner.DiscoveredTarget
         {
@@ -184,8 +182,7 @@ public class PrivescRescannerTests
         var firstPass = PrivescRescanner.Expand(new[] { target });
         var c = Assert.Single(firstPass);
 
-        // Simulate what the scanner does: put the discovered candidate into the
-        // known-set and ask for targets again. Nothing new should come out.
+        // Re-ask with the discovered candidate now in the known-set.
         var known = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { coreDll.ToLowerInvariant() };
         var secondPass = PrivescRescanner.CollectResolvedTargets(
             new ScanResults { Existing = { c } }, known);

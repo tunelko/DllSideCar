@@ -77,8 +77,7 @@ public class SideloadScanner
                 }
                 catch (Exception ex)
                 {
-                    // Malformed PE, access denied, unsupported arch, etc — log and skip.
-                    // Do NOT fail the whole scan for one bad file.
+                    // Skip one bad file rather than fail the scan.
                     Interlocked.Increment(ref skipped);
                     Log.Debug("scan.pe", $"Skipped {file}: {ex.GetType().Name}: {ex.Message}");
                 }

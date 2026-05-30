@@ -6,102 +6,55 @@ public class TemplateConfig
     public bool EncryptStrings { get; set; }
     public bool DirectSyscalls { get; set; }
 
-    // When set, the generator emits syscalls_indirect.h instead of syscalls.h.
-    // The two modes are mutually exclusive; the UI layer is responsible for
-    // enforcing the radio-button-style exclusivity. Indirect mode routes the
-    // syscall instruction through a "syscall; ret" gadget located inside ntdll
-    // so a stack walk attributes the call to ntdll, not to the generated DLL.
-    // x64-only; on x86 the existing DirectSyscalls path is already indirect by
-    // necessity, so this flag is ignored when the target arch is x86.
+    // x64-only; ignored on x86. Mutually exclusive with DirectSyscalls (UI enforces).
     public bool IndirectSyscalls { get; set; }
 
-    // True when ANY syscall path is enabled. Both modes expose the same
-    // sc_NtFoo() wrapper names, so generator callsites that emit those calls
-    // can branch on this single flag instead of repeating (Direct || Indirect).
     public bool AnySyscalls => DirectSyscalls || IndirectSyscalls;
 
-    // When set, the generator emits a call to unhook_ntdll() at the very
-    // start of DllMain (before sc_init / sc_delay / payload). The unhook
-    // procedure maps a fresh copy of ntdll.dll from disk and overwrites the
-    // in-process .text section, removing any user-mode hooks an EDR may have
-    // installed. Arch-independent. See templates/unhook.h for the full
-    // implementation and limitations.
+    // Emits unhook_ntdll() at the start of DllMain. See templates/unhook.h.
     public bool UnhookNtdll { get; set; }
 
-    // When set, the generator emits a call to patch_etw() right after
-    // unhook_ntdll (so a prior unhook doesn't undo this patch). The patch
-    // overwrites the first byte of ntdll!EtwEventWrite with 0xC3 (RET),
-    // blinding the Event Tracing for Windows channel that several EDRs
-    // subscribe to (notably Microsoft-Windows-Threat-Intelligence).
-    // Arch-independent — RET is 0xC3 on x64 and x86 alike.
+    // Emits patch_etw() (ntdll!EtwEventWrite first byte → 0xC3 RET).
     public bool PatchEtw { get; set; }
     public int DelayMs { get; set; }
     public PayloadType Payload { get; set; } = PayloadType.MessageBox;
     public string PayloadData { get; set; } = "";
     public string? TargetExport { get; set; }
     public ThreadMode Thread { get; set; } = ThreadMode.Calling;
-    // Multi-byte rotating XOR key used by the generator when EncryptStrings is on.
-    // Defaults to 32 random bytes per TemplateConfig instance — every produced
-    // PoC ships with a unique key, defeating bulk YARA matches on the byte
-    // array embedded in .rdata. The ConfigPage demo widget lets the researcher
-    // preview the same encoding interactively.
+    // Per-instance random 32-byte XOR key for EncryptStrings.
     public byte[] LongXorKey { get; set; } = Helpers.XorCryptor.RandomKey(32);
-    // Empty default so the distributed installer ships with no maintainer
-    // identity in the generated PoCs. GeneratePage / CraftStage populate this
-    // from ConfigManager.Current.Researcher.Handle when the user has filled
-    // the Configuration page; emit sites skip the attribution when empty.
+    // Populated from ConfigManager.Current.Researcher.Handle at emit time.
     public string Researcher { get; set; } = "";
     public bool CloneMetadata { get; set; }
     public bool StompTimestamps { get; set; }
     public GenerationMode Mode { get; set; } = GenerationMode.Proxy;
 
-    // ── Deploy + Run integration (optional) ──
-    // When DeployTargetDir + HostExePath are both set, the generated build .bat
-    // appends a tail that: copies the built DLL to DeployTargetDir\DeployTargetName,
-    // launches HostExePath via start /WAIT, then on host exit deletes the deployed
-    // DLL and taskkills any lingering host process. Origin: phantom hand-off from
-    // Scan/RuntimeTrace where we already know the NAME-NOT-FOUND slot + importer EXE.
+    // Deploy + Run integration (optional): when DeployTargetDir + HostExePath are set,
+    // the generated .bat copies the DLL, launches the host, then cleans up on exit.
     public string? DeployTargetDir { get; set; }
     public string? DeployTargetName { get; set; }   // null → reuse analysis.Filename
     public string? HostExePath { get; set; }
 
-    // Canonical system copy (System32\X.dll or SysWOW64\X.dll) for well-known DLLs.
-    // When set + Mode=Proxy, the generated .bat copies it as <base>_orig.dll next
-    // to the deployed proxy so forward chains (winmm_orig.PlaySound etc.) resolve.
+    // Canonical System32/SysWOW64 copy; with Mode=Proxy the .bat stages it as <base>_orig.dll.
     public string? SystemOrigPath { get; set; }
 
-    // Payload diagnostics — a ~80-byte file written to %TEMP% proving DllMain ran.
-    // Useful when the MessageBox is invisible (service desktop, X server, headless).
+    // ~80-byte file written to %TEMP% proving DllMain ran.
     public bool WriteProofFile { get; set; } = true;
 
-    // Optional delay in seconds inserted in the .bat between Deploy and Run.
-    // Gives AV time to settle, or the user time to attach a debugger.
     public int PreLaunchDelaySec { get; set; } = 0;
 
-    // true  → .bat uses start /WAIT (blocks until host closes), current default.
-    // false → .bat uses start "" + timeout NonBlockingTimeoutSec, then auto-cleanup.
-    //         Pair with WriteProofFile=true so the bat can show evidence after timeout.
+    // true → start /WAIT (blocks); false → start "" + timeout NonBlockingTimeoutSec.
     public bool WaitForHostExit { get; set; } = true;
     public int NonBlockingTimeoutSec { get; set; } = 15;
 
-    // SandboxEscape-only: comma-separated list of sibling process names to try
-    // injecting into (in order). First one that passes OpenProcess(ALL_ACCESS)
-    // + VirtualAllocEx RWX smoke test wins. Host-specific — Adobe default ships
-    // the Acrobat helper names, but Office/Edge/Chrome/Teams need their own.
+    // Comma-separated sibling process names tried in order for SandboxEscape injection.
     public string SandboxTargets { get; set; } = "AcroCEF.exe,AdobeCollabSync.exe";
 
-    // MessageBox payload — editable title + body so the researcher can stamp
-    // the popup with a session/case identifier without hand-patching the
-    // generated C. {Researcher} placeholder is substituted at template time
-    // (only renders something useful when ResearcherConfig.Handle is set).
-    // Newlines and quotes are escaped for C string literal embedding.
+    // {Researcher} placeholder substituted at template time. Newlines/quotes are escaped for C.
     public string MessageBoxTitle { get; set; } = "DllSidecar PoC";
     public string MessageBoxBody { get; set; } = "DLL Sideloading PoC\nDllSidecar — BugAInters 2026";
 
-    // ReverseShell payload — connect-back TCP cmd.exe pipe. Host accepts
-    // hostnames or dotted-quad IPv4; Port is the listener port the researcher
-    // will netcat / ncat on. Defaults are placeholders the user must change
-    // per PoC; ConfigPage exposes them as global defaults.
+    // Reverse-shell endpoint (hostnames or dotted-quad IPv4).
     public string ReverseShellHost { get; set; } = "127.0.0.1";
     public int ReverseShellPort { get; set; } = 4444;
 }
@@ -111,14 +64,9 @@ public enum PayloadType
     MessageBox,
     Command,
     Shellcode,
-    // Cross-process inject payload for AppContainer / sandboxed targets.
-    // Scans siblings for one we can OpenProcess(ALL_ACCESS) + VirtualAllocEx
-    // RWX, then remote-thread executes CreateProcessA with WinSta0\Default
-    // desktop so the spawned cmd is visible to the user.
+    // Cross-process inject for AppContainer / sandboxed targets.
     SandboxEscape,
-    // TCP reverse shell: WSASocket → connect → CreateProcessA("cmd.exe")
-    // with hStdIn/Out/Err piped to the socket. Listener side: nc -lvnp PORT.
-    // Host/port configured globally via PayloadConfig.ReverseShellHost/Port.
+    // TCP reverse shell: WSASocket → connect → CreateProcessA("cmd.exe").
     ReverseShell
 }
 

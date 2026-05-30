@@ -9,52 +9,27 @@ public class AppConfig
     public ResearcherConfig Researcher { get; set; } = new();
     public PayloadConfig Payload { get; set; } = new();
 
-    // When true, ScanPage automatically runs CVE dedup against NVD after each scan.
-    // Off by default — researcher may want to avoid traffic on repeat local scans.
+    // ScanPage runs CVE dedup against NVD after each scan; off by default.
     public bool AutoCveLookup { get; set; }
 
-    // First-run onboarding flag. False on a fresh install (and reset on every
-    // version transition by PostInstallReset) so the next launch lands on the
-    // WelcomePage instead of dropping the user straight into the wizard before
-    // they've had a chance to point the app at MinGW + the Sysinternals suite.
-    // The welcome page sets this to true once dismissed.
+    // First-run onboarding flag; reset on every version transition by PostInstallReset.
     public bool WelcomeSeen { get; set; }
 }
 
-/// <summary>
-/// Default payload knobs that don't change per PoC: the MessageBox popup
-/// title and body, ready to be reused across every Generate run. Setting
-/// these once in Configuration keeps GeneratePage focused on the per-PoC
-/// decisions (target, evasion, deploy) instead of stable preferences.
-/// {Researcher} placeholder substituted at template time.
-/// </summary>
+/// <summary>Default payload knobs reused across Generate runs.</summary>
 public class PayloadConfig
 {
-    // {Researcher} placeholder optional — only renders something useful when
-    // ResearcherConfig.Handle is set. Distributed defaults ship without it so
-    // a fresh install doesn't show "Researcher: " with empty trailing space.
     public string MessageBoxTitle { get; set; } = "DllSidecar PoC";
     public string MessageBoxBody { get; set; } = "DLL Sideloading PoC\nDllSidecar — BugAInters 2026";
 
-    // Reverse-shell default endpoint. Host accepts hostnames or dotted-quad
-    // IPv4 (parsed at template time — hostnames are resolved at runtime via
-    // gethostbyname). 4444 is the canonical msfvenom/nc default.
+    // Hostnames or dotted-quad IPv4; 4444 is the canonical msfvenom/nc default.
     public string ReverseShellHost { get; set; } = "127.0.0.1";
     public int ReverseShellPort { get; set; } = 4444;
 }
 
-/// <summary>
-/// Identity of the researcher submitting advisories. Set once in Configuration and
-/// reused across every AdvisoryContext default. PGP key stored here because it's
-/// author-identity, not per-case.
-/// </summary>
+/// <summary>Researcher identity reused across every AdvisoryContext default.</summary>
 public class ResearcherConfig
 {
-    // Empty defaults so a fresh install on someone else's machine doesn't
-    // ship with this repo's maintainer identity baked into the binary.
-    // Users fill these in via the Configuration page on first launch; the
-    // post-install reset (App.PerformPostInstallReset) re-clears them on
-    // upgrade so a re-install behaves like a fresh install.
     public string Name { get; set; } = "";
     public string Handle { get; set; } = "";
     public string Blog { get; set; } = "";
@@ -63,11 +38,7 @@ public class ResearcherConfig
     public string PgpKeyId { get; set; } = "";        // short id, e.g. "816793CF3167C4D2"
 }
 
-/// <summary>
-/// Per-page UI state persisted across sessions so a researcher doesn't have to re-enter
-/// paths/flags/combo selections every time. Written to %APPDATA%\DllSidecar\config.json
-/// alongside the rest of AppConfig.
-/// </summary>
+/// <summary>Per-page UI state persisted in %APPDATA%\DllSidecar\config.json.</summary>
 public class UiStateConfig
 {
     public GeneratePageState GeneratePage { get; set; } = new();
@@ -79,9 +50,7 @@ public class UiStateConfig
     public string? LastRuntimeExePath { get; set; }
     public string? LastRuntimePid { get; set; }
 
-    // Console panel height in pixels. 32 = collapsed (just the CONSOLE
-    // header strip visible), saving the rest for the active page.
-    // Persisted so the user's drag-to-resize choice survives restarts.
+    // 32 = collapsed (just the CONSOLE header strip).
     public double ConsoleHeight { get; set; } = 32;
 }
 
@@ -141,14 +110,9 @@ public class ProcmonPageState
     public string? LastCsvPath { get; set; }
     public bool OnlyUserSpace { get; set; }
     public bool OnlyHighRisk { get; set; }
-    // On by default — KnownDlls always load from System32 regardless of
-    // sideload attempts, so they're never useful targets. Showing them just
-    // clutters the grid.
+    // KnownDlls always load from System32 regardless of sideload attempts.
     public bool HideKnownDlls { get; set; } = true;
-    // On by default — when every searched dir for a row requires admin to
-    // write, planting a sideloaded DLL would already need elevation, which
-    // collapses the threat model. Hiding those rows keeps the grid focused
-    // on the genuinely exploitable surface; toggle off to see the full picture.
+    // Rows where every searched dir requires admin to write collapse the threat model.
     public bool HideLockedDirs { get; set; } = true;
 }
 
@@ -175,8 +139,7 @@ public class PathsConfig
 
 public class ToolsConfig
 {
-    // Tool-bundle directories — when set, ToolkitChecker probes these FIRST for known binaries.
-    // Setting SysinternalsDir auto-resolves Procmon, sigcheck, and several other utilities.
+    // ToolkitChecker probes these dirs first. SysinternalsDir auto-resolves Procmon, sigcheck, etc.
     public string? SysinternalsDir { get; set; }         // e.g. C:\Tools\Sysinternals
     public string? ToolsRootDir { get; set; }            // generic root, probed recursively 1 level
 
@@ -191,8 +154,6 @@ public class ToolsConfig
     public string DependenciesDownloadUrl { get; set; } = "https://github.com/lucasg/Dependencies/releases";
     public string X64DbgDownloadUrl { get; set; } = "https://x64dbg.com/";
 
-    // NVD API v2 — optional key raises rate limit from 5 req/30s to 50 req/30s
-    // Register at https://nvd.nist.gov/developers/request-an-api-key
-    // Stored LOCALLY in %APPDATA%\DllSidecar\config.json — never committed to source.
+    // NVD API v2 key raises rate limit from 5 req/30s to 50 req/30s. https://nvd.nist.gov/developers/request-an-api-key
     public string? NvdApiKey { get; set; }
 }

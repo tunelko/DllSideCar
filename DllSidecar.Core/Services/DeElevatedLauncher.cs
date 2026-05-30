@@ -6,21 +6,12 @@ using DllSidecar.Core.Logging;
 namespace DllSidecar.Core.Services;
 
 /// <summary>
-/// Launches a target EXE at the interactive shell's integrity level (typically
-/// Medium IL) from a High-IL parent. Technique: grab the access token of the
-/// explorer.exe that owns the shell window, duplicate it as primary, and call
-/// CreateProcessWithTokenW. Requires SeImpersonatePrivilege on the caller (admin
-/// has it by default). Fixes DllSidecar's chronic "Acrobat window is invisible /
-/// not interactive" problem — sandboxed apps (Acrobat, Edge, Chrome, Teams)
-/// refuse to run properly when they inherit an elevated token from their parent.
+/// Launch at the shell's IL via explorer.exe's token + CreateProcessWithTokenW. Requires SeImpersonatePrivilege.
 /// </summary>
 public static class DeElevatedLauncher
 {
     /// <summary>
-    /// Tries to launch <paramref name="exePath"/> at the shell's integrity level.
-    /// Returns the PID of the new process on success, or null if no interactive
-    /// shell is available (Server Core, kiosk mode, Session 0, etc.). Throws
-    /// <see cref="Win32Exception"/> on API failure.
+    /// Launch at the shell's IL; null when no interactive shell. Throws <see cref="Win32Exception"/> on API failure.
     /// </summary>
     public static int? Launch(string exePath, string? arguments = null, string? workingDirectory = null)
     {

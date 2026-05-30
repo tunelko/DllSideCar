@@ -4,8 +4,7 @@
       xmlns:ctrl="clr-namespace:DllSidecar.GUI.Controls"
       Background="{StaticResource Base}">
     <Page.Resources>
-        <!-- Axis cell styles — one accent colour per axis so the eye can parse
-             Exploit / Impact / Confidence at a glance without reading the header -->
+        <!-- Axis cell styles — one accent colour per axis. -->
         <Style x:Key="AxisExploitCell" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource Phosphor}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -277,9 +276,7 @@
                                                 SortMemberPath="VerdictSortKey">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <!-- Same VerdictBadge used by AnalyzePage and ProcmonPage —
-                                         tier chip + score with full pros/cons tooltip on hover.
-                                         Empty when the row has no scoring breakdown. -->
+                                    <!-- Shared VerdictBadge — tier chip + score + pros/cons tooltip. -->
                                     <ctrl:VerdictBadge Verdict="{Binding Verdict}"
                                                        VerticalAlignment="Center"
                                                        HorizontalAlignment="Left"/>
@@ -360,8 +357,7 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- Sprint-3 Attack Path: structured per-step list (Kind / Label / Detail).
-                                 ChainSummary (one-liner) stays above as a quick glance. -->
+                            <!-- Attack Path: structured per-step list. -->
                             <TextBlock Text="ATTACK CHAIN" Foreground="{StaticResource Phosphor}" FontWeight="Bold"
                                        FontSize="10" Margin="0,12,0,4" FontFamily="{StaticResource FontMono}"/>
                             <TextBlock x:Name="DetailChainSummary" Foreground="{StaticResource Text}" FontSize="11"

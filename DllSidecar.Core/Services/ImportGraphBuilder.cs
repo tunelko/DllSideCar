@@ -2,11 +2,7 @@ using DllSidecar.Core.Models;
 
 namespace DllSidecar.Core.Services;
 
-/// <summary>
-/// Builds a reverse-dependency graph: DLL name (lowercase) → list of PEs in the scanned
-/// directory that import that DLL. Used to filter sideload candidates to only those
-/// actually loaded by some binary in the install dir.
-/// </summary>
+/// <summary>Reverse-dependency graph: DLL name → PEs in scan dir that import it.</summary>
 public class ImportGraphBuilder
 {
     public Dictionary<string, List<ImporterEdge>> DllToImporters { get; } =

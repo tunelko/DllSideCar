@@ -14,10 +14,7 @@ public partial class AboutDialog : Window
         InitializeComponent();
         VersionText.Text = AppInfo.VersionDisplay;
 
-        // Researcher fields hydrate from ConfigManager so the dialog reflects
-        // whoever configured the local install — never the project maintainer.
-        // Empty fields collapse their row entirely so a fresh install shows a
-        // clean "Version / Repo / License" trio instead of placeholder strings.
+        // Researcher fields come from ConfigManager; empty fields collapse their row.
         var r = ConfigManager.Current.Researcher;
         var name   = (r.Name   ?? "").Trim();
         var handle = (r.Handle ?? "").Trim();
@@ -37,9 +34,7 @@ public partial class AboutDialog : Window
 
         if (blog.Length > 0)
         {
-            // Coerce blog into a valid absolute URI — silently drop the row when
-            // the configured value can't be turned into one rather than crashing
-            // the dialog at construction time.
+            // Coerce to absolute URI; drop the row silently on failure.
             if (!blog.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
                 && !blog.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 blog = "https://" + blog;

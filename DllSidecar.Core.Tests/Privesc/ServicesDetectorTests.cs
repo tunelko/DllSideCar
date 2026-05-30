@@ -62,8 +62,7 @@ public class ServicesDetectorTests
     [Fact]
     public void Svchost_WithServiceDll_ProducesBothEntries()
     {
-        // ImagePath is svchost (System32 — not in scanned set, caller filters later);
-        // ServiceDll is the actual target. BuildEntries emits both; match logic filters.
+        // ImagePath is svchost; ServiceDll is the actual target.
         var entries = ServicesDetector.BuildEntries(
             "SvchostHostedSvc",
             imagePath: @"C:\Windows\System32\svchost.exe -k netsvcs",

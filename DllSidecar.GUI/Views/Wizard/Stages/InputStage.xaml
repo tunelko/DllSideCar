@@ -3,9 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              AllowDrop="True">
     <UserControl.Resources>
-        <!-- Entry card — large clickable tile for each of the three research entry
-             points. Picked style matches ActionTile family but with a phosphor accent
-             for the selected state. -->
+        <!-- Entry card — clickable tile per entry point; phosphor accent when selected. -->
         <Style x:Key="EntryCard" TargetType="RadioButton">
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -144,8 +142,6 @@
             </StackPanel>
         </Border>
 
-        <!-- HUNTING FOR moved to WizardPage chrome (above the stage content)
-             so the goal is visible across all stages, not buried at the bottom
-             of Input. -->
+        <!-- HUNTING FOR moved to WizardPage chrome. -->
     </Grid>
 </UserControl>

@@ -20,11 +20,7 @@ public partial class MainWindow : Window
     public Core.Models.PeAnalysis? CurrentAnalysis { get; set; }
     public string? CurrentDllPath { get; set; }
 
-    // Set by ScanPage's "Generate Sideload" on a phantom; consumed by GeneratePage
-    // when it builds the TemplateConfig (so the resulting .bat deploys + runs + cleans).
-    // Null when generating from non-phantom flows (manual nav).
-    // SystemOrigPath is the canonical system copy (System32/SysWOW64) when the phantom
-    // matched a well-known DLL — the .bat copies it as <base>_orig.dll for Proxy forwards.
+    // Deploy context for phantom-driven GeneratePage flows; null on manual nav.
     public DeployContext? PendingDeployContext { get; set; }
     public record DeployContext(
         string TargetDir,
@@ -34,37 +30,25 @@ public partial class MainWindow : Window
         Core.Models.GenerationMode? AutoMode = null,
         int AutoExportCount = 0);
 
-    // Session state preserved across navigation. Without this, every nav away from
-    // ScanPage would clear the grid and force a re-scan.
+    // Carrier handoff from ProcmonPage/RuntimeTracePage banner to PrivescPage; null on manual nav.
+    public PrivescCarrierHandoff? PendingPrivescHandoff { get; set; }
+    public record PrivescCarrierHandoff(
+        string SourceLabel,
+        IReadOnlyList<DllSidecar.Core.Services.PrivescCarrier> Carriers,
+        string TransitionSummary);
+
+    // Session state preserved across navigation.
     public DllSidecar.Core.Services.ScanResults? LastScanResults { get; set; }
     public string? LastScanDir { get; set; }
     public DllSidecar.Core.Models.EtwTraceResult? LastEtwResult { get; set; }
-    // Parsed ProcMon CSV survives navigation. ProcmonPage parks both the
-    // result and the source path here so reopening the page after a detour
-    // (e.g. to Analyze, Config, or Toolkit) doesn't drop the parse — same
-    // pattern as LastScanResults / LastEtwResult above. Cleared only when
-    // the user explicitly re-parses a different CSV.
     public DllSidecar.Core.Services.ProcmonParser.ParseResult? LastProcmonResult { get; set; }
     public string? LastProcmonCsvPath { get; set; }
 
-    // Last AnalyzePage outputs — kept here so the page can rebuild its
-    // 3-card display + Exploitability verdict + Exports table when the
-    // user navigates away and comes back, without re-running PeAnalyzer
-    // and CallsiteScanner (the latter can be expensive on large PEs).
-    // Both clear implicitly when the user analyzes a different file.
     public DllSidecar.Core.Models.CallsiteScanResult? LastCallsiteResult { get; set; }
     public DllSidecar.Core.Services.Exploitability.ExploitabilityVerdict? LastExploitabilityVerdict { get; set; }
-    // Last EXE path the user typed/picked in RuntimeTrace's Launch mode. Persisted here
-    // so the field survives navigation away and back (same pattern as LastScanDir).
     public string? LastRuntimeLaunchExe { get; set; }
 
-    // ─── Live trace session (ownership on MainWindow so navigation doesn't kill it) ───
-    //
-    // Previously the EtwDllTracer instance lived on RuntimeTracePage, so navigating
-    // to ConfigPage / AnalyzePage while a 5-minute trace was running silently
-    // dropped the tracer when the page got navigated away. Owning the tracer on
-    // MainWindow keeps it alive across nav; the page subscribes to relay events
-    // on construction and unhooks on Unload, but never disposes the tracer.
+    // Live trace session owned by MainWindow so navigation doesn't kill it.
     public DllSidecar.Core.Services.EtwDllTracer? ActiveTracer { get; private set; }
     public CancellationTokenSource? ActiveTraceCts { get; private set; }
     public System.Diagnostics.Stopwatch? ActiveTraceStopwatch { get; private set; }
@@ -73,9 +57,7 @@ public partial class MainWindow : Window
     public int ActiveTraceLiveCount => _activeTraceLiveCount;
     public bool IsTraceActive => ActiveTracer != null;
 
-    // Relay events. RuntimeTracePage subscribes to these (not directly to the
-    // tracer) so the page can come/go without leaking handlers into the tracer
-    // when the page is unloaded.
+    // Relay events; pages subscribe here to avoid leaking handlers into the tracer.
     public event Action<DllSidecar.Core.Models.EtwTraceEvent>? TraceEventCaptured;
     public event Action<DllSidecar.Core.Models.TracedProcess>? TraceProcessDetected;
     public event Action<string>? TraceStatusChanged;
@@ -123,28 +105,17 @@ public partial class MainWindow : Window
     private void OnTracerProcess(DllSidecar.Core.Models.TracedProcess p) => TraceProcessDetected?.Invoke(p);
     private void OnTracerStatus(string s) => TraceStatusChanged?.Invoke(s);
 
-    // Live wizard session — non-null while a wizard is open and NOT finished/discarded.
-    // Survives navigation: WizardPage ctor adopts it, RuntimeTracePage reads it to show
-    // the "← Back to Wizard" button. Cleared on FinishWizard or Discard.
+    // Live wizard session; cleared on FinishWizard or Discard.
     public DllSidecar.Core.Models.Wizard.WizardSession? CurrentWizardSession { get; set; }
 
-    // Handoff from Wizard's ReportStage to AdvisoryPage. Wizard builds an AdvisoryContext
-    // and draft markdown as part of Report; on Finish we navigate to AdvisoryPage which
-    // would otherwise rebuild from scratch — losing the user's edits AND failing for
-    // phantom-only flows where CurrentAnalysis is null. AdvisoryPage adopts these on
-    // arrival and clears them.
+    // Handoff from Wizard ReportStage to AdvisoryPage; adopted and cleared on arrival.
     public DllSidecar.Core.Models.Advisory.AdvisoryContext? PendingAdvisoryContext { get; set; }
     public string? PendingAdvisoryMarkdown { get; set; }
 
-    // Set when the user opens an advisory from AdvisoryLibraryPage → AdvisoryPage knows
-    // to update the existing record on "Save to Library" instead of creating a new row.
+    // Set when opening an advisory from AdvisoryLibraryPage so Save updates instead of inserts.
     public string? PendingAdvisoryRecordId { get; set; }
 
-    // Selection focus consumed by AttackPathPage. ScanPage sets it on row selection
-    // (full SideloadCandidate / PhantomCandidate available); RuntimeTracePage sets
-    // it on row selection (looks up the matching candidate from LastScanResults if
-    // present, otherwise focus carries DLL name + runtime evidence only and the
-    // attack-path renders a degraded view). Null → AttackPathPage shows empty state.
+    // Selection focus consumed by AttackPathPage.
     public AttackPathFocus? CurrentAttackFocus { get; set; }
     public enum AttackFocusSource { Scan, RuntimeTrace }
     public record AttackPathFocus(
@@ -157,9 +128,6 @@ public partial class MainWindow : Window
         int RuntimeEventCount = 0);
 
     // Active renderer id ("markdown" / "ghsa") to restore when reopening an advisory.
-    // Without this, AdvisoryPage always boots with Markdown selected and any RerenderEditor()
-    // (Template Fields apply, Vendor edit, combo change) silently overwrites the editor with
-    // Markdown — losing non-Markdown bodies.
     public string? PendingAdvisoryTemplateId { get; set; }
 
     // Sidebar collapse state — bound via RelativeSource in XAML to toggle label visibility.
@@ -176,8 +144,7 @@ public partial class MainWindow : Window
     private const double SidebarExpandedWidth = 220;
     private const double SidebarCollapsedWidth = 56;
 
-    // Log row sizing memory — lets the expand button toggle between user's chosen size and
-    // a full-height view of the log panel.
+    // Log row sizing memory for the expand toggle.
     private GridLength? _savedLogHeight;
     private int _logLineCount;
 
@@ -186,8 +153,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         Loaded += OnLoaded;
         Closing += OnClosing;
-        // Route every Core log entry into the UI panel. Warn+ is visible; Debug stays in
-        // the event stream only (inspectable if needed for diagnostics).
+        // Route Core log entries (Warn+) into the UI panel.
         CoreLog.Emitted += OnLogEmitted;
         Closed += (_, _) => CoreLog.Emitted -= OnLogEmitted;
 
@@ -197,11 +163,7 @@ public partial class MainWindow : Window
             Key.B, ModifierKeys.Control);
         InputBindings.Add(toggleBinding);
 
-        // Silent session restore on launch: if the previous run saved (or the wizard
-        // auto-checkpointed on a crash), pre-populate in-memory paths/wizard state
-        // and land on the page the user left. Otherwise: WelcomePage on a first run
-        // (post-install reset clears WelcomeSeen on every version transition), or
-        // the wizard once the user has dismissed the welcome at least once.
+        // Silent session restore on launch; falls back to Welcome or Wizard.
         var resumed = TryRestoreSession();
         if (resumed != null)
         {
@@ -219,11 +181,7 @@ public partial class MainWindow : Window
 
     // ---------- Session save / restore ----------
 
-    /// <summary>
-    /// Records the last navigated page so OnClosing can write it into the snapshot.
-    /// Pages reachable only via dropdowns (Build, Config, Toolkit) are tracked too so
-    /// restoring lands the user back where they were.
-    /// </summary>
+    /// <summary>Last navigated page name, written into the snapshot on close.</summary>
     public string? CurrentPageName { get; private set; }
 
     private static string? GetPageName(System.Windows.Controls.Page page) => page switch
@@ -274,9 +232,7 @@ public partial class MainWindow : Window
         PendingAdvisoryTemplateId = PendingAdvisoryTemplateId,
     };
 
-    /// <summary>Apply a snapshot to MainWindow state. Wizard state, if present on disk,
-    /// is also adopted so WizardPage opens at the right stage. Heavy results that can't
-    /// be re-derived (runtime trace) are loaded from their companion JSON files.</summary>
+    /// <summary>Apply a snapshot to MainWindow state; loads wizard + heavy companion results.</summary>
     private void ApplySnapshot(AppSessionSnapshot snap)
     {
         CurrentDllPath = snap.CurrentDllPath;
@@ -287,37 +243,24 @@ public partial class MainWindow : Window
         PendingAdvisoryRecordId = snap.PendingAdvisoryRecordId;
         PendingAdvisoryTemplateId = snap.PendingAdvisoryTemplateId;
 
-        // ETW capture cannot be re-run silently (interactive admin session), so the
-        // result is serialized to its own file. AnalyzePage / ProcmonPage re-derive
-        // from a path on first render — those don't need a companion snapshot.
+        // ETW capture cannot be re-run silently; load from companion file.
         LastEtwResult = AppSessionStore.TryLoadEtwResult();
 
-        // Promoted scan results (Existing + Phantoms) are persisted to their own
-        // companion file so a RuntimeTrace→Promote→Craft chain survives restart:
-        // without this, the wizard would resume at Craft with ScanResults=null and
-        // the user would have to re-do Promote to see the phantoms re-appear.
+        // Promoted scan results survive restart via companion file.
         LastScanResults = AppSessionStore.TryLoadScanResults();
 
-        // Wizard state lives in its own snapshot file (auto-checkpointed during work).
-        // Adopt it silently so WizardPage doesn't pop a "Resume?" prompt — the user
-        // already opted in by saving on exit (or the auto-checkpoint survived a crash).
+        // Adopt wizard state silently if auto-checkpoint present.
         var wsnap = WizardSessionStore.TryLoad();
         if (wsnap != null)
         {
             var restored = new WizardSession();
             WizardSessionStore.Apply(wsnap, restored);
 
-            // If a scan result and wizard session both restored, reattach
-            // ScanResults so WizardPage doesn't fall through to the "no scan yet"
-            // branch and re-prompt for Survey.
+            // Reattach scan results so wizard skips re-Survey.
             if (LastScanResults != null && restored.ScanResults == null)
                 restored.ScanResults = LastScanResults;
 
-            // Rematch the chosen phantom / existing candidate from snapshot
-            // name+path so the user lands at Craft with the same selection they
-            // had before close. Both lookups are case-insensitive — Windows
-            // paths are not case-sensitive and the user may have edited casing
-            // in the path field across sessions.
+            // Rematch chosen phantom / existing candidate (case-insensitive).
             if (LastScanResults != null)
             {
                 if (!string.IsNullOrEmpty(wsnap.ChosenPhantomName)
@@ -341,16 +284,13 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// Called from the MainWindow ctor. Returns the Page to navigate to on launch
-    /// (or null if there's nothing to restore and the caller should pick a default).
-    /// </summary>
+    /// <summary>Returns the Page to navigate to on launch, or null when nothing to restore.</summary>
     private System.Windows.Controls.Page? TryRestoreSession()
     {
         try
         {
             var snap = AppSessionStore.TryLoad();
-            // No app-level snapshot, but wizard might still have an auto-checkpoint.
+            // No app snapshot; wizard checkpoint may still exist.
             if (snap == null)
             {
                 if (!WizardSessionStore.HasSession()) return null;
@@ -373,7 +313,6 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            // Best-effort. A corrupt snapshot shouldn't block the app from starting.
             CoreLog.Warn("session.restore", "Restore failed", ex);
             return null;
         }
@@ -395,8 +334,7 @@ public partial class MainWindow : Window
 
     public void DeleteSavedSession()
     {
-        // Wipes the on-disk snapshot AND the in-memory state so the running app
-        // reflects the same "clean slate" the next launch would see.
+        // Wipes on-disk snapshot AND in-memory state.
         AppSessionStore.DeleteAll();
         CurrentWizardSession = null;
         CurrentAnalysis = null;
@@ -414,6 +352,7 @@ public partial class MainWindow : Window
         PendingAdvisoryRecordId = null;
         PendingAdvisoryTemplateId = null;
         PendingDeployContext = null;
+        PendingPrivescHandoff = null;
         CurrentAttackFocus = null;
         Log("Session deleted (in-memory state and saved snapshot cleared).");
         NavigateTo(new Views.Wizard.WizardPage(this));
@@ -436,9 +375,7 @@ public partial class MainWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // Restore console panel height from persisted UI state. Default in
-        // AppConfig is 32 (collapsed) so first-run users see the console as
-        // a thin bottom strip, not an oversized sink.
+        // Restore console panel height (default 32 = collapsed).
         var saved = ConfigManager.Current.UiState.ConsoleHeight;
         if (saved >= 32 && saved < ActualHeight) // sanity bound
             LogRow.Height = new GridLength(saved);
@@ -458,25 +395,15 @@ public partial class MainWindow : Window
 
         Log("DllSidecar GUI started");
 
-        // Proactive MinGW toolchain check. Fires once per session AFTER the
-        // shell is visible so the warning dialog has a real owner. No-op
-        // when both gcc x64 and x86 resolve; otherwise pops a modal that
-        // links to the README's compiler-setup section. Researchers using
-        // analysis-only features (Analyze, Scan, ETW, Advisories) can
-        // dismiss and proceed — only Generate/Build paths actually need it.
+        // Proactive MinGW toolchain check; fires once after shell is visible.
         Dispatcher.BeginInvoke(new Action(() => CompilerHealthCheck.WarnIfMissing(this)),
             System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
-    // Set once the user has answered the save/discard prompt so a re-entrant
-    // close (e.g. programmatic Close() after the prompt) doesn't ask twice.
+    // Guards against re-entrant close prompts.
     private bool _exitConfirmed;
 
-    /// <summary>
-    /// Always prompt on close so the researcher chooses between saving (next launch will
-    /// restore silently), discarding (clean slate), or cancelling. Console panel height
-    /// is persisted on every successful close — it's a UI preference, not session work.
-    /// </summary>
+    /// <summary>Prompt on close to save / discard / cancel; persist console height.</summary>
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (!_exitConfirmed)
@@ -496,17 +423,9 @@ public partial class MainWindow : Window
                     try
                     {
                         AppSessionStore.Save(CaptureSnapshot());
-                        // Heavy results that cannot be re-derived from a path go to
-                        // companion files so the user sees their captured trace data
-                        // (or a cleared placeholder) on next launch instead of an
-                        // empty page.
                         AppSessionStore.SaveEtwResult(LastEtwResult);
-                        // Promoted scan results live here so a RuntimeTrace→Promote
-                        // chain doesn't lose its phantoms across restart.
                         AppSessionStore.SaveScanResults(LastScanResults);
-                        // Force a final wizard checkpoint too — auto-save fires on stage
-                        // transition, so anything typed since the last transition would
-                        // otherwise be lost on the next launch.
+                        // Final wizard checkpoint captures edits since last stage transition.
                         if (CurrentWizardSession != null)
                             WizardSessionStore.Save(CurrentWizardSession);
                         CoreLog.Info("session.save", $"Session saved to {AppSessionStore.FilePath}");
@@ -526,8 +445,6 @@ public partial class MainWindow : Window
 
         try
         {
-            // GridLength.Value is "*" weight or pixels. We always use absolute
-            // pixels for LogRow so this is the height in DIPs.
             var h = LogRow.Height.IsAbsolute ? LogRow.Height.Value : LogRow.ActualHeight;
             if (h >= 32) ConfigManager.Current.UiState.ConsoleHeight = h;
             ConfigManager.Save();
@@ -542,16 +459,10 @@ public partial class MainWindow : Window
         SetActiveNavForPage(page);
     }
 
-    /// <summary>
-    /// Light up the sidebar entry that corresponds to the navigated page.
-    /// Pages reachable only from the Tools popup (Build, Config) intentionally
-    /// fall through to "no match" — they're not part of the main rail and
-    /// shouldn't activate any sidebar item.
-    /// </summary>
+    /// <summary>Light up the sidebar entry for the navigated page.</summary>
     private void SetActiveNavForPage(System.Windows.Controls.Page page)
     {
-        // FQN on Button — UseWindowsForms=true makes the bare 'Button' type
-        // ambiguous between WPF and WinForms in this project.
+        // FQN on Button — UseWindowsForms=true makes bare 'Button' ambiguous.
         System.Windows.Controls.Button? active = page switch
         {
             Views.Wizard.WizardPage    => NavBtnWizard,
@@ -598,8 +509,7 @@ public partial class MainWindow : Window
 
     private void LogExpand_Click(object sender, RoutedEventArgs e)
     {
-        // Toggle between saved height and "max" (80% of window content area).
-        // Column definition row 0 has MinHeight=160 so we can't consume it fully; go close.
+        // Toggle between saved height and ~70% of window.
         if (_savedLogHeight == null)
         {
             _savedLogHeight = LogRow.Height;
@@ -662,8 +572,7 @@ public partial class MainWindow : Window
     private void NavCheckUpdates_Click(object sender, RoutedEventArgs e)
     {
         HelpPopup.IsOpen = false;
-        // Placeholder until the auto-update channel ships. Keeping the entry visible
-        // so the menu shape stabilises now and we just wire the network call later.
+        // Placeholder until auto-update channel ships.
         MessageBox.Show(this,
             "Update check is not implemented yet.\n\nLatest releases will be published at:\nhttps://github.com/tunelko/DllSideCar/releases",
             "Check for updates",
@@ -687,10 +596,7 @@ public partial class MainWindow : Window
     private void NavStartTour_Click(object sender, RoutedEventArgs e)
     {
         HelpPopup.IsOpen = false;
-        // The controller navigates to ConfigPage, waits for it to render, then
-        // walks the named fields one by one with the overlay. Clicking the same
-        // menu entry again while a tour is running starts a fresh one — End()
-        // hides the overlay and resets index before the new instance kicks off.
+        // End any running tour before starting a fresh one.
         _tourController?.End();
         _tourController = new Views.HelpTour.HelpTourController(this, TourOverlay);
         _tourController.Start();
@@ -713,7 +619,7 @@ public partial class MainWindow : Window
     private void NavRuntimeTrace_Click(object sender, RoutedEventArgs e) => NavigateTo(new RuntimeTracePage(this));
     private void NavToolkit_Click(object sender, RoutedEventArgs e) { ToolsPopup.IsOpen = false; NavigateTo(new ToolkitPage(this)); }
 
-    // Minimal ICommand impl for the Ctrl+B binding — avoids pulling in CommunityToolkit just for this.
+    // Minimal ICommand for the Ctrl+B binding.
     private sealed class RelayCommand : ICommand
     {
         private readonly Action<object?> _action;
@@ -750,18 +656,15 @@ public partial class MainWindow : Window
         var hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero) return;
 
-        // Win11: request rounded window corners via DWM. No-op on Win10 (returns HRESULT
-        // failure, which we ignore) — Win10 renders square corners on WindowStyle=None
-        // which is acceptable until the user upgrades.
+        // Win11: request rounded corners via DwmSetWindowAttribute (no-op on Win10).
         try
         {
             int pref = DWMWCP_ROUND;
             DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref pref, sizeof(int));
         }
-        catch { /* pre-Win11, DwmSetWindowAttribute returns error for this attribute */ }
+        catch { /* pre-Win11 returns error for this attribute */ }
 
-        // WM_GETMINMAXINFO: clamp maximize to working area so the frameless window
-        // doesn't cover the taskbar or spill past screen edges on multi-monitor setups.
+        // WM_GETMINMAXINFO: clamp maximize to working area.
         HwndSource.FromHwnd(hwnd)?.AddHook(WndProc);
     }
 

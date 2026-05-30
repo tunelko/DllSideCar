@@ -27,28 +27,21 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
-        <!-- Sidebar background: subtle vertical gradient from pure black at top to a slightly
-             desaturated dark grey at the bottom — same family as Mantle but with depth cue. -->
+        <!-- Sidebar background: vertical gradient. -->
         <LinearGradientBrush x:Key="SidebarBg" StartPoint="0,0" EndPoint="0,1">
             <GradientStop Color="#000000" Offset="0"/>
             <GradientStop Color="#0E0E12" Offset="0.55"/>
             <GradientStop Color="#1A1A22" Offset="1"/>
         </LinearGradientBrush>
 
-        <!-- Nav section band: horizontal gradient that fades from a tinted accent to fully
-             transparent on the right. Used as the backdrop for each section header label
-             (WIZARD / ANALYSIS / GENERATE) so the groups read as visual blocks rather than
-             a uniform list. -->
+        <!-- Nav section header backdrop gradient. -->
         <LinearGradientBrush x:Key="NavSectionBg" StartPoint="0,0.5" EndPoint="1,0.5">
             <GradientStop Color="#2A3A56" Offset="0"/>
             <GradientStop Color="#0F1A2E" Offset="0.45"/>
             <GradientStop Color="#00000000" Offset="1"/>
         </LinearGradientBrush>
 
-        <!-- Nav button: Grid content with icon (fixed 28px) + label (Visibility bound to sidebar state).
-             Active state driven by Tag="active" — code-behind toggles it on the
-             button matching the current page so the user can see at a glance
-             where they are. -->
+        <!-- Nav button. Active state driven by Tag="active". -->
         <Style x:Key="NavButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
@@ -100,8 +93,7 @@
             <Setter Property="Margin" Value="0"/>
         </Style>
 
-        <!-- Wrapper Border style for section headers: paints the gradient band behind the
-             NavGroup label and collapses with the sidebar like the rest of the labels do. -->
+        <!-- Section header band; collapses with the sidebar. -->
         <Style x:Key="NavSectionBand" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource NavSectionBg}"/>
             <Setter Property="Margin" Value="6,16,6,4"/>
@@ -140,8 +132,7 @@
             </Setter>
         </Style>
 
-        <!-- Menu-bar button (File / Settings / Delete session / Help). One shared style so
-             the four pill-shaped buttons stay visually consistent. -->
+        <!-- Shared menu-bar pill button style. -->
         <Style x:Key="MenuBarButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
@@ -326,15 +317,11 @@
                 <RowDefinition Height="Auto"/>            <!-- 1: menu bar (Tools, status) -->
                 <RowDefinition Height="*" MinHeight="160"/>
                 <RowDefinition Height="Auto"/>
-                <!-- Console panel — starts collapsed (32 = header only). User
-                     drags the splitter to resize; persisted height in UiState.
-                     ConsoleHeight is restored at load and saved on close. -->
+                <!-- Console panel — starts collapsed (32 = header only). -->
                 <RowDefinition x:Name="LogRow" Height="32" MinHeight="32"/>
             </Grid.RowDefinitions>
 
-            <!-- Title strip: pure window chrome — drag area + min/max/close. Solid Crust
-                 so it visually disappears as ambient chrome. The CaptionHeight (32) makes
-                 only this band drag the window; the menu bar below is fully interactive. -->
+            <!-- Title strip: drag area + min/max/close. -->
             <Border Grid.Row="0" Background="{StaticResource Crust}" Height="32">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -361,8 +348,7 @@
                 </DockPanel>
             </Border>
 
-            <!-- Menu bar: app actions (Tools), status indicators. Subtle bottom border
-                 separates it from the page content; gradient mirrors the previous toolbar. -->
+            <!-- Menu bar: app actions (Tools), status indicators. -->
             <Border Grid.Row="1" Padding="8,5"
                     BorderBrush="{StaticResource Ring}" BorderThickness="0,0,0,1">
                 <Border.Background>
@@ -373,9 +359,7 @@
                     </LinearGradientBrush>
                 </Border.Background>
                 <DockPanel>
-                    <!-- Left side: File dropdown (session controls). The Popups stay
-                         attached to their PlacementTarget so they don't need to live next
-                         to the buttons in layout order. -->
+                    <!-- Left side: File dropdown (session controls). -->
                     <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0">
                         <Button x:Name="FileDropdown" Style="{StaticResource MenuBarButton}"
                                 Click="FileDropdown_Click"
@@ -647,9 +631,7 @@
             </Border>
         </Grid>
 
-        <!-- Help Wizard Tour overlay — full-window dim with a spotlight cutout
-             over the active ConfigPage element. Sits above all other UI and
-             spans both sidebar + content columns. Z-order set explicitly. -->
+        <!-- Help Wizard Tour overlay — spotlight over active ConfigPage element. -->
         <tour:HelpTourOverlay x:Name="TourOverlay"
                               Grid.Column="0" Grid.ColumnSpan="2"
                               Visibility="Collapsed"

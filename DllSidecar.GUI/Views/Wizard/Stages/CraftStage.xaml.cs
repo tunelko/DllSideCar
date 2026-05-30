@@ -25,16 +25,10 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
     private bool _suppressPersist;
     private string? _systemOrigPath;
 
-    // Same role as in GeneratePage: the exact 32 bytes that get baked into
-    // g_xkey[32] in the produced DLL when EncryptStrings is on.
+    // XOR key baked into g_xkey[32] when EncryptStrings is on.
     private byte[] _xorKey = XorCryptor.RandomKey(32);
 
-    // AppPaths handles dev-vs-installed path resolution — see GeneratePage's
-    // identical refactor for the rationale.
-
-    // Same sentinel as GeneratePage — first item in the export combo, selected by
-    // default. When chosen, TargetExport stays null → template emits pure forwarder
-    // (no trampolines, payload fires from DllMain).
+    // Sentinel: pure-forwarder build (no trampolines).
     private const string NoHookSentinel = "(no hook — pure forwarder, payload from DllMain)";
 
     public CraftStage(WizardSession session, WizardPage shell)
@@ -51,20 +45,13 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         UpdateHeader();
         SeedDeployBanner();
 
-        // Restore any previously typed/selected inputs from the wizard session
-        // (survives Back → Continue navigation AND app restart via WizardSessionStore).
+        // Restore session inputs (survives Back/Continue and app restart).
         RestoreSessionInputs();
         ApplySandboxRecommendation();
         WirePersistence();
     }
 
-    /// <summary>
-    /// SandboxEscape is hidden from the Payload combo unless the chosen target's
-    /// importer is classified as sandboxed (AppContainer, Low IL, or a known
-    /// renderer subprocess like AcroCEF). Cuts visual clutter for the 90% of
-    /// targets that don't need it and surfaces a recommendation hint when they
-    /// do. See SandboxClassifier for the heuristic + dynamic-token logic.
-    /// </summary>
+    /// <summary>Hide SandboxEscape unless the chosen target's importer is classified as sandboxed.</summary>
     private void ApplySandboxRecommendation()
     {
         var kind = _session.ChosenPhantom?.SandboxKind
@@ -85,11 +72,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         }
     }
 
-    /// <summary>
-    /// Override the per-construction defaults (derived from candidate / importer) with
-    /// whatever the user typed on a previous visit to this stage. Called after the
-    /// defaults are in place so the session values always win.
-    /// </summary>
+    /// <summary>Override defaults with values the user typed on a previous visit to this stage.</summary>
     private void RestoreSessionInputs()
     {
         _suppressPersist = true;
@@ -189,9 +172,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         ChkEncrypt.Unchecked += (_, _) => XorKeyRow.Visibility = Visibility.Collapsed;
         XorKeyRow.Visibility = ChkEncrypt.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
 
-        // Same mutual exclusion the standalone Generate page enforces — Direct
-        // and Indirect syscall headers define the same sc_NtFoo() wrappers, so
-        // both at once would not compile. See the matching block in GeneratePage.
+        // Direct and Indirect syscalls are mutually exclusive (shared sc_NtFoo wrappers).
         ChkSyscalls.Checked += (_, _) => { if (ChkIndirectSyscalls.IsChecked == true) ChkIndirectSyscalls.IsChecked = false; };
         ChkIndirectSyscalls.Checked += (_, _) => { if (ChkSyscalls.IsChecked == true) ChkSyscalls.IsChecked = false; };
         DelayBox.TextChanged += OnChanged;
@@ -224,7 +205,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             return false;
         }
 
-        // Capture ALL UI values on the UI thread before jumping to a worker.
+        // Capture UI values before jumping to worker thread.
         int payloadIdx = PayloadCombo.SelectedIndex;
         string payloadData = PayloadDataBox.Text.Trim();
         int threadIdx = ThreadCombo.SelectedIndex;
@@ -253,8 +234,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         string hostExe = HostExeBox.Text.Trim();
         string sandboxTargets = SandboxTargetsBox?.Text?.Trim() ?? "";
 
-        // Snapshot the key buffer so the worker thread doesn't race a click on
-        // Auto-generate while the build is in flight.
+        // Snapshot key so worker doesn't race Auto-generate clicks.
         byte[] xorKey = (byte[])_xorKey.Clone();
 
         _shell.ShowOverlay("Generating + building", $"Crafting {_session.CraftMode} for {_target.Filename}...");
@@ -269,10 +249,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
                 ? $"Built: {_session.BuiltDllPath}"
                 : $"Generated: {_session.GeneratedOutputDir} (compile disabled)";
             _shell.RefreshChrome();
-            // Post-build success modal — on the UI thread, after Task.Run returns.
-            // Calling from inside GenerateAndBuild crashed with the WPF
-            // cross-thread guard ("subproceso ... otro subproceso"). Only fires
-            // when the compile actually ran AND produced a DLL.
+            // Post-build modal on UI thread only when compile succeeded.
             if (_session.BuiltDllPath != null)
                 Helpers.BuildCompleteDialog.Show(Window.GetWindow(this), _session.BuiltDllPath);
             return true;
@@ -308,9 +285,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
 
         var p = _session.ChosenPhantom;
 
-        // Arch by majority vote across importers (same logic as ScanPage).
-        // Tie → x86 (many x64 apps have an x86 CEF/helper subprocess that is
-        // the real sideload entry — Acrobat's AcroCEF.exe is the canonical case).
+        // Arch majority vote across importers; tie favours x86.
         int x86 = 0, x64 = 0;
         var archDebug = new List<string>();
         foreach (var imp in p.Importers)
@@ -347,10 +322,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             try { return PeAnalyzer.Analyze(i.ExePath).Arch == arch; } catch { return false; }
         })?.ExePath ?? p.Importers.FirstOrDefault()?.ExePath;
 
-        // Legacy data (scan_results.json from a pre-fix trace) may carry only a
-        // basename like "Battle.net.exe" here. Reconstruct the full path by
-        // looking inside the phantom directory — the importer almost always
-        // lives in the same directory as the DLL it searches for.
+        // Legacy data may carry only a basename; reconstruct full path from phantom dir.
         if (!string.IsNullOrEmpty(_hostExePath)
             && !Path.IsPathRooted(_hostExePath)
             && !string.IsNullOrEmpty(_deployDir))
@@ -386,9 +358,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
 
     private void SelectDefaultMode()
     {
-        // Tracer is intentionally not selectable from the wizard — it lives on the
-        // standalone GENERATE → Export Tracer page for reconnaissance flows. The
-        // wizard restricts itself to the two PoC-final modes.
+        // Wizard restricts to two PoC-final modes; Tracer lives on Generate page.
         if (_target == null || _target.NamedExports == 0)
             _session.CraftMode = GenerationMode.Sideload;
         else
@@ -483,12 +453,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             SandboxTargetsPanel.Visibility = PayloadCombo.SelectedIndex == 3
                 ? Visibility.Visible : Visibility.Collapsed;
 
-        // ReverseShell-safe defaults — see GeneratePage for the same logic.
-        // Winsock + CreateProcess under the DllMain loader lock deadlocks; the
-        // new-thread mode runs do_payload after DllMain returns, and the proof
-        // file leaves a breadcrumb when the listener side never hears anything.
-        // _suppressPersist gates the user-facing dialog so it doesn't fire when
-        // the session restore in the ctor flips the combo on page load.
+        // ReverseShell: apply safe defaults (CreateThread + Write proof).
         if (PayloadCombo.SelectedIndex == 4)
         {
             if (ThreadCombo != null) ThreadCombo.SelectedIndex = 1;
@@ -497,24 +462,14 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         }
     }
 
-    /// <summary>
-    /// One-shot informational modal explaining the auto-applied defaults when
-    /// the user picks ReverseShell in the wizard's Craft stage. Mirrors the
-    /// non-wizard GeneratePage helper of the same name.
-    /// </summary>
+    /// <summary>Informational modal explaining auto-applied ReverseShell defaults.</summary>
     private static void ShowReverseShellAdvisory()
     {
         MessageBox.Show(
             "Reverse shell selected — safe defaults applied:\n\n" +
-            "  • Thread mode → New thread (CreateThread)\n" +
-            "      Required: Winsock + CreateProcessA under the DllMain loader\n" +
-            "      lock deadlocks the host. A separate thread runs do_payload()\n" +
-            "      after DllMain returns.\n\n" +
-            "  • Write proof file → ON\n" +
-            "      Leaves %TEMP%\\dllsidecar_proof_<PID>.txt at payload entry so\n" +
-            "      you can confirm execution even if the listener never sees a\n" +
-            "      connection (firewall, missing nc -lvnp, AV block).\n\n" +
-            "Host / port come from Configuration → Payload Defaults.\n" +
+            "  - Thread mode -> New thread (CreateThread)\n" +
+            "  - Write proof file -> ON (leaves %TEMP%\\dllsidecar_proof_<PID>.txt)\n\n" +
+            "Host / port come from Configuration -> Payload Defaults.\n" +
             "Don't forget the listener: nc -lvnp <port>  (or ncat).",
             "Reverse shell — defaults applied",
             MessageBoxButton.OK, MessageBoxImage.Information);
@@ -534,17 +489,13 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
 
     private void HostExeBox_Changed(object sender, TextChangedEventArgs e)
     {
-        // When the Host path points at an existing PE, pull vendor from its version info
-        // (CompanyName normalized) into the session so ReportStage + Library get the right
-        // vendor even for phantom-only advisories where the target DLL has no CompanyName.
+        // Pull vendor from host PE version info into the session.
         TryResolveHostVendor(HostExeBox.Text);
     }
 
     private void TryResolveHostVendor(string? hostPath)
     {
-        // ResolveFromFile: Authenticode Subject CN → CompanyName → ProductName. The signed
-        // cert CN is what really identifies the publisher ("Blizzard Entertainment, Inc.",
-        // "Microsoft Corporation"), so it wins over the self-reported version-info CompanyName.
+        // Resolution order: Authenticode Subject CN → CompanyName → ProductName.
         var vendor = Core.Services.Advisory.VendorResolver.ResolveFromFile(hostPath ?? "");
         if (!string.IsNullOrWhiteSpace(vendor))
         {
@@ -566,10 +517,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         var newArch = ArchX86.IsChecked == true ? "x86" : "x64";
         if (_target.Arch == newArch) return;
 
-        // For phantom: re-resolve system DLL to align exports + orig source.
-        // For existing DLL: just flip the arch flag (MinGW will refuse if it
-        // really doesn't match but at least the toggle reflects the researcher's
-        // intent).
+        // Phantom: re-resolve system DLL. Existing: flip arch flag only.
         if (_isPhantom)
         {
             var resolved = SystemDllResolver.Resolve(_target.Filename, newArch);
@@ -588,10 +536,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         ApplyArchCompatibilityRules(newArch);
     }
 
-    /// <summary>
-    /// On x86 direct syscalls are not benign — sc_init reads i686 ntdll prologues
-    /// with the x64-assumed layout and corrupts g_sc. Hard-disable.
-    /// </summary>
+    /// <summary>Gates arch-specific options (Direct syscalls disabled on x86).</summary>
     private void ApplyArchCompatibilityRules(string arch)
     {
         if (ChkSyscalls == null) return;
@@ -649,7 +594,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             DelayMs = delayMs,
             LongXorKey = xorKey,
             TargetExport = targetExport,
-            // Researcher attribution from the Configuration page (matches GeneratePage).
+            // Researcher attribution from Configuration page.
             Researcher = Core.Configuration.ConfigManager.Current.Researcher.Handle ?? "",
 
             WriteProofFile = writeProof,
@@ -665,9 +610,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         if (!string.IsNullOrWhiteSpace(sandboxTargets))
             config.SandboxTargets = sandboxTargets;
 
-        // Pick up MessageBox title/body from Config → Payload Defaults so the
-        // wizard-generated PoCs use the user's customised popup text, not
-        // TemplateConfig's hardcoded fallback.
+        // MessageBox text from Config → Payload Defaults (not TemplateConfig fallback).
         var payloadCfg = ConfigManager.Current.Payload;
         config.MessageBoxTitle = payloadCfg.MessageBoxTitle;
         config.MessageBoxBody = payloadCfg.MessageBoxBody;
@@ -764,9 +707,6 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         }
 
         Log.Info("wizard.craft", $"Built: {dllOutput} ({result.OutputSize:N0} bytes)");
-        // Modal pop-up happens after Task.Run returns to the UI thread in the
-        // caller — we can't open a WPF dialog from this background thread
-        // (`InvalidOperationException: subproceso ... otro subproceso`).
-        // BuiltDllPath on the session is the handoff.
+        // Caller opens the modal after Task.Run returns to UI thread.
     }
 }

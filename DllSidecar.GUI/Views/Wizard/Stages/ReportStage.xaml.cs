@@ -26,9 +26,7 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
 
     private async Task OnLoadedAsync()
     {
-        // Auto-run NVD dedup against the picked target so the advisory can include it.
-        // Uses cache if recent — cheap. Only runs if we don't already have results + we
-        // have an existing PE (phantoms skip: no vendor/product metadata to query with).
+        // Auto-run NVD dedup; cached if recent.
         if (_session.CveDedup == null && _session.ChosenExisting != null)
         {
             _shell.ShowOverlay("Running NVD dedup", "Auto-check before drafting advisory...");
@@ -50,11 +48,7 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
     public Task<bool> ValidateAndCommit()
     {
         _session.AdvisoryMarkdown = MdView.Text;
-        // Stash advisory state into MainWindow so AdvisoryPage picks it up after Finish.
-        // For phantom-only flows ChosenExisting is null → CurrentAnalysis would be null
-        // and AdvisoryPage would show empty placeholders. Pass the context + markdown
-        // explicitly so AdvisoryPage adopts them verbatim (preserving the user's edits
-        // inside MdView over the auto-generated draft).
+        // Stash advisory state into MainWindow for AdvisoryPage handoff.
         _main.CurrentAnalysis = _session.ChosenExisting?.Dll;
         _main.CurrentDllPath  = _session.ChosenExisting?.Dll.Path ?? _session.BuiltDllPath;
         _main.LastScanResults = _session.ScanResults;
@@ -77,9 +71,7 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
             ctx.PeFilename = pe.Filename;
             ctx.Architecture = pe.Arch;
             ctx.Product = string.IsNullOrEmpty(pe.ProductName) ? pe.Filename : pe.ProductName;
-            // Host-EXE vendor (resolved by CraftStage when the user picked the host) wins
-            // over whatever the target PE's own CompanyName says — Host is the signed
-            // process that actually loads the sideloaded DLL, so it's the real vendor.
+            // Host-EXE vendor wins over the target PE's CompanyName.
             ctx.Vendor = !string.IsNullOrWhiteSpace(_session.Vendor)
                 ? _session.Vendor
                 : Core.Services.Advisory.VendorResolver.Extract(pe);
@@ -103,21 +95,15 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
             ctx.DirectoryLowPrivWritable = p.Dir.IsLowPrivWritable;
             ctx.WritableByPrincipals = string.Join(", ", p.Dir.WritableBy);
             ctx.ImporterExe = p.Importers.FirstOrDefault()?.ExeFilename;
-            // Phantom has no target PE to read CompanyName from — the Host EXE chosen in
-            // CraftStage is the only reliable vendor source here.
+            // Phantom: Host EXE is the only reliable vendor source.
             if (!string.IsNullOrWhiteSpace(_session.Vendor))
                 ctx.Vendor = _session.Vendor;
 
-            // Title placeholder {Product} resolves from ctx.Product. Phantom flow used
-            // to leave Product null and the rendered title read "DLL Sideloading in via
-            // bcrypt.dll" — the empty space between "in" and "via" gave the bug away.
-            // Resolve from PE version info on the Host EXE if available, then walk down
-            // a deterministic fallback ladder so Product is *always* populated.
+            // Resolve Product via Host EXE with deterministic fallback ladder.
             ctx.Product = ResolveProductForPhantom(p, _session.CraftHostExePath);
-            ctx.PePath = _session.CraftHostExePath; // so the importer EXE path is visible in the advisory header
+            ctx.PePath = _session.CraftHostExePath;
 
-            // Architecture from the host EXE (when available) so the advisory matches the
-            // arch CraftStage picked. Falls back to "x64" — phantom flow has no PE to read.
+            // Architecture from host EXE when available.
             if (!string.IsNullOrEmpty(_session.CraftHostExePath) && File.Exists(_session.CraftHostExePath))
             {
                 try { ctx.Architecture = Core.Services.PeAnalyzer.Analyze(_session.CraftHostExePath).Arch; }
@@ -134,15 +120,11 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
         ctx.CvssScore = score;
         ctx.CvssSeverity = sev;
 
-        // Pull researcher identity (Name / Handle / Blog / Email / PGP) from Configuration.
-        // Without this the Report stage hands off a context with blank Researcher fields to
-        // AdvisoryPage and the renderers print "Researcher: ()" even when the user has filled
-        // in Configuration.
+        // Pull researcher identity from Configuration.
         ctx.ApplyResearcherFromConfig();
 
         _session.Advisory = ctx;
-        // Prefer the user's previous edits (stored on session) over the freshly rendered
-        // template so Back → Continue navigation doesn't wipe their draft work.
+        // Prefer the user's previous session edits over the freshly rendered template.
         MdView.Text = string.IsNullOrEmpty(_session.AdvisoryMarkdown)
             ? AdvisoryTemplate.Render(ctx)
             : _session.AdvisoryMarkdown;
@@ -157,16 +139,7 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
         _shell.RefreshChrome(); // disk snapshot checkpoint
     }
 
-    /// <summary>
-    /// Determine a non-empty Product name for a phantom-flow advisory. Order:
-    ///  1. Host EXE's PE ProductName (richest — author-curated product label).
-    ///  2. Host EXE's filename without extension (e.g. "Battle.net").
-    ///  3. Any importer's PE ProductName (still author-curated).
-    ///  4. First importer's filename without extension.
-    ///  5. Phantom directory leaf (e.g. "Battle.net" from "C:\Program Files\Battle.net").
-    ///  6. Phantom DLL basename without extension.
-    ///  7. "Unknown product" — never let the title render with an empty {Product}.
-    /// </summary>
+    /// <summary>Determine a non-empty Product name via fallback ladder: Host PE → Host basename → importer PE → importer basename → dir leaf → DLL basename → "Unknown product".</summary>
     private static string ResolveProductForPhantom(Core.Models.PhantomCandidate p, string? hostExePath)
     {
         string? FromPeProduct(string? path)
@@ -252,9 +225,7 @@ public partial class ReportStage : System.Windows.Controls.UserControl, IWizardS
         _shell.ShowOverlay("Exporting PDF", "Rendering...");
         try
         {
-            // Shares the same engine as AdvisoryPage's export — pure C# QuestPDF,
-            // no headless Chrome (which left blank-content PDFs on Edge 148+ for
-            // researchers with Edge already running under their default profile).
+            // Pure C# QuestPDF engine (no headless Chrome).
             var title = _session.Advisory?.ResolveTitle();
             if (string.IsNullOrWhiteSpace(title)) title = "Advisory";
             Services.MarkdownPdfRenderer.Render(MdView.Text ?? "", title, dlg.FileName);

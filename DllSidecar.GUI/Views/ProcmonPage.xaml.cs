@@ -17,9 +17,7 @@ public partial class ProcmonPage : Page
     private ProcmonParser.ParseResult? _lastResult;
     // Master list — never mutated after parse. View grid binds to filtered projection.
     private readonly List<DllRow> _allRows = [];
-    // Per-page ACL cache so the writability gate doesn't re-probe the same
-    // directories thousands of times when a CSV references the same paths
-    // from many rows. Lives with the page — cleared if the user reparses.
+    // Per-page ACL cache; cleared on reparse.
     private readonly DirAclCache _dirAcl = new();
 
     public ProcmonPage(MainWindow main)
@@ -29,16 +27,12 @@ public partial class ProcmonPage : Page
         UpdateLaunchBtn();
         RestorePersistedState();
         WirePersistence();
-        // Re-hydrate from the MainWindow session state so a parse done earlier
-        // in the same app session is still visible after navigating away and
-        // back. UiState handles the CSV path + checkbox filters; the heavy
-        // ParseResult itself lives on MainWindow because it's not config.
+        // Re-hydrate from MainWindow session state if a parse exists.
         if (_main.LastProcmonResult != null)
         {
             RehydrateFromLastResult();
         }
-        // Session-restore path: only the CSV path is in the snapshot. Re-parse
-        // automatically so the grid shows the same rows as before the restart.
+        // Session-restore path: only the CSV path survives restart, so re-parse.
         else if (!string.IsNullOrEmpty(_main.LastProcmonCsvPath) && File.Exists(_main.LastProcmonCsvPath))
         {
             Loaded += AutoParseOnce;
@@ -52,11 +46,7 @@ public partial class ProcmonPage : Page
         Parse_Click(this, new RoutedEventArgs());
     }
 
-    /// <summary>
-    /// Reconstructs the grid, stats and status from a previously-parsed result
-    /// held on MainWindow. Called from the ctor when navigating back to a page
-    /// that had been parsed earlier in this app session.
-    /// </summary>
+    /// <summary>Reconstructs grid, stats and status from a previously-parsed result on MainWindow.</summary>
     private void RehydrateFromLastResult()
     {
         _lastResult = _main.LastProcmonResult;
@@ -71,6 +61,8 @@ public partial class ProcmonPage : Page
         StatEvents.Text = _lastResult.FilteredRows.ToString();
         StatDlls.Text   = _allRows.Count.ToString();
         StatHigh.Text   = _allRows.Count(r => r.Aggregation.AnyDirUserSpace).ToString();
+
+        UpdateElevationBanner();
 
         ApplyViewFilter();
         SetStatus(
@@ -189,9 +181,7 @@ public partial class ProcmonPage : Page
                 SetStatus(_lastResult.Error, StatusKind.Err);
                 return;
             }
-            // Row construction triggers ACL probes (one File.WriteAllText per
-            // unique dir on first hit). Off the UI thread so 5000-row CSVs
-            // don't freeze the window for the 1-2s the probes can take.
+            // ACL probes run off the UI thread to avoid freezing on large CSVs.
             Overlay.UpdateSubtitle($"Checking ACLs on {_lastResult.ByDll.SelectMany(a => a.SearchedDirs).Distinct(StringComparer.OrdinalIgnoreCase).Count()} unique dirs...");
             built = await Task.Run(() =>
                 _lastResult.ByDll.Select(a => new DllRow(a, _dirAcl)).ToList());
@@ -206,11 +196,11 @@ public partial class ProcmonPage : Page
         StatDlls.Text = _allRows.Count.ToString();
         StatHigh.Text = _allRows.Count(r => r.Aggregation.AnyDirUserSpace).ToString();
 
+        UpdateElevationBanner();
+
         ApplyViewFilter();
 
-        // Park the successful parse on MainWindow so the next ProcmonPage
-        // instance (e.g. after navigating to Config and back) re-hydrates
-        // automatically. Mirrors LastScanResults / LastEtwResult.
+        // Park parse on MainWindow for re-hydration after navigation.
         _main.LastProcmonResult = _lastResult;
         _main.LastProcmonCsvPath = path;
 
@@ -222,6 +212,91 @@ public partial class ProcmonPage : Page
     {
         if (!IsLoaded) return;
         ApplyViewFilter();
+    }
+
+    /// <summary>Shows the UAC elevation banner naming the top privesc carrier DLLs.</summary>
+    private void UpdateElevationBanner()
+    {
+        if (_lastResult == null || _lastResult.Transitions.Count == 0)
+        {
+            ElevationBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var ts = _lastResult.Transitions;
+        string header;
+        if (ts.Count == 1)
+        {
+            var t = ts[0];
+            var gap = t.Gap?.TotalMilliseconds switch
+            {
+                null => "gap: n/a",
+                < 1000 => $"gap: {t.Gap!.Value.TotalMilliseconds:F0} ms",
+                _ => $"gap: {t.Gap!.Value.TotalSeconds:F2} s",
+            };
+            header = $"{t.ProcessName}  PID {t.ParentPid} -> {t.ChildPid}  ({gap})";
+        }
+        else
+        {
+            header = $"{ts.Count} transitions: " +
+                string.Join("  ·  ",
+                    ts.Select(t => $"{t.ProcessName} PID {t.ParentPid}->{t.ChildPid}"));
+        }
+
+        // Strict carrier identification shared with RuntimeTracePage.
+        var carriers = PrivescCarrierIdentifier.FromAggregations(_lastResult.ByDll, _dirAcl);
+
+        if (carriers.Count == 0)
+        {
+            ElevationBannerText.Text =
+                header + "\nNo privesc carrier DLL identified — the elevated child loaded only from KnownDLLs, locked dirs, or probe-only paths.";
+            ElevationBanner.Visibility = Visibility.Visible;
+            return;
+        }
+
+        const int show = 5;
+        var top = carriers.Take(show).Select(c => c.DllName);
+        var moreCount = carriers.Count - show;
+        var carriersText = string.Join(", ", top);
+        if (moreCount > 0)
+            carriersText += $" (+{moreCount} more)";
+
+        ElevationBannerText.Text =
+            header +
+            $"\n{carriers.Count} privesc carrier DLL{(carriers.Count == 1 ? "" : "s")}: {carriersText}";
+
+        ElevationBanner.Visibility = Visibility.Visible;
+        PromotePrivescBtn.IsEnabled = true;
+        PromotePrivescBtn.Tag = carriers; // top carrier picked up by the handler
+    }
+
+    /// <summary>Hand the carrier list to PrivescPage and navigate; chain explanation renders there.</summary>
+    private void PromotePrivesc_Click(object sender, RoutedEventArgs e)
+    {
+        if (PromotePrivescBtn.Tag is not List<PrivescCarrier> carriers || carriers.Count == 0)
+        {
+            SetStatus("No carriers ranked — re-parse the CSV", StatusKind.Warn);
+            return;
+        }
+
+        var summary = BuildTransitionSummary();
+        _main.PendingPrivescHandoff = new MainWindow.PrivescCarrierHandoff(
+            SourceLabel: "ProcMon CSV",
+            Carriers: carriers,
+            TransitionSummary: summary);
+        _main.NavigateTo(new PrivescPage(_main));
+    }
+
+    private string BuildTransitionSummary()
+    {
+        if (_lastResult == null || _lastResult.Transitions.Count == 0) return "";
+        var ts = _lastResult.Transitions;
+        if (ts.Count == 1)
+        {
+            var t = ts[0];
+            return $"{t.ProcessName} PID {t.ParentPid} -> {t.ChildPid}";
+        }
+        return string.Join(" · ", ts.Select(t => $"{t.ProcessName} {t.ParentPid}->{t.ChildPid}"));
     }
 
     private void Search_Changed(object sender, TextChangedEventArgs e)
@@ -240,17 +315,11 @@ public partial class ProcmonPage : Page
         if (ChkOnlyHighRisk.IsChecked == true)
             view = view.Where(r => string.Equals(r.Risk, "HIGH", StringComparison.OrdinalIgnoreCase));
 
-        // KnownDLLs (kernel32, ntdll, user32…) are surfaced by ProcMon because
-        // every process searches for them in its own dir first, but Windows
-        // ignores that and loads them from System32 regardless. Hiding them
-        // by default keeps the grid focused on actually-exploitable rows.
+        // KnownDLLs always load from System32 — filter them out.
         if (ChkHideKnownDlls.IsChecked == true)
             view = view.Where(r => r.Mode != ProcmonRowMode.KnownDll);
 
-        // Writability gate — when every searched directory requires admin to
-        // write, planting a sideloaded DLL already needs elevation, which
-        // collapses the threat model. Hide them by default; rows with at
-        // least one user-writable slot (or Unknown verdict) stay visible.
+        // Hide rows where every searched directory is admin-only.
         if (ChkHideLockedDirs.IsChecked == true)
             view = view.Where(r => r.Writability != ProcmonDirWritability.AllLocked);
 
@@ -278,11 +347,7 @@ public partial class ProcmonPage : Page
 
         DetailsEmpty.Visibility = Visibility.Collapsed;
         DetailsContent.Visibility = Visibility.Visible;
-        // Promotion is meaningful for everything EXCEPT KnownDLLs (Windows
-        // always loads those from System32, classic sideload cannot intercept).
-        // Resolvable AND Phantom rows both promote — Resolvable gets Proxy mode
-        // with real exports, Phantom gets Sideload mode with a synthetic
-        // PeAnalysis. The Promote handler decides the actual mode at click time.
+        // Promotion blocked only for KnownDLLs; Promote handler picks Proxy/Sideload mode.
         PromoteBtn.IsEnabled = row.Mode != ProcmonRowMode.KnownDll;
 
         DetailTitle.Text = $"{row.DllName}  —  {row.Aggregation.EventCount} events  —  risk: {row.Risk}";
@@ -309,16 +374,7 @@ public partial class ProcmonPage : Page
         return !lower.StartsWith(@"c:\windows") && !lower.StartsWith(@"c:\program files");
     }
 
-    /// <summary>
-    /// Hand the selected ProcMon row off to DLL Techniques. Mirrors the
-    /// phantom-from-Scan flow (<c>ScanPage.GenerateSideloadForPhantom</c>):
-    /// pick an arch, look up the canonical system DLL via
-    /// <see cref="SystemDllResolver"/>, synthesize a <see cref="PeAnalysis"/>
-    /// so GeneratePage has the export table it needs for Proxy generation,
-    /// fill <c>PendingDeployContext</c> with the searched-dir as the deploy
-    /// slot, then navigate. The auto-mode is Proxy when exports exist on the
-    /// canonical (forward-chain works), Sideload otherwise.
-    /// </summary>
+    /// <summary>Hand selected row to DLL Techniques: synthesize PeAnalysis, fill PendingDeployContext, navigate. Mode: Proxy when canonical has exports, Sideload otherwise.</summary>
     private void Promote_Click(object sender, RoutedEventArgs e)
     {
         if (DllGrid.SelectedItem is not DllRow row || _lastResult == null)
@@ -332,10 +388,7 @@ public partial class ProcmonPage : Page
             return;
         }
 
-        // Access-class gate — warn when every event for this DLL was a metadata
-        // probe (GetFileAttributes / which-style enumeration). The loader never
-        // attempted a real open, so dropping a sideloaded DLL at the probed paths
-        // would NOT execute. This is the MobaXterm 26.4 false-positive pattern.
+        // Access-class gate: warn when all events are probe-only (planted DLL would not execute).
         if (row.LoadCount == 0 && row.ProbeCount > 0)
         {
             var r = AppDialog.Show(
@@ -381,12 +434,7 @@ public partial class ProcmonPage : Page
             }
         }
 
-        // ProcMon CSV records process names but not full executable paths, so we
-        // can't probe each importer's PE header for arch the way ScanPage does.
-        // Default to x64 — the dominant target on modern Windows; the user can
-        // override the arch radio buttons in GeneratePage if a 32-bit host is
-        // intended. SystemDllResolver will fall through to null when no x64
-        // canonical exists, dropping us into Sideload mode automatically.
+        // Default to x64; user can override in GeneratePage if 32-bit host intended.
         const string arch = "x64";
         var resolved = Core.Services.SystemDllResolver.Resolve(row.DllName, arch);
         var exports = resolved?.Analysis.Exports ?? new List<ExportEntry>();
@@ -394,11 +442,7 @@ public partial class ProcmonPage : Page
             ? Core.Models.GenerationMode.Proxy
             : Core.Models.GenerationMode.Sideload;
 
-        // Pick the first user-writable searched dir as the deploy slot. ProcMon
-        // emitted these because the loader looked there and couldn't find the
-        // DLL — they're literally the slots where dropping a sideloaded copy
-        // would intercept. Fall back to the first dir if every entry is in a
-        // locked location (the user can still inspect / override in GeneratePage).
+        // Pick the first user-writable searched dir as deploy slot.
         var deployDir = row.Aggregation.SearchedDirs
             .FirstOrDefault(d => IsLikelyUserSpace(d))
             ?? row.Aggregation.SearchedDirs.FirstOrDefault()
@@ -424,10 +468,7 @@ public partial class ProcmonPage : Page
         _main.CurrentAnalysis = synth;
         _main.CurrentDllPath = synth.Path;
 
-        // HostExePath is left empty: ProcMon gives us process NAMES but not the
-        // launcher path, and by the time the user opens DllSidecar the original
-        // process may be long gone. GeneratePage shows the field blank with a
-        // hint so the researcher fills it themselves (or accepts Compile-only).
+        // HostExePath left empty: ProcMon CSV has process names only.
         _main.PendingDeployContext = new MainWindow.DeployContext(
             TargetDir: deployDir,
             TargetName: row.DllName,
@@ -490,18 +531,11 @@ public partial class ProcmonPage : Page
     private class DllRow
     {
         public ProcmonAggregation Aggregation { get; }
-        // Computed once at row construction from ProcmonRowClassifier — gating
-        // signal for the Mode column, the Hide KnownDLLs filter, and (in the
-        // upcoming Promote action) the choice between Proxy and Sideload
-        // generation modes.
+        // Gating signal for Mode column, Hide KnownDLLs filter, Promote mode.
         public ProcmonRowMode Mode { get; }
         public string? CanonicalPath { get; }
 
-        // Writability tier across this row's SearchedDirs. Computed at row
-        // construction by probing each dir through DirAclCache (cache keeps
-        // bulk parses fast). Drives the Dir column color, the Hide locked
-        // filter, and the warning shown by Promote when no writable slot
-        // exists.
+        // Writability tier across SearchedDirs; drives Dir column color and Promote warning.
         public ProcmonDirWritability Writability { get; }
 
         public DllRow(ProcmonAggregation a, DirAclCache dirAcl)
@@ -511,7 +545,16 @@ public partial class ProcmonPage : Page
             Mode = classification.Mode;
             CanonicalPath = classification.CanonicalPath;
             Writability = ProcmonRowWritabilityClassifier.Classify(a.SearchedDirs, dirAcl);
-            Verdict = ExploitabilityVerdict.For.ProcmonRow(Mode, Writability);
+            // Route through PrivescCarrierIdentifier so badge and banner agree row-by-row.
+            var carrierInput = new CarrierInput(
+                DllName: a.DllName,
+                IsHighIlSearch: a.HighIlSearch,
+                SearchedDirs: a.SearchedDirs.ToList(),
+                LoaderLikeCount: a.LoaderLikeCount,
+                MetadataProbeCount: a.MetadataProbeCount,
+                EventCount: a.EventCount);
+            bool isCarrier = PrivescCarrierIdentifier.Qualifies(carrierInput, dirAcl, out _);
+            Verdict = ExploitabilityVerdict.For.ProcmonRow(Mode, Writability, isCarrier);
         }
 
         public string Risk => Aggregation.RiskHeuristic;
@@ -521,9 +564,7 @@ public partial class ProcmonPage : Page
         public int DirCount => Aggregation.SearchedDirs.Count;
         public string ProcessList => string.Join(", ", Aggregation.Processes.OrderBy(p => p));
 
-        // Loader-vs-probe split surfaced by AccessClassifier. Powers the Access
-        // column so the operator can spot probe-only rows (app PATH enumeration,
-        // never a real load) at a glance.
+        // Loader-vs-probe split from AccessClassifier; powers Access column.
         public int LoadCount  => Aggregation.LoaderLikeCount;
         public int ProbeCount => Aggregation.MetadataProbeCount;
         public string AccessLabel => Core.Models.AccessClassLabels.FromCounts(LoadCount, ProbeCount);
@@ -551,10 +592,7 @@ public partial class ProcmonPage : Page
             _ => "—",
         };
 
-        // Unified ExploitabilityVerdict (Phase 4) — same record the VerdictBadge
-        // control consumes on AnalyzePage and ScanPage. Combines Mode + Writability
-        // into a single tier + score so the row reads at-a-glance without forcing
-        // the researcher to mentally cross both columns.
+        // Unified verdict consumed by VerdictBadge across all surfaces.
         public ExploitabilityVerdict Verdict { get; }
         public int VerdictSortKey => Verdict.Score;
     }

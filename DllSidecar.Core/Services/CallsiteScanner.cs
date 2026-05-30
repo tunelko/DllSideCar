@@ -7,25 +7,12 @@ using DllSidecar.Core.Models;
 namespace DllSidecar.Core.Services;
 
 /// <summary>
-/// Disassembles a PE's executable sections and reports every indirect call/jmp
-/// that resolves through the Import Address Table to one of the dynamic-loading
-/// APIs we care about (LoadLibrary*, LdrLoadDll, GetModuleHandle*).
-///
-/// Why: the static IAT view (PeAnalyzer) tells us a DLL *imports* LoadLibraryW,
-/// but not *where* it's called or *what string* it loads. A callsite list lets
-/// us follow the chain — and a hardcoded LoadLibraryW("amfrt64.dll") right next
-/// to a sideload-able directory is a much stronger signal than "imports it".
-///
-/// Port-of-origin: SandboxEscaper, "Windows filesystem – Enumerating the attack
-/// surface" (Patreon, 2026). Original was Python + capstone for CreateFile.
-/// We swap capstone for Iced (native .NET disassembler) and the API list for
-/// loader-targeting calls.
+/// Disassembles a PE and reports every indirect call/jmp through the IAT to LoadLibrary*, LdrLoadDll, or GetModuleHandle*.
 /// </summary>
 public static class CallsiteScanner
 {
     /// <summary>
-    /// APIs whose callsites we want to flag. All resolve through the standard
-    /// Win32/NT loader. NOT exhaustive — feel free to extend per investigation.
+    /// Loader APIs whose callsites are flagged.
     /// </summary>
     public static readonly IReadOnlySet<string> DefaultLoaderApis = new HashSet<string>(
         StringComparer.OrdinalIgnoreCase)
@@ -38,13 +25,7 @@ public static class CallsiteScanner
     };
 
     /// <summary>
-    /// Scan <paramref name="pePath"/> and return every callsite to one of
-    /// <paramref name="apiNames"/> (defaults to <see cref="DefaultLoaderApis"/>),
-    /// plus the imports we tracked so callers can tell apart "no relevant
-    /// imports" from "imports exist but no callsite found".
-    ///
-    /// arm64 returns empty (Iced is x86/x64 only). Caller should check
-    /// PeAnalysis.Arch first if it wants to surface a friendly message.
+    /// Scan <paramref name="pePath"/> for callsites to the given APIs (Iced is x86/x64 only; arm64 returns empty).
     /// </summary>
     public static CallsiteScanResult Scan(string pePath, IReadOnlySet<string>? apiNames = null)
     {
@@ -70,22 +51,16 @@ public static class CallsiteScanner
 
         var imageBase = pe.ImageNtHeaders.OptionalHeader.ImageBase;
 
-        // 1) Build a map: IAT slot virtual address (image_base + RVA) → (module, api).
-        //    Also populate the diagnostic dict so the caller can render a
-        //    "imports tracked: kernel32.dll!LoadLibraryW=1, ..." line.
+        // 1) Map IAT slot VA -> (module, api); also populate diagnostic counts.
         var iatTargets = BuildIatTargetMap(pe, apiNames, imageBase, bitness, tracked);
         if (iatTargets.Count == 0) return new CallsiteScanResult(callsites, tracked);
 
-        // 2) Build an export map for caller-name resolution. Keyed by RVA;
-        //    we use the export whose RVA is the largest <= the call RVA as a
-        //    coarse "caller is somewhere inside this exported function" hint.
-        //    No PDB → no precise function names — exports are the next-best signal.
+        // 2) Export RVA map for nearest-export caller-name hints (no PDB).
         var exportsByRva = pe.ExportedFunctions == null
             ? new SortedDictionary<uint, string>()
             : BuildExportRvaMap(pe.ExportedFunctions);
 
-        // 3) For each executable section, disassemble and collect call/jmp
-        //    instructions whose memory operand resolves to a tracked IAT slot.
+        // 3) Disassemble each executable section, collecting call/jmp through tracked IAT slots.
         var sections = pe.ImageSectionHeaders ?? [];
         foreach (var sec in sections)
         {
@@ -99,16 +74,7 @@ public static class CallsiteScanner
     // ---------- IAT slot map ----------
 
     /// <summary>
-    /// Walk the import descriptors directly (instead of trusting PeNet's
-    /// flat <c>ImportedFunctions</c> + <c>IATOffset</c>) so the slot VA we
-    /// store matches what Iced reads from the call instruction's memory
-    /// operand.
-    ///
-    /// Empirical reason: rundll32.exe's IAT was being tracked correctly in
-    /// the diagnostic dict but no callsites matched, because PeNet's
-    /// <c>IATOffset</c> didn't equal <c>FirstThunk + i*thunkSize</c> — at
-    /// least for API-set forwarded imports (api-ms-win-core-libraryloader-…).
-    /// Walking the thunks ourselves removes that guesswork.
+    /// Walk import descriptors directly so slot VAs match what Iced reads from call operands.
     /// </summary>
     private static Dictionary<ulong, (string Module, string Api)> BuildIatTargetMap(
         PeFile pe, IReadOnlySet<string> apiNames, ulong imageBase, int bitness,
@@ -128,11 +94,7 @@ public static class CallsiteScanner
             var dllName = ReadAsciiAtRva(pe, desc.Name);
             if (string.IsNullOrEmpty(dllName)) continue;
 
-            // Use OriginalFirstThunk (Import Name Table) for names; fall back
-            // to FirstThunk (Import Address Table, pre-bind it holds the same
-            // RVA-to-name pointers as INT) when INT is zero. After the loader
-            // runs, FirstThunk is overwritten with resolved addresses, but
-            // we're reading the on-disk image so it still has name pointers.
+            // Prefer OriginalFirstThunk (INT); fall back to FirstThunk on-disk.
             var nameTableRva = desc.OriginalFirstThunk != 0 ? desc.OriginalFirstThunk : desc.FirstThunk;
 
             for (uint i = 0; i < 65536; i++)
@@ -143,8 +105,7 @@ public static class CallsiteScanner
                 // Ordinal-only imports have no name to match — skip.
                 if ((thunk.Value & ordinalFlag) != 0) continue;
 
-                // Named import: low 31/63 bits are an RVA to IMAGE_IMPORT_BY_NAME
-                // which is { WORD Hint; char Name[]; }. Skip the 2-byte hint.
+                // Named import: low bits -> IMAGE_IMPORT_BY_NAME; skip 2-byte Hint.
                 var fnName = ReadAsciiAtRva(pe, (uint)thunk.Value + 2);
                 if (string.IsNullOrEmpty(fnName)) continue;
                 if (!apiNames.Contains(fnName)) continue;
@@ -160,8 +121,7 @@ public static class CallsiteScanner
         return map;
     }
 
-    /// <summary>Reads a null-terminated ASCII string at the given RVA. Used
-    /// for DLL names and import names; rejects non-printable bytes.</summary>
+    /// <summary>Read a null-terminated printable-ASCII string at the given RVA.</summary>
     private static string? ReadAsciiAtRva(PeFile pe, uint rva, int maxLen = 512)
     {
         var off = RvaToFileOffsetUnchecked(pe, rva);
@@ -184,8 +144,7 @@ public static class CallsiteScanner
         catch { return null; }
     }
 
-    /// <summary>Reads one IAT/INT thunk (4 bytes for x86, 8 bytes for x64).
-    /// Returns null on out-of-bounds.</summary>
+    /// <summary>Read one IAT/INT thunk (4 or 8 bytes); null on OOB.</summary>
     private static ulong? ReadThunkAtRva(PeFile pe, uint rva, int bitness)
     {
         var off = RvaToFileOffsetUnchecked(pe, rva);
@@ -221,8 +180,7 @@ public static class CallsiteScanner
         {
             if (exp.Name == null) continue;
             if (exp.HasForward) continue;
-            // Multiple ordinals can alias the same RVA — first one wins, that's
-            // fine for a "nearest export" hint.
+            // First export at an RVA wins for the nearest-export hint.
             if (!map.ContainsKey(exp.Address))
                 map[exp.Address] = exp.Name;
         }
@@ -232,9 +190,7 @@ public static class CallsiteScanner
     private static string ResolveCallerHint(SortedDictionary<uint, string> exportsByRva, uint callRva)
     {
         if (exportsByRva.Count == 0) return "<no exports>";
-        // Largest export RVA that is <= call RVA. SortedDictionary doesn't
-        // expose floor lookup, so linear scan from largest down. Export tables
-        // rarely exceed a few thousand entries — well within budget.
+        // Find largest export RVA <= call RVA (no floor-lookup on SortedDictionary).
         string? best = null;
         uint bestRva = 0;
         foreach (var kv in exportsByRva)
@@ -261,8 +217,7 @@ public static class CallsiteScanner
         SortedDictionary<uint, string> exportsByRva,
         List<Callsite> result)
     {
-        // VirtualSize can be > SizeOfRawData when the section has uninitialized
-        // tail; we can only disassemble the bytes we have.
+        // Disassemble only the raw bytes present on disk.
         var rawSize = (int)Math.Min(sec.SizeOfRawData, sec.VirtualSize == 0 ? sec.SizeOfRawData : sec.VirtualSize);
         if (rawSize <= 0) return;
 
@@ -271,17 +226,12 @@ public static class CallsiteScanner
 
         var startIp = imageBase + sec.VirtualAddress;
         var reader = new ByteArrayCodeReader(rawBytes);
-        // FQN avoids the System.Text.Decoder vs Iced.Intel.Decoder ambiguity
-        // we get from importing System.Text for the StringBuilder below.
+        // FQN: avoids System.Text.Decoder vs Iced.Intel.Decoder ambiguity.
         var decoder = Iced.Intel.Decoder.Create(bitness, reader, startIp, DecoderOptions.None);
         var formatter = new NasmFormatter();
         var output = new StringOutput();
 
-        // Sliding window of recent decoded instructions, used by ExtractArgs to
-        // walk back from each callsite and resolve the LoadLibrary first-arg
-        // string. 16 slots is more than enough — typical arg-load → call
-        // distance is 1-3 instructions; 16 covers register saves, NOP padding,
-        // and short setup sequences.
+        // Ring of recent decoded instructions for ExtractArgs back-walk.
         const int WindowSize = 16;
         var ring = new Instruction[WindowSize];
         var ringHead = 0;
@@ -301,11 +251,7 @@ public static class CallsiteScanner
             var isCallOrJmp = inst.Mnemonic == Mnemonic.Call || inst.Mnemonic == Mnemonic.Jmp;
             if (isCallOrJmp && inst.OpCount == 1 && inst.Op0Kind == OpKind.Memory)
             {
-                // Resolve the absolute VA the memory operand points to. For x64
-                // this is RIP-relative (Iced gives us the absolute VA via
-                // IPRelativeMemoryAddress when the decoder IP was set correctly).
-                // For x86 it's an absolute [imm32]. Indexed/scaled addressing is
-                // ignored — IAT thunks are always plain absolute or RIP-relative.
+                // Resolve operand VA: x64 RIP-relative or x86 absolute [imm32].
                 ulong target = 0;
                 bool resolved = false;
                 if (inst.IsIPRelativeMemoryOperand)
@@ -328,9 +274,7 @@ public static class CallsiteScanner
                     var disasm = output.ToStringAndReset();
                     var callRva = (uint)(inst.IP - imageBase);
 
-                    // Arg extraction is only meaningful for direct calls. A jmp
-                    // through the IAT is a tail-call thunk — the caller of the
-                    // thunk holds the args, not the thunk body itself.
+                    // Arg extraction only for direct calls (IAT jmp is a tail-call thunk).
                     string? loadedName = null;
                     uint? loadFlags = null;
                     if (inst.Mnemonic == Mnemonic.Call)
@@ -351,8 +295,7 @@ public static class CallsiteScanner
                 }
             }
 
-            // Push the instruction into the ring AFTER the callsite check, so
-            // ExtractArgs only sees instructions BEFORE the current one.
+            // Push after the callsite check so ExtractArgs only sees prior insts.
             ring[ringHead] = inst;
             ringHead = (ringHead + 1) % WindowSize;
             if (ringCount < WindowSize) ringCount++;
@@ -362,13 +305,7 @@ public static class CallsiteScanner
     // ---------- Arg extraction ----------
 
     /// <summary>
-    /// Walk the ring buffer in reverse (most recent first) looking for the
-    /// instruction(s) that loaded the LoadLibrary first arg. Returns
-    /// (loadedName, loadFlags) — either may be null when the arg was computed,
-    /// loaded indirectly, or built on the stack (we don't simulate execution).
-    ///
-    /// LdrLoadDll has 4 args including a UNICODE_STRING* — we don't unpack that
-    /// structure in v1 and return (null, null) for it.
+    /// Back-walk the ring for the instruction that loaded the first arg. LdrLoadDll returns (null, null).
     /// </summary>
     private static (string? Name, uint? Flags) ExtractArgs(
         Instruction[] ring, int head, int count,
@@ -386,11 +323,7 @@ public static class CallsiteScanner
     }
 
     /// <summary>
-    /// x64 calling convention: arg1 in RCX (string ptr), arg3 in R8 (flags for
-    /// LoadLibraryEx). We look for the most recent write to each. The string
-    /// usually comes via 'lea rcx, [rip+disp]' (string is in .rdata) or
-    /// 'mov rcx, imm64'. The flags usually come via 'mov r8d, imm32' or
-    /// 'xor r8d, r8d' (= 0).
+    /// x64: arg1 in RCX (string ptr), arg3 in R8 (LoadLibraryEx flags). Look for most-recent writes.
     /// </summary>
     private static (string? Name, uint? Flags) ExtractArgsX64(
         Instruction[] ring, int head, int count, bool isWide, bool isLoadEx,
@@ -403,9 +336,7 @@ public static class CallsiteScanner
 
         for (var i = 1; i <= count; i++)
         {
-            // i-th most-recent slot. ring is a circular buffer with head =
-            // index of the next *empty* slot, so the most recent valid entry is
-            // at (head - 1).
+            // i-th most-recent slot in the circular ring.
             var idx = (head - i + ring.Length) % ring.Length;
             ref readonly var prior = ref ring[idx];
 
@@ -426,10 +357,7 @@ public static class CallsiteScanner
     }
 
     /// <summary>
-    /// x86 stdcall: args pushed right-to-left, so the push immediately before
-    /// the call is arg1. We walk back to the closest push imm32 and read the
-    /// pointed-to string. Skipping x86 flags extraction in v1 — would need to
-    /// count pushes through reserved-arg=0 etc.
+    /// x86 stdcall: walk back to the nearest push imm32 (arg1).
     /// </summary>
     private static (string? Name, uint? Flags) ExtractArgsX86(
         Instruction[] ring, int head, int count, bool isWide,
@@ -455,10 +383,7 @@ public static class CallsiteScanner
     }
 
     /// <summary>
-    /// True when the instruction's destination register is in the same family
-    /// as <paramref name="canonical"/> — i.e. RCX/ECX/CX/CL all count as a
-    /// write to RCX. Iced's GetInfo()/UsedRegisters has full info but this
-    /// covers our patterns without the extra allocations.
+    /// True when the destination register is in <paramref name="canonical"/>'s family (RCX includes ECX/CX/CL).
     /// </summary>
     private static bool WritesRegisterFamily(in Instruction inst, Register canonical)
     {
@@ -477,15 +402,14 @@ public static class CallsiteScanner
 
     private static string? TryReadStringArg(in Instruction prior, PeFile pe, ulong imageBase, bool isWide)
     {
-        // 'lea reg, [rip+disp]' — the canonical "string lives in .rdata" pattern.
+        // 'lea reg, [rip+disp]' — string in .rdata.
         if (prior.Mnemonic == Mnemonic.Lea && prior.Op1Kind == OpKind.Memory && prior.IsIPRelativeMemoryOperand)
         {
             var stringVa = prior.IPRelativeMemoryAddress;
             if (stringVa < imageBase) return null;
             return ReadStringFromRva(pe, (uint)(stringVa - imageBase), isWide);
         }
-        // 'mov reg, imm' — direct address. Less common for strings, more common
-        // for handles, but cheap to check.
+        // 'mov reg, imm' — direct address.
         if (prior.Mnemonic == Mnemonic.Mov && IsImmediateOpKind(prior.Op1Kind))
         {
             var stringVa = prior.GetImmediate(1);
@@ -500,8 +424,7 @@ public static class CallsiteScanner
         // 'mov r8d, imm32' — flags constant.
         if (prior.Mnemonic == Mnemonic.Mov && IsImmediateOpKind(prior.Op1Kind))
             return (uint)prior.GetImmediate(1);
-        // 'xor r8d, r8d' — flags = 0 (the dangerous default for LoadLibraryEx,
-        // means "behave like LoadLibrary" → search-order resolution).
+        // 'xor r8d, r8d' — flags = 0 (search-order resolution).
         if (prior.Mnemonic == Mnemonic.Xor
             && prior.Op1Kind == OpKind.Register
             && RegisterCanonical(prior.Op1Register) == RegisterCanonical(prior.Op0Register))
@@ -515,10 +438,7 @@ public static class CallsiteScanner
         or OpKind.Immediate32to64;
 
     /// <summary>
-    /// Resolve an RVA to a file offset (via section table) and read a
-    /// null-terminated string. Wide → UTF-16 LE. Returns null when the RVA
-    /// falls outside any section, the string is empty, or the bytes don't
-    /// look like printable ASCII (good enough for DLL names; rejects garbage).
+    /// Read a null-terminated printable string at <paramref name="rva"/> (UTF-16 LE when wide).
     /// </summary>
     private static string? ReadStringFromRva(PeFile pe, uint rva, bool isWide)
     {
@@ -537,9 +457,7 @@ public static class CallsiteScanner
         }
         if (offset < 0) return null;
 
-        // PeNet 5 exposes the file as an IRawFile (no direct indexer); read a
-        // bounded chunk and walk the byte buffer instead. MaxLen*2 covers wide
-        // chars plus the terminator slop.
+        // Read a bounded chunk; MaxLen*2 covers wide chars + terminator.
         const int MaxLen = 260;
         var maxBytes = (long)(MaxLen * (isWide ? 2 : 1) + 2);
         var available = Math.Min(maxBytes, sectionLimit - offset);

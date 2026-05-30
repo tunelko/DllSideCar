@@ -6,20 +6,13 @@ using DllSidecar.Core.Models.Privesc;
 namespace DllSidecar.Core.Services.Privesc;
 
 /// <summary>
-/// Parses each PE's embedded application manifest (RT_MANIFEST, type 24 / id 1) and
-/// flags:
-///   - autoElevate=true   → classic UAC bypass surface (fodhelper, sdclt, ...)
-///   - level=requireAdministrator → runs at high integrity when launched
-///   - uiAccess=true      → bypass UIPI, used with signed binaries for UI injection
-/// A DLL sideload on any of these yields elevation without UAC prompt when the EXE
-/// is signed by Microsoft.
+/// Parses each PE's RT_MANIFEST and flags autoElevate, requireAdministrator, and uiAccess.
 /// </summary>
 public class AutoElevateDetector : IPrivescDetector
 {
     public string Name => "AutoElevateDetector";
 
-    // Precompiled regexes — manifests are small XML docs, regex is enough and avoids
-    // pulling in XmlDocument for what is essentially three flag checks.
+    // Precompiled regexes (manifests are small XML docs).
     private static readonly Regex RxAutoElevate =
         new(@"<\s*autoElevate\s*>\s*true\s*<\s*/\s*autoElevate\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex RxLevel =
@@ -87,9 +80,7 @@ public class AutoElevateDetector : IPrivescDetector
     }
 
     /// <summary>
-    /// Read RT_MANIFEST resource from PE. Uses PeNet if possible; falls back to a scan
-    /// of the file bytes for &lt;assembly...&gt; + &lt;/assembly&gt; marker pair. Manifests
-    /// are small (&lt;4KB typically), so the fallback is cheap.
+    /// Read RT_MANIFEST via PeNet; fall back to a raw byte scan for &lt;assembly&gt;...&lt;/assembly&gt;.
     /// </summary>
     private static string? TryReadManifest(string path)
     {
@@ -106,8 +97,7 @@ public class AutoElevateDetector : IPrivescDetector
             Log.Debug("privesc.autoelevate", $"PeNet manifest read failed for {path}", ex);
         }
 
-        // Fallback: raw byte scan. Manifests are embedded as UTF-8 with <assembly ...>
-        // wrapping — locate and extract.
+        // Fallback: UTF-8 byte scan for the <assembly>...</assembly> envelope.
         try
         {
             var bytes = File.ReadAllBytes(path);

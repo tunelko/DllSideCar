@@ -3,33 +3,24 @@ using DllSidecar.Core.Models;
 namespace DllSidecar.Core.Services;
 
 /// <summary>
-/// Aggregate writability verdict over a row's <c>SearchedDirs</c> set. The
-/// exploitability gate for CWE-427 sideloading is whether ANY of the
-/// NAME-NOT-FOUND directories can be written by a low-priv user — that's the
-/// slot where the planted DLL would live. The four-state tier surfaces the
-/// distinctions ProcmonPage needs to color the Dir badge and decide whether
-/// Promote should warn before handing off to DLL Techniques.
+/// Aggregate writability verdict over a row's <c>SearchedDirs</c> set (CWE-427).
 /// </summary>
 public enum ProcmonDirWritability
 {
-    /// <summary>Every searched dir lets a low-priv user create files. Best-case sideload slot.</summary>
+    /// <summary>Every searched dir is low-priv writable.</summary>
     AllLowPrivWritable,
-    /// <summary>Some searched dirs are low-priv writable, others aren't. Still actionable — pick the writable one.</summary>
+    /// <summary>Some writable, some locked.</summary>
     Mixed,
-    /// <summary>Every searched dir requires admin. Sideload would only fire from an already-elevated context.</summary>
+    /// <summary>Every searched dir requires admin.</summary>
     AllLocked,
-    /// <summary>Row had no usable dirs or every probe errored (path gone, denied, malformed).</summary>
+    /// <summary>No usable dirs or every probe errored.</summary>
     Unknown,
 }
 
 public static class ProcmonRowWritabilityClassifier
 {
     /// <summary>
-    /// Cross every directory in <paramref name="searchedDirs"/> with the ACL
-    /// cache and reduce to a single tier. Errors / missing dirs don't count
-    /// against the tier (they fall through to <see cref="ProcmonDirWritability.Unknown"/>
-    /// when there's no usable signal); when at least one dir resolved, the
-    /// tier is decided by the ratio of low-priv-writable hits.
+    /// Reduce per-dir ACL probes into a single tier; errored probes are ignored.
     /// </summary>
     public static ProcmonDirWritability Classify(IEnumerable<string> searchedDirs, DirAclCache cache)
     {
@@ -39,7 +30,7 @@ public static class ProcmonRowWritabilityClassifier
         {
             var perms = cache.Get(dir);
             if (!string.IsNullOrEmpty(perms.Error)) continue;   // skip errored probes
-            if (perms.IsLowPrivWritable) writable++;
+            if (perms.IsUserWritable) writable++;
             else locked++;
         }
         var total = writable + locked;

@@ -3,16 +3,7 @@ using DllSidecar.Core.Models;
 namespace DllSidecar.Core.Services;
 
 /// <summary>
-/// Single source of truth for classifying a CreateFile-on-DLL event as a real loader
-/// open (<see cref="AccessClass.LoaderLike"/>) vs an app-internal metadata probe
-/// (<see cref="AccessClass.MetadataProbe"/>).
-///
-/// Two input shapes:
-///   - ProcMon CSV "Detail" string (human-readable, with named fields)
-///   - ETW kernel FileIO / Create "CreateOptions" DWORD (NT flags)
-///
-/// Both should yield the same classification for equivalent events so ProcMon-driven
-/// and runtime-driven flows agree on whether to upgrade Confidence.
+/// Classifies a CreateFile-on-DLL event as <see cref="AccessClass.LoaderLike"/> vs <see cref="AccessClass.MetadataProbe"/> from either a ProcMon Detail string or NT CreateOptions DWORD.
 /// </summary>
 public static class AccessClassifier
 {
@@ -27,9 +18,7 @@ public static class AccessClassifier
     // ── ProcMon Detail parsing ───────────────────────────────────────────────
 
     /// <summary>
-    /// Known field names in the order ProcMon emits them. Used to split the Detail
-    /// string into key→value pairs since values themselves can contain commas
-    /// (e.g. "ShareMode: Read, Write, Delete").
+    /// Known ProcMon field names; split key boundaries since values can contain commas.
     /// </summary>
     private static readonly string[] FieldKeys =
     {
@@ -44,16 +33,14 @@ public static class AccessClassifier
     };
 
     /// <summary>
-    /// Parse a ProcMon Detail string into a field map. Public so UI / debug tools can
-    /// surface individual fields without re-implementing the splitter.
+    /// Parse a ProcMon Detail string into a field map.
     /// </summary>
     public static Dictionary<string, string> ParseDetail(string? detail)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrEmpty(detail)) return result;
 
-        // Locate every field's starting offset. A second pass slices the detail
-        // string between adjacent field starts to get the value.
+        // Locate field offsets, then slice between adjacent starts.
         var positions = new List<(int Idx, string Key)>();
         foreach (var fk in FieldKeys)
         {
@@ -80,8 +67,7 @@ public static class AccessClassifier
     }
 
     /// <summary>
-    /// Classify a ProcMon CSV row from its Detail string. Falls back to
-    /// <see cref="AccessClass.Unknown"/> when neither fingerprint matches.
+    /// Classify a ProcMon CSV row from its Detail string.
     /// </summary>
     public static AccessClass Classify(string? procmonDetail)
     {
@@ -92,9 +78,7 @@ public static class AccessClassifier
         desired ??= "";
         options ??= "";
 
-        // Loader fingerprint: Read Data / Generic Read / Execute in access OR
-        // Non-Directory File + Synchronous IO Non-Alert in options (the loader's
-        // canonical image-map CreateFile shape).
+        // Loader fingerprint: ReadData/GenericRead/Execute, or NonDir+SyncIO image-map shape.
         var hasReadData =
             desired.Contains("Read Data", StringComparison.OrdinalIgnoreCase) ||
             desired.Contains("Generic Read", StringComparison.OrdinalIgnoreCase) ||
@@ -104,8 +88,7 @@ public static class AccessClassifier
             options.Contains("Synchronous IO Non-Alert", StringComparison.OrdinalIgnoreCase);
         if (hasReadData || hasLoadOptions) return AccessClass.LoaderLike;
 
-        // Probe fingerprint: Open Reparse Point in options without any loader signal.
-        // This is the GetFileAttributes / PathFileExists / FindFirstFile shape.
+        // Probe fingerprint: Open Reparse Point (GetFileAttributes/PathFileExists/FindFirstFile).
         if (options.Contains("Open Reparse Point", StringComparison.OrdinalIgnoreCase))
             return AccessClass.MetadataProbe;
 
@@ -115,10 +98,7 @@ public static class AccessClassifier
     // ── ETW CreateOptions classification ─────────────────────────────────────
 
     /// <summary>
-    /// Classify a kernel FileIO/Create event using only the CreateOptions DWORD.
-    /// ETW does not expose Desired Access (that lives on the IRP, which only a
-    /// minifilter like ProcMon can read). The reparse-point flag is the most
-    /// reliable proxy for the metadata-probe class.
+    /// Classify a kernel FileIO/Create event from its CreateOptions DWORD.
     /// </summary>
     public static AccessClass Classify(uint createOptions)
     {
@@ -126,25 +106,20 @@ public static class AccessClassifier
         var hasSyncIo = (createOptions & FILE_SYNCHRONOUS_IO_NONALERT) != 0;
         var hasReparse = (createOptions & FILE_OPEN_REPARSE_POINT) != 0;
 
-        // Loader-style image-map open: NonDir + SyncIO and no reparse-point flag.
+        // Loader-style: NonDir + SyncIO, no reparse-point flag.
         if (hasNonDir && hasSyncIo && !hasReparse) return AccessClass.LoaderLike;
 
-        // Pure probe: reparse-point flag alone (or with no load-ish flags).
+        // Pure probe: reparse-point flag alone.
         if (hasReparse && !hasNonDir && !hasSyncIo) return AccessClass.MetadataProbe;
 
-        // CreateOptions==0 is "default open" — most kernel-mode opens look like
-        // this when no flags were specified. Without more signal we cannot tell;
-        // treat as Unknown so downstream defaults to LoaderLike (conservative).
+        // Default-open (CreateOptions==0) is ambiguous.
         return AccessClass.Unknown;
     }
 
     // ── UI labels ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Long, ProcMon-faithful label for grid cells. Mirrors the canonical value that
-    /// ProcMon shows in the <c>Options:</c> field of its Detail string so an operator
-    /// glancing between the grid and a ProcMon export reads the same nomenclature.
-    /// Forwards to <see cref="AccessClassLabels"/> so all surfaces share one vocabulary.
+    /// ProcMon-faithful labels (shared via <see cref="AccessClassLabels"/>).
     /// </summary>
     public const string LabelLoad  = AccessClassLabels.Load;
     public const string LabelProbe = AccessClassLabels.Probe;

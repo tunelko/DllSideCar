@@ -6,15 +6,7 @@ using DllSidecar.Core.Services;
 
 namespace DllSidecar.GUI.Views;
 
-/// <summary>
-/// Machine-wide service audit modal. Lists registered services and lets the
-/// user fast-track to AnalyzePage for either the host image or the
-/// ServiceDll. Closes the SandboxEscaper-style audit loop without leaving
-/// the tool: pick service → analyze its DLL → 🔬 Callsites.
-///
-/// On accept, exposes <see cref="SelectedAnalyzePath"/> — the absolute file
-/// path the caller should hand to AnalyzePage.
-/// </summary>
+/// <summary>Machine-wide service audit modal — pick a service, send its image/ServiceDll to AnalyzePage. Exposes <see cref="SelectedAnalyzePath"/> on accept.</summary>
 public partial class ServiceAuditWindow : Window
 {
     private List<ServiceRow> _all = [];
@@ -90,9 +82,7 @@ public partial class ServiceAuditWindow : Window
 
     private void Grid_DoubleClick(object sender, MouseButtonEventArgs e)
     {
-        // Double-click = "do the most useful thing for this row":
-        //   svchost-hosted with ServiceDll → analyze the DLL
-        //   dedicated process → analyze the image
+        // Double-click: ServiceDll if present, otherwise host image.
         if (Grid.SelectedItem is not ServiceRow r) return;
         if (!string.IsNullOrEmpty(r.Source.ServiceDll) && File.Exists(r.Source.ServiceDll))
             AcceptWith(r.Source.ServiceDll);
@@ -126,11 +116,7 @@ public partial class ServiceAuditWindow : Window
         Close();
     }
 
-    /// <summary>
-    /// ImagePath is a registry value like '"C:\\Windows\\system32\\svchost.exe" -k netsvcs'.
-    /// We strip the quotes and args to get a path AnalyzePage can open. Falls
-    /// back to env-var expansion since ImagePath may carry %SystemRoot% etc.
-    /// </summary>
+    /// <summary>Strip args/quotes and expand env vars from a registry ImagePath.</summary>
     private static string ResolveImagePath(ServiceInfo s)
     {
         var p = Core.Helpers.ServiceImagePathParser.ExtractPath(s.ImagePath);

@@ -43,10 +43,7 @@ public class ProcmonParserAccessClassTests
         finally { File.Delete(tmp); }
     }
 
-    /// <summary>
-    /// Live validation against the MobaXterm 26.4 retest CSV. Skipped automatically
-    /// when the file is not present so the suite stays green on CI / clean checkouts.
-    /// </summary>
+    /// <summary>Live validation against the MobaXterm 26.4 retest CSV; skips when absent.</summary>
     [Fact]
     public void Parse_MobaXterm26_4_AllProbeNoLoad()
     {
@@ -64,8 +61,7 @@ public class ProcmonParserAccessClassTests
             string.Equals(a.DllName, "cygwin1.dll", StringComparison.OrdinalIgnoreCase));
         Assert.NotNull(cygwin);
 
-        // The whole retest CSV is GetFileAttributes-class probes. Loader-style
-        // events should be zero; everything goes into MetadataProbe.
+        // Retest CSV is all GetFileAttributes-class probes.
         Assert.Equal(0, cygwin!.LoaderLikeCount);
         Assert.True(cygwin.MetadataProbeCount > 0, "Expected at least one probe event");
         Assert.True(cygwin.IsProbeOnly);
