@@ -284,11 +284,11 @@ public partial class RuntimeTracePage : Page
         if (HasPreviousTraceData())
         {
             var answer = MessageBox.Show(
-                "Hay datos de una traza anterior cargados en la página " +
-                "(eventos, árbol de procesos, candidatos promovidos a Scan).\n\n" +
-                "Iniciar una nueva traza descartará todo eso para que solo " +
-                "se muestre la sesión actual.\n\n¿Continuar?",
-                "Descartar traza anterior",
+                "A previous trace is loaded on this page " +
+                "(events, process tree, candidates promoted to Scan).\n\n" +
+                "Starting a new trace will discard all of that so only " +
+                "the current session is shown.\n\nContinue?",
+                "Discard previous trace",
                 MessageBoxButton.OKCancel,
                 MessageBoxImage.Warning,
                 MessageBoxResult.Cancel);
