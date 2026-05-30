@@ -1,8 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-// See BuildPage for rationale: WinForms is referenced fully-qualified to keep
-// the global `MessageBox` alias pointing at AppDialog.
+// Fully-qualified WinForms; global MessageBox alias points at AppDialog.
 using WinForms = System.Windows.Forms;
 using Microsoft.Win32;
 using DllSidecar.Core.Models.Wizard;
@@ -22,8 +21,7 @@ public partial class InputStage : System.Windows.Controls.UserControl, IWizardSt
 
         PathBox.Text = _session.InputPath ?? "";
 
-        // Seed entry point from session state (going Back to Input preserves choice).
-        // HuntingGoal lives on WizardPage now (chrome-level) — Input doesn't touch it.
+        // Seed entry point from session (preserves Back→Input choice).
         switch (_session.EntryPoint)
         {
             case WizardEntryPoint.AnalyzeBinary: EntryAnalyze.IsChecked = true; break;
@@ -42,10 +40,7 @@ public partial class InputStage : System.Windows.Controls.UserControl, IWizardSt
 
     public Task<bool> ValidateAndCommit()
     {
-        // HuntingGoal is captured live by WizardPage's Goal_Changed handler —
-        // no need to commit it here.
-
-        // Runtime entry pivots out of the wizard — no path validation, just route.
+        // Runtime entry pivots out of the wizard.
         if (EntryRuntime.IsChecked == true)
         {
             _session.EntryPoint = WizardEntryPoint.RuntimeTrace;
@@ -74,8 +69,7 @@ public partial class InputStage : System.Windows.Controls.UserControl, IWizardSt
         }
         else // EntryScan
         {
-            // Scan-folder accepts directories only. Single-PE inputs route through
-            // the "Analyze a binary" entry, which sets WizardInputKind.SinglePe.
+            // Scan-folder accepts directories only.
             if (!Directory.Exists(path))
             {
                 MessageBox.Show(

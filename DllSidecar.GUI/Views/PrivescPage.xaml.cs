@@ -2,8 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-// See BuildPage for rationale: WinForms is referenced fully-qualified to keep
-// the global `MessageBox` alias pointing at AppDialog.
+// Fully-qualified WinForms; global MessageBox alias points at AppDialog.
 using WinForms = System.Windows.Forms;
 using System.Windows.Media;
 using DllSidecar.Core.Configuration;
@@ -15,12 +14,7 @@ using DllSidecar.Core.Services.Privesc;
 
 namespace DllSidecar.GUI.Views;
 
-/// <summary>
-/// Standalone privesc analysis module. Runs PrivescAnalyzer against all PE files under a
-/// target directory and surfaces EVERY finding — not just those attached to sideload
-/// candidates. Used to survey the privesc surface of an install tree before looking at
-/// specific sideload targets.
-/// </summary>
+/// <summary>Standalone privesc analysis: runs PrivescAnalyzer over all PE files in a directory.</summary>
 public partial class PrivescPage : Page
 {
     private readonly MainWindow _main;
@@ -40,6 +34,50 @@ public partial class PrivescPage : Page
             ConfigManager.Current.UiState.LastPrivescDir = DirPathBox.Text?.Trim();
             ConfigManager.Save();
         };
+        ApplyPendingHandoff();
+    }
+
+    private void ApplyPendingHandoff()
+    {
+        var h = _main.PendingPrivescHandoff;
+        if (h == null || h.Carriers.Count == 0)
+        {
+            CarrierHandoffBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var top = h.Carriers[0];
+        CarrierHandoffHeader.Text =
+            $"Fuente            {h.SourceLabel}\n" +
+            $"Transicion        {(string.IsNullOrEmpty(h.TransitionSummary) ? "n/d" : h.TransitionSummary)}\n" +
+            $"Portadora top     {top.DllName}\n" +
+            $"Slot escribible   {top.PlantSlot}";
+
+        CarrierHandoffObservation.Text =
+            $"El proceso elevado por UAC busca {top.DllName} en {top.PlantSlot} y no la encuentra. " +
+            "El directorio es escribible para el usuario actual sin permisos de administrador, " +
+            "asi que el siguiente arranque cargaria a integridad alta cualquier copia que dejes ahi.";
+
+        CarrierHandoffSteps.Text =
+            "1.  Compilar un proxy de la DLL portadora.\n" +
+            "2.  Copiarlo al slot escribible.\n" +
+            "3.  El usuario reproduce el flujo que dispara el UAC.\n" +
+            "4.  El hijo elevado carga el proxy y ejecuta codigo a integridad alta.";
+
+        const int rankedLimit = 4;
+        var listed = h.Carriers.Take(rankedLimit)
+            .Select((c, i) => $"{i + 1,2}.  {c.DllName,-32}  {c.EventCount,3} ev   {c.PlantSlot}");
+        var more = h.Carriers.Count > rankedLimit ? $"\n     ... +{h.Carriers.Count - rankedLimit} mas" : "";
+        CarrierHandoffList.Text = string.Join("\n", listed) + more;
+
+        CarrierHandoffBanner.Visibility = Visibility.Visible;
+        _main.Log($"PrivescPage handoff: {h.SourceLabel} → top carrier '{top.DllName}' at '{top.PlantSlot}'");
+    }
+
+    private void ClearHandoff_Click(object sender, RoutedEventArgs e)
+    {
+        _main.PendingPrivescHandoff = null;
+        CarrierHandoffBanner.Visibility = Visibility.Collapsed;
     }
 
     private void Browse_Click(object sender, RoutedEventArgs e)
@@ -232,10 +270,7 @@ public partial class PrivescPage : Page
         {
             var dlg = new ServiceAuditWindow { Owner = Window.GetWindow(this) };
             if (dlg.ShowDialog() != true || string.IsNullOrEmpty(dlg.SelectedAnalyzePath)) return;
-            // Hand off to AnalyzePage. User clicks 🔬 Callsites there to close
-            // the audit loop. We don't auto-analyze on landing because the
-            // existing AnalyzePage flow expects a manual click and the user
-            // may want to review the path first.
+            // Hand off to AnalyzePage; manual Callsites click required.
             _main.CurrentDllPath = dlg.SelectedAnalyzePath;
             _main.NavigateTo(new AnalyzePage(_main));
         }

@@ -3,18 +3,11 @@ using DllSidecar.Core.Models;
 namespace DllSidecar.Core.Services;
 
 /// <summary>
-/// Decide whether a target process is sandboxed enough that a sideloaded DLL's
-/// payload needs <see cref="Models.PayloadType.SandboxEscape"/> to land a visible cmd on
-/// WinSta0\\Default. Static lookup by filename + PE ProductName covers the high-value
-/// research targets (Adobe Acrobat / Reader, Microsoft Edge WebView2, UWP hosts).
-/// Dynamic signals captured in EtwDllTracer (TokenIsAppContainer / IntegrityLevel)
-/// win when they're present — they trump the heuristic on disagreement.
+/// Decide whether a target process is sandboxed enough to require <see cref="Models.PayloadType.SandboxEscape"/>. Dynamic token signals trump static heuristics.
 /// </summary>
 public static class SandboxClassifier
 {
-    // Filename match (case-insensitive, exact match on the basename — no substring
-    // games). Every entry here is a binary we've seen run with AppContainer or
-    // renderer restrictions in real findings or in the Chromium / Office stack.
+    // Case-insensitive exact-basename match for known sandboxed hosts.
     private static readonly HashSet<string> SandboxedBasenames = new(StringComparer.OrdinalIgnoreCase)
     {
         // Adobe — Acrobat / Reader CEF subprocess + companions
@@ -32,17 +25,14 @@ public static class SandboxClassifier
         "ai.exe",       // Office AI host
     };
 
-    // ProductName substrings (case-insensitive). Matches anywhere in the PE's
-    // VersionInfo ProductName. CEF subprocesses ship with this string verbatim.
+    // Case-insensitive ProductName substring markers.
     private static readonly string[] SandboxedProductMarkers =
     {
         "Chromium Embedded Framework",
         "Microsoft Edge WebView2",
     };
 
-    /// <summary>Static classification from a PE on disk. Returns None when nothing
-    /// in the PE indicates a sandbox — caller should still consult dynamic signals
-    /// (token IL / AppContainer) if a live trace is available.</summary>
+    /// <summary>Static classification from a PE on disk.</summary>
     public static SandboxKind Classify(string? exePath)
     {
         if (string.IsNullOrEmpty(exePath)) return SandboxKind.None;
@@ -51,8 +41,6 @@ public static class SandboxClassifier
 
         if (SandboxedBasenames.Contains(basename))
         {
-            // Filename alone is reliable for these — they only exist as renderer
-            // subprocesses or AppContainer hosts.
             return basename.Equals("WWAHost.exe", StringComparison.OrdinalIgnoreCase)
                 || basename.Equals("ApplicationFrameHost.exe", StringComparison.OrdinalIgnoreCase)
                 || basename.Equals("RuntimeBroker.exe", StringComparison.OrdinalIgnoreCase)
@@ -60,8 +48,7 @@ public static class SandboxClassifier
                 : SandboxKind.RendererSubprocess;
         }
 
-        // Fall back to ProductName from PE VersionInfo. Skip if we can't read the
-        // PE (file missing, locked, malformed) — that path means we can't tell.
+        // Fall back to ProductName from PE VersionInfo.
         try
         {
             if (!File.Exists(exePath)) return SandboxKind.None;
@@ -76,9 +63,7 @@ public static class SandboxClassifier
         return SandboxKind.None;
     }
 
-    /// <summary>Dynamic classification using token info captured during ETW trace.
-    /// Both flags are populated by <c>EtwDllTracer.CaptureTokenInfo</c> when a
-    /// process is first detected. Returns None when no token info is present.</summary>
+    /// <summary>Dynamic classification from token info captured during ETW trace.</summary>
     public static SandboxKind FromTokenInfo(bool isAppContainer, IntegrityLevel level)
     {
         if (isAppContainer) return SandboxKind.AppContainer;
@@ -87,16 +72,13 @@ public static class SandboxClassifier
         return SandboxKind.None;
     }
 
-    /// <summary>Combine static + dynamic. Dynamic wins on disagreement — a live
-    /// AppContainer token is ground truth; a filename heuristic is just a guess.</summary>
+    /// <summary>Combine static + dynamic; dynamic wins on disagreement.</summary>
     public static SandboxKind Combine(SandboxKind staticKind, SandboxKind dynamicKind)
     {
         if (dynamicKind != SandboxKind.None) return dynamicKind;
         return staticKind;
     }
 
-    /// <summary>True when SandboxEscape is the right payload — anything other than
-    /// None. Surface this to the Payload picker so the operator sees it only when
-    /// it adds something the WinExec / reverse-shell payloads can't deliver.</summary>
+    /// <summary>True when SandboxEscape is the appropriate payload.</summary>
     public static bool RecommendsSandboxEscape(SandboxKind kind) => kind != SandboxKind.None;
 }

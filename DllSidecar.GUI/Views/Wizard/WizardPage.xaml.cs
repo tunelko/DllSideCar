@@ -8,12 +8,7 @@ using DllSidecar.GUI.Views.Wizard.Stages;
 
 namespace DllSidecar.GUI.Views.Wizard;
 
-/// <summary>
-/// Wizard shell — hosts the current stage UserControl and drives navigation.
-/// Each stage takes a WizardSession, does its work, and signals readiness via
-/// <see cref="IWizardStage.ValidateAndCommit"/>. The shell renders the top stepper,
-/// session summary, and nav buttons.
-/// </summary>
+/// <summary>Wizard shell: hosts the current stage UserControl, drives navigation, and renders chrome.</summary>
 public partial class WizardPage : Page
 {
     private readonly MainWindow _main;
@@ -35,24 +30,11 @@ public partial class WizardPage : Page
         _main = main;
         InitializeComponent();
 
-        // Adopt any in-flight session (user pivoted out to RuntimeTrace / ScanPage and
-        // came back, OR MainWindow's silent session-restore re-hydrated one on launch).
-        // New session only if none exists on MainWindow. Disk lookup + "Resume?" prompt
-        // was removed in the unified session-save flow — MainWindow now handles restore
-        // silently from the app-level snapshot.
+        // Adopt any in-flight session; new session only if none exists.
         _session = _main.CurrentWizardSession ?? new WizardSession();
         _main.CurrentWizardSession = _session;
 
-        // Resume at the right stage. Priority order:
-        //  1. RuntimeTrace promote — user just landed back from RuntimeTracePage with
-        //     fresh phantoms; jump straight to Survey so they see the new data.
-        //  2. ScanResults are populated — restore at Survey (the in-flight scan).
-        //  3. A persisted CurrentStage > Input — honoured so a saved-and-restored
-        //     wizard opens at the stage the user left (Pick / Craft / Report etc.).
-        //     Heavy state (ScanResults, ChosenExisting) is not in the snapshot so
-        //     downstream stages may show partial data; the user re-runs Survey if
-        //     needed.
-        //  4. Otherwise — start at Input.
+        // Resume stage priority: RuntimeTrace promote → ScanResults → persisted stage → Input.
         WizardStage resumeStage;
         if (_session.EntryPoint == WizardEntryPoint.RuntimeTrace
             && _main.LastScanResults != null
@@ -75,9 +57,7 @@ public partial class WizardPage : Page
             resumeStage = WizardStage.Input;
         }
 
-        // Seed HUNTING FOR radios from the session and wire the change handlers.
-        // GoalCode_Checked etc. write back to _session.HuntingGoal so the value
-        // is always live without each stage having to commit it.
+        // Seed HUNTING FOR radios from session; handlers write back to _session.HuntingGoal.
         switch (_session.HuntingGoal)
         {
             case WizardHuntingGoal.LocalPrivesc: GoalPrivesc.IsChecked = true; break;
@@ -117,8 +97,7 @@ public partial class WizardPage : Page
     private void ShowStage(WizardStage stage)
     {
         _session.CurrentStage = stage;
-        // Checkpoint to disk on every stage transition so a crash / close mid-wizard
-        // doesn't cost the user their typed state.
+        // Checkpoint to disk on every stage transition.
         WizardSessionStore.Save(_session);
         _activeStage = stage switch
         {
@@ -246,7 +225,7 @@ public partial class WizardPage : Page
     {
         RenderSessionSummary();
         RenderNavButtons();
-        // Any chrome refresh is also a state-changed signal from the stage, so checkpoint.
+        // Chrome refresh is a state-change signal → checkpoint.
         WizardSessionStore.Save(_session);
     }
 
@@ -254,11 +233,7 @@ public partial class WizardPage : Page
     public void HideOverlay() => Overlay.Hide();
     public void LogInfo(string msg) => _main.Log(msg);
 
-    /// <summary>
-    /// Called by InputStage when the user picks the "Runtime trace" entry point.
-    /// Jumps out of the wizard into RuntimeTracePage. The user then runs / attaches,
-    /// promotes phantoms to Scan, and re-enters the wizard via "Scan a folder".
-    /// </summary>
+    /// <summary>Called by InputStage when the user picks the Runtime trace entry point.</summary>
     public void PivotToRuntimeTrace()
     {
         _main.Log("Wizard → Runtime trace (pivot). Promote phantoms to re-enter via Scan.");

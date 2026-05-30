@@ -36,8 +36,7 @@
             </DockPanel>
         </Border>
 
-        <!-- Logo on the same dark background as the window. PNG has alpha so it
-             blends without a visible bounding box around the badge. -->
+        <!-- Logo; PNG alpha blends into the dark background. -->
         <Image Grid.Row="1" Source="pack://application:,,,/Assets/dllsidecar.png"
                Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"
                Margin="20,24,20,8" MaxHeight="380"/>

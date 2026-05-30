@@ -9,25 +9,7 @@ using QuestPDF.Infrastructure;
 
 namespace DllSidecar.GUI.Services;
 
-/// <summary>
-/// Self-contained Markdown → PDF renderer built on QuestPDF + Markdig AST walking.
-///
-/// Replaced the prior headless-Chrome approach (Edge/Chrome --print-to-pdf), which had
-/// two recurring failure modes that the user hit repeatedly across releases:
-///   1. Edge headless exited 0 without writing the PDF when another Edge instance was
-///      already running with the user's normal profile (--user-data-dir didn't help in
-///      every corporate config).
-///   2. When the file *was* written, opening it via Explorer launched Edge against a
-///      file:// URL — spaces or non-ASCII in the suggested filename made Edge report
-///      "file not found" even though the file existed and was a valid PDF.
-///   3. Some users reported empty pages (PDF written but visually blank) on certain
-///      Edge versions when --run-all-compositor-stages-before-draw didn't actually
-///      wait for the page to paint.
-///
-/// QuestPDF runs in-process, is pure C#, embeds its own fonts (Lato by default), and
-/// has no dependency on the system browser. The Community licence is free for
-/// independent researchers and small organisations and is configured in App.OnStartup.
-/// </summary>
+/// <summary>Markdown to PDF renderer built on QuestPDF + Markdig AST walking.</summary>
 public static class MarkdownPdfRenderer
 {
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
@@ -95,9 +77,7 @@ public static class MarkdownPdfRenderer
             case Table tb:              RenderTable(col, tb); break;
             case HtmlBlock hb:          RenderHtmlBlock(col, hb); break;
             default:
-                // Unknown block — surface its raw content rather than dropping silently
-                // so a researcher whose markdown uses an unsupported construct gets a
-                // visual breadcrumb instead of mysteriously empty output.
+                // Unknown block — surface raw content rather than dropping silently.
                 var raw = block.ToString();
                 if (!string.IsNullOrWhiteSpace(raw))
                     col.Item().Text(raw).FontSize(9).Italic().FontColor(Colors.Grey.Medium);
@@ -185,9 +165,7 @@ public static class MarkdownPdfRenderer
 
     private static void RenderTable(ColumnDescriptor col, Table tb)
     {
-        // First-row-as-header is the conventional pipe-table layout. QuestPDF's table
-        // builder requires column count upfront — derive from the widest row so partial
-        // tables (one trailing row with fewer cells) still render without throwing.
+        // Derive column count from widest row so partial tables still render.
         var rows = tb.OfType<TableRow>().ToList();
         if (rows.Count == 0) return;
         var columnCount = rows.Max(r => r.Count);
@@ -226,9 +204,7 @@ public static class MarkdownPdfRenderer
 
     private static void RenderHtmlBlock(ColumnDescriptor col, HtmlBlock hb)
     {
-        // Raw HTML islands inside markdown are rare in advisories but we surface
-        // them as preformatted text rather than dropping. Strip the tags lightly
-        // so a `<br>` or `<hr>` doesn't pollute the rendered output.
+        // Surface as preformatted text with tags stripped.
         var raw = hb.Lines.ToString();
         if (string.IsNullOrWhiteSpace(raw)) return;
         var stripped = System.Text.RegularExpressions.Regex.Replace(raw, "<[^>]+>", " ").Trim();
@@ -253,10 +229,7 @@ public static class MarkdownPdfRenderer
                 break;
 
             case EmphasisInline emp:
-                // Markdig uses DelimiterCount: 1 = italic (*), 2 = bold (**), 3 = bold-italic.
-                // For child inlines we accumulate by wrapping each Span emitted from the
-                // recursive walk — but TextDescriptor doesn't have a "current style stack",
-                // so we walk children inline and stamp each Span as we go.
+                // DelimiterCount: 1 = italic, 2 = bold, 3 = bold-italic.
                 foreach (var child in emp)
                     RenderInline(t, child, bold: emp.DelimiterCount >= 2, italic: emp.DelimiterCount % 2 == 1);
                 break;
@@ -321,8 +294,6 @@ public static class MarkdownPdfRenderer
 
     private static string LinkText(LinkInline link)
     {
-        // Concatenate the link's literal text children. Markdown like `[click](url)` puts
-        // a single LiteralInline under the LinkInline; richer markup is rare in advisories.
         var sb = new System.Text.StringBuilder();
         foreach (var child in link)
             if (child is LiteralInline lit) sb.Append(lit.Content);

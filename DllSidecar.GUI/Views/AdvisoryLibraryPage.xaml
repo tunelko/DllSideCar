@@ -73,13 +73,7 @@
                 <ColumnDefinition Width="2*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Left: Explorer-style tree — flat Vendor → File hierarchy.
-                 The previous Vendor → FormatFolder → File grouping was dropped
-                 because the intermediate format folders added click cost without
-                 carrying information the filename itself didn't already convey
-                 (DLL_SIDELOADING_ADVISORY_NNNN.md vs .txt). Trash keeps the
-                 per-advisory grouping (one AdvisoryNode per trashed record)
-                 because Restore acts on the WHOLE advisory, not a single file. -->
+            <!-- Left: Explorer-style tree — flat Vendor → File hierarchy. -->
             <Border Grid.Column="0" Style="{StaticResource SectionCard}" Padding="2" Margin="0,0,6,0">
                 <TreeView x:Name="RecordsTree"
                           Background="Transparent" Foreground="{StaticResource Text}" BorderThickness="0"
@@ -98,8 +92,7 @@
                         <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
                         <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="Transparent"/>
 
-                        <!-- Trash-level template: sits at the end of the tree; shows soft-deleted advisories.
-                             Uses a dim gray icon to separate it visually from the amber vendor folders. -->
+                        <!-- Trash-level template: soft-deleted advisories. -->
                         <HierarchicalDataTemplate DataType="{x:Type local:AdvisoryLibraryPage+TrashNode}"
                                                   ItemsSource="{Binding Advisories}">
                             <Border CornerRadius="4" Padding="6,3">
@@ -124,9 +117,7 @@
                             </Border>
                         </HierarchicalDataTemplate>
 
-                        <!-- Vendor-level template: yellow folder glyph + name + count. Green selection background.
-                             Double-click anywhere on the row enters rename mode without toggling expansion.
-                             Children are file leaves directly — no intermediate format-folder grouping. -->
+                        <!-- Vendor-level template: folder glyph + name + count. Double-click row to rename. -->
                         <HierarchicalDataTemplate DataType="{x:Type local:AdvisoryLibraryPage+VendorNode}"
                                                   ItemsSource="{Binding Files}">
                             <Border CornerRadius="4" Padding="6,3"
@@ -172,8 +163,7 @@
                             </Style.Triggers>
                         </Style>
 
-                        <!-- Advisory-level template (used inside Trash only). Status chip + title + date.
-                             Children are file leaves — no per-format folder intermediate. -->
+                        <!-- Advisory-level template (Trash only). Status chip + title + date. -->
                         <HierarchicalDataTemplate DataType="{x:Type local:AdvisoryLibraryPage+AdvisoryNode}"
                                                   ItemsSource="{Binding Files}">
                             <Border Style="{StaticResource TreeRowBorder}">
@@ -194,9 +184,7 @@
                             </Border>
                         </HierarchicalDataTemplate>
 
-                        <!-- File-leaf template: status chip + filename + owner advisory title.
-                             Status chip / title only show when the leaf knows its owning advisory
-                             (main tree); under Trash the leaf falls back to file/date display. -->
+                        <!-- File-leaf template: status chip + filename + owner advisory title. -->
                         <DataTemplate DataType="{x:Type local:AdvisoryLibraryPage+FileLeafNode}">
                             <Border Style="{StaticResource TreeRowBorder}">
                                 <StackPanel Orientation="Horizontal">
@@ -212,8 +200,7 @@
                                     <TextBlock Text="{Binding Filename}" Foreground="{StaticResource Text}"
                                                FontSize="13" FontFamily="{StaticResource FontMono}"
                                                VerticalAlignment="Center"/>
-                                    <!-- Format chip — distinguishes Markdown vs GHSA when both share .md.
-                                         Subtle (Surface1 bg + Subtext fg) so it reads as metadata not status. -->
+                                    <!-- Format chip: Markdown vs GHSA -->
                                     <Border Background="{StaticResource Surface1}" CornerRadius="3"
                                             Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding FormatLabel}" Foreground="{StaticResource Subtext}"
@@ -292,9 +279,7 @@
                                    Margin="0,6,0,0"/>
                     </StackPanel>
 
-                    <!-- Vendor summary pane — shown when a vendor folder is selected. Top row has
-                         Expand + Delete-all-soft actions; body shows count + severity / status breakdown +
-                         compact list of advisories under this vendor. -->
+                    <!-- Vendor summary pane — shown when a vendor folder is selected. -->
                     <DockPanel x:Name="VendorPanel" Visibility="Collapsed">
                         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
                             <Grid>

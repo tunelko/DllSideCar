@@ -1,18 +1,11 @@
 namespace DllSidecar.Core.Models.Privesc;
 
-/// <summary>
-/// Per-candidate aggregation of privesc findings. Attached to SideloadCandidate and
-/// PhantomCandidate as an optional property — presence means at least one detector
-/// identified a privilege escalation vector for this DLL/EXE.
-/// </summary>
+/// <summary>Per-candidate aggregation of privesc findings.</summary>
 public class PrivescContext
 {
     public List<PrivescFinding> Findings { get; set; } = [];
 
-    /// <summary>
-    /// Structured chain for UI — built by ChainBuilder after the candidate is fully scored.
-    /// Stays empty until the scorer populates it so legacy callers are unaffected.
-    /// </summary>
+    /// <summary>Structured chain for UI, built by ChainBuilder after scoring.</summary>
     public List<ChainStep> ChainSteps { get; set; } = [];
 
     /// <summary>Human-readable one-liner derived from ChainSteps (UI convenience).</summary>

@@ -1,8 +1,5 @@
 global using Color = System.Windows.Media.Color;
-// Aliasing MessageBox to our themed AppDialog routes every existing
-// `MessageBox.Show(...)` call site through the dark-mode dialog without
-// touching the 40+ callers. AppDialog.Show mirrors the MessageBox API
-// exactly (same overloads, same MessageBoxResult/Button/Image enums).
+// Aliasing MessageBox to AppDialog routes all callsites through the themed dialog.
 global using MessageBox = DllSidecar.GUI.Views.AppDialog;
 global using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 global using UserControl = System.Windows.Controls.UserControl;

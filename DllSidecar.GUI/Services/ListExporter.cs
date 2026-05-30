@@ -5,17 +5,10 @@ using Microsoft.Win32;
 
 namespace DllSidecar.GUI.Services;
 
-/// <summary>
-/// Clipboard / file export for the DLL lists shown in pages. Pages assemble
-/// (header[], rows) and call one of the static methods. Values are RFC-4180-lite
-/// escaped so the output opens cleanly in Excel / pandas / grep.
-/// </summary>
+/// <summary>Clipboard / file export for DLL lists; values are RFC-4180-lite escaped.</summary>
 public static class ListExporter
 {
-    /// <summary>
-    /// Copy rows to clipboard as TSV (tab-separated). Paste into Excel / Sheets
-    /// and it parses into columns automatically without a dialog.
-    /// </summary>
+    /// <summary>Copy rows to clipboard as TSV (tab-separated).</summary>
     public static bool CopyTsv(string[] header, IReadOnlyList<string[]> rows, out int copied)
     {
         copied = 0;
@@ -34,9 +27,7 @@ public static class ListExporter
         catch { return false; }
     }
 
-    /// <summary>
-    /// Save rows to a .csv via SaveFileDialog. Returns the chosen path, or null if cancelled/errored.
-    /// </summary>
+    /// <summary>Save rows via SaveFileDialog; returns the chosen path or null on cancel/error.</summary>
     public static string? SaveCsv(string[] header, IReadOnlyList<string[]> rows, string suggestedName)
     {
         var dlg = new Microsoft.Win32.SaveFileDialog
@@ -52,7 +43,7 @@ public static class ListExporter
         try
         {
             var sb = new StringBuilder();
-            // UTF-8 BOM helps Excel auto-detect encoding on Windows.
+            // UTF-8 BOM helps Excel auto-detect encoding.
             sb.Append(string.Join(delim, header.Select(h => EscapeCsv(h, delim))));
             sb.Append("\r\n");
             foreach (var r in rows)
@@ -69,7 +60,6 @@ public static class ListExporter
     private static string EscapeTsv(string v)
     {
         if (string.IsNullOrEmpty(v)) return "";
-        // TSV can't represent embedded tabs/newlines cleanly — replace with space.
         return v.Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' ');
     }
 

@@ -5,11 +5,7 @@ using DllSidecar.Core.Models.Privesc;
 
 namespace DllSidecar.Core.Services.Advisory;
 
-/// <summary>
-/// Renders an AdvisoryContext into a Markdown document. The output is a complete
-/// first-draft advisory — the researcher then edits freely. Follows the CLAUDE.md
-/// rules on tone: factual, objective, no sarcasm, no "trivially/obviously/amateur".
-/// </summary>
+/// <summary>Renders an AdvisoryContext into a Markdown advisory draft.</summary>
 public static class AdvisoryTemplate
 {
     public static string Render(AdvisoryContext ctx)
@@ -208,11 +204,7 @@ public static class AdvisoryTemplate
                $"executing any code present in DllMain or in the resolved exports.";
     }
 
-    /// <summary>
-    /// Default Impact narrative used by every renderer when the user hasn't supplied
-    /// a custom one in ctx.Impact. Internal so GhsaRenderer can reuse the same
-    /// synthesizer instead of leaving italic GitHub placeholders behind.
-    /// </summary>
+    /// <summary>Default Impact narrative when ctx.Impact is empty.</summary>
     internal static string DefaultImpactText(AdvisoryContext ctx)
     {
         var hasPrivesc = ctx.Privesc?.HighestSeverity >= PrivescSeverity.High;
@@ -226,17 +218,10 @@ public static class AdvisoryTemplate
                "but can be chained with other vulnerabilities for privilege escalation.";
     }
 
-    /// <summary>
-    /// Default Technical-details narrative — same shape as <see cref="VulnDetailsText"/>
-    /// but exposed for cross-renderer reuse.
-    /// </summary>
+    /// <summary>Default Technical-details narrative for cross-renderer reuse.</summary>
     internal static string DefaultVulnDetailsText(AdvisoryContext ctx) => VulnDetailsText(ctx);
 
-    /// <summary>
-    /// Vendor-side mitigation block, ready to drop into a renderer's "Patches" or
-    /// "Recommended Mitigations" section when ctx.ProposedSolution is empty.
-    /// Bullet list joined by newlines so the caller can wrap it however it likes.
-    /// </summary>
+    /// <summary>Vendor-side mitigation bullet list for renderer reuse.</summary>
     internal static string DefaultMitigationsText() =>
         "- Set `DependentLoadFlags` to `LOAD_LIBRARY_SEARCH_SYSTEM32` (0x800) on the importing binary, or call `SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32)` early in the process startup.\n" +
         "- Load DLLs by absolute path from a protected location.\n" +

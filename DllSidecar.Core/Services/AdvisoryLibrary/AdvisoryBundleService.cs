@@ -4,17 +4,7 @@ using DllSidecar.Core.Models.AdvisoryLibrary;
 
 namespace DllSidecar.Core.Services.AdvisoryLibrary;
 
-/// <summary>
-/// Export / import a single advisory as a self-contained <c>.dsa</c> bundle:
-/// a ZIP containing <c>advisory.json</c> (record + timeline + links),
-/// <c>manifest.json</c> (schema version + SHA-256 of advisory.json), and a
-/// mirror of the advisory's <c>attachments\&lt;id&gt;\</c> directory with all
-/// rendered files and user attachments.
-///
-/// Designed for: backup before reinstalling, transferring cases between
-/// investigators, archiving closed CVEs in immutable form. Portable across
-/// DllSidecar versions via a schema-version check on import.
-/// </summary>
+/// <summary>Export / import a single advisory as a self-contained <c>.dsa</c> ZIP bundle.</summary>
 public sealed class AdvisoryBundleService
 {
     private const string BundleSchemaVersion = "1";
@@ -32,7 +22,7 @@ public sealed class AdvisoryBundleService
     {
         var record = await _repo.GetAsync(advisoryId)
             ?? throw new InvalidOperationException($"Advisory {advisoryId} not found.");
-        // Pull full artifact list (GetAsync doesn't populate Artifacts today).
+        // GetAsync doesn't populate Artifacts; pull them separately.
         var index = await _repo.GetArtifactsIndexAsync();
         if (index.TryGetValue(advisoryId, out var arts))
             record.Artifacts = arts;
@@ -54,10 +44,7 @@ public sealed class AdvisoryBundleService
         AddEntry(zip, "manifest.json", manifestJson);
         AddEntry(zip, "advisory.json", advisoryJson);
 
-        // Bundle each artifact by template_id + filename so the import can re-derive a fresh
-        // path against the local vendor folder (which may be different on the importer side).
-        // The on-disk layout is now <vendor>/<template>/PREFIX_NNNN.ext — files for one
-        // advisory don't share a parent dir, so we iterate the artifact list, not a folder tree.
+        // Bundle by template_id + filename so import can rebuild paths against the local vendor folder.
         foreach (var a in record.Artifacts)
         {
             if (string.IsNullOrEmpty(a.Path) || !File.Exists(a.Path)) continue;
@@ -68,11 +55,7 @@ public sealed class AdvisoryBundleService
         }
     }
 
-    /// <summary>
-    /// Import a bundle and insert it into the library. If an advisory with the same id
-    /// exists already, a fresh id is generated so the import doesn't clobber live data.
-    /// Returns the id of the imported record (may differ from the one in the bundle).
-    /// </summary>
+    /// <summary>Import a bundle; reassigns id on collision. Returns the imported id.</summary>
     public async Task<string> ImportAsync(string srcZipPath)
     {
         if (!File.Exists(srcZipPath)) throw new FileNotFoundException(srcZipPath);
@@ -107,16 +90,11 @@ public sealed class AdvisoryBundleService
             RemapAdvisoryId(advisory, newId);
         }
 
-        // The bundle ships the original librarian's per-vendor sequence number, which is
-        // meaningless on the importer's side (their vendor namespace might already have
-        // advisories with overlapping numbers). Drop it so a fresh seq gets allocated below.
+        // Drop the source librarian's sequence; allocate a fresh one in the local vendor namespace.
         advisory.SequenceNumber = null;
 
-        // Insert record + timeline + links first so FK-cascading cleanup works if later stages fail.
         await _repo.InsertFullAsync(advisory);
 
-        // Allocate a new sequence number under the local vendor namespace, then materialize
-        // each artifact under the new vendor/template path layout.
         var seq = await _repo.EnsureSequenceAsync(advisory.Id);
         var vulnType = string.IsNullOrWhiteSpace(advisory.VulnerabilityType)
             ? "DLL Sideloading" : advisory.VulnerabilityType;
@@ -132,8 +110,7 @@ public sealed class AdvisoryBundleService
             string newPath;
             if (string.IsNullOrEmpty(template))
             {
-                // User-uploaded attachment with no template id — keep the original filename
-                // under the vendor's _attachment subfolder.
+                // User-uploaded attachment: keep original filename under vendor's _attachment folder.
                 newPath = Path.Combine(AdvisoryRepository.GetVendorDir(advisory.Vendor), "_attachment", filename);
             }
             else

@@ -3,13 +3,7 @@ using System.Windows.Controls;
 
 namespace DllSidecar.GUI.Views;
 
-/// <summary>
-/// Reusable modal that hosts any UIElement at 80% of the owning window's size.
-/// Used by ScanPage / RuntimeTracePage to "expand" their inline details panels.
-/// The caller detaches the child from its original parent, passes it in, and on
-/// close re-attaches. We don't try to clone the visual tree; physical reparent
-/// keeps all bindings, selection state and data intact.
-/// </summary>
+/// <summary>Reusable modal hosting any UIElement at 80% of owner size; caller physically reparents to keep bindings intact.</summary>
 public partial class DetailModalWindow : Window
 {
     private UIElement? _borrowed;

@@ -13,10 +13,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header: title + subtitle on the left, technique switch on the right.
-             The switch is the single source of truth for which technique we generate;
-             the rest of the form (TARGET EXPORT panel visibility, page title/subtitle)
-             reacts to it. -->
+        <!-- Header: title + technique switch (source of truth for generation mode). -->
         <Grid Grid.Row="0" Margin="0,0,0,14">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -66,10 +63,7 @@
             </Grid>
         </Grid>
 
-        <!-- Deploy banner — visible when ScanPage handed off a phantom slot. The
-             generated build .bat will copy + run + restore. Host EXE is editable:
-             default = importer detected at scan, but you often want the upstream
-             launcher (portable app, installer, orchestrator) instead. -->
+        <!-- Deploy banner — shown on phantom-slot handoff from ScanPage. -->
         <Border Grid.Row="2" x:Name="DeployBanner" Visibility="Collapsed"
                 Background="#1F00F0A3" BorderBrush="{StaticResource Phosphor}" BorderThickness="0,0,0,1"
                 CornerRadius="6" Padding="14,10" Margin="0,0,0,12">
@@ -84,9 +78,7 @@
                     <TextBlock x:Name="AutoModeText" Foreground="{StaticResource Phosphor}"
                                FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,4,0,0"
                                TextWrapping="Wrap" Visibility="Collapsed"/>
-                    <!-- Arch override — static scan's majority vote sometimes picks the wrong arch
-                         when a dir mixes x86 and x64 importers (MobaXterm's mx86_64b\bin\ mostly x86
-                         with a few x64 stragglers). Let the researcher flip it. -->
+                    <!-- Arch override for mixed-arch importer dirs. -->
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0" x:Name="ArchRow" Visibility="Collapsed">
                         <TextBlock Text="Arch:" Foreground="{StaticResource Subtext}"
                                    FontFamily="{StaticResource FontMono}" FontSize="11"
@@ -131,8 +123,7 @@
         <!-- Configuration columns + output -->
         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
             <StackPanel>
-                <!-- 3 columns: PAYLOAD/EXPORT/THREAD on the left, EVASION (with TUNING)
-                     in the wider middle, EXECUTION + POST-PROCESSING on the right. -->
+                <!-- 3 columns: PAYLOAD | EVASION+TUNING | POST-PROCESSING+EXECUTION -->
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="1*"/>
@@ -195,9 +186,7 @@
                     <!-- Col 2: evasion (largest, internal 2-col with TUNING mini-card) -->
                     <StackPanel Grid.Column="1" Margin="8,0,8,0">
                         <Border Style="{StaticResource SectionCard}" Margin="0,0,0,10">
-                            <!-- 2x2 grid mirrors the wizard's CraftStage:
-                                 Row 0 = EVASION + TUNING labels on the same baseline
-                                 Row 1 = boolean toggles | tuning mini-card. -->
+                            <!-- 2x2 grid: labels row + toggles/tuning row. -->
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -227,10 +216,7 @@
                                               Margin="0,5"/>
                                     <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,5"/>
 
-                                    <!-- Real XOR key — this exact byte sequence ends up as
-                                         g_xkey[32] inside the generated DLL. Auto-generate
-                                         picks fresh bytes; the value displayed when the
-                                         user clicks Generate is what gets embedded. -->
+                                    <!-- XOR key bytes embedded as g_xkey[32] in the generated DLL. -->
                                     <StackPanel x:Name="XorKeyRow" Margin="22,4,0,4" Visibility="Collapsed">
                                         <TextBlock Text="g_xkey[32] embedded into the generated DLL"
                                                    Foreground="{StaticResource Subtext}" FontSize="11" Margin="0,0,0,3"/>
@@ -283,9 +269,7 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Runtime / deploy options — only relevant when a deploy context
-                             is handed off (phantom flow). Left visible always so the user can
-                             pre-configure before hitting Generate Sideload from Scan. -->
+                        <!-- Runtime / deploy options for phantom-flow handoff. -->
                         <Border Style="{StaticResource SectionCard}">
                             <StackPanel>
                                 <TextBlock Text="EXECUTION" Style="{StaticResource SectionHeader}"/>

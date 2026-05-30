@@ -16,36 +16,29 @@ public partial class RuntimeTracePage : Page
 {
     private readonly MainWindow _main;
     private EtwTraceResult? _lastResult;
+    // Per-session memoized ACL probes for row writability tier.
+    private readonly Core.Services.DirAclCache _dirAcl = new();
     private readonly List<TraceRow> _allRows = [];
     private readonly List<TraceRow> _rows = [];
     private readonly List<ProcessTreeNode> _treeNodes = [];
     // When non-null, only DLL events whose ProcessId is in this set are shown.
-    // Set by ProcessTree_Selected; cleared by the × chip.
     private HashSet<int>? _processFilterPids;
     private DispatcherTimer? _elapsedTimer;
     // Populated by ProcessPickerDialog; drives Attach-mode Start.
     private int? _attachPid;
     private string? _attachProcName;
-    // True once we've wired ourselves to MainWindow's relay events. Guarded so
-    // a re-Loaded page doesn't double-subscribe (e.g. if the user toggles to a
-    // different tab and back within the same Frame).
+    // Guards against double-subscription on re-Loaded page.
     private bool _subscribedToLiveTrace;
 
     public RuntimeTracePage(MainWindow main)
     {
         _main = main;
         InitializeComponent();
-        // Subscribe / unsubscribe with the page's actual Loaded/Unloaded lifecycle
-        // so handlers are cleaned up when WPF navigates away. The tracer itself
-        // lives on MainWindow and is NOT disposed here — that's why the REC pulse
-        // and stats survive a detour to ConfigPage / AnalyzePage.
+        // Tracer lives on MainWindow; only handlers are wired per page lifecycle.
         Loaded   += (_, _) => AdoptLiveTraceIfRunning();
         Unloaded += (_, _) => ReleaseLiveTraceHandlers();
 
-        // Fire-and-forget swallows exceptions on its own — guard the body with a
-        // try/catch so any restore-time crash (deserialization mismatch, null in
-        // a field PopulateResults touches) reaches the user-facing log instead
-        // of leaving them staring at an empty page with no breadcrumb.
+        // Surface init failures in the log instead of an empty page.
         _ = InitAsync().ContinueWith(t =>
         {
             if (t.IsFaulted && t.Exception != null)
@@ -53,11 +46,7 @@ public partial class RuntimeTracePage : Page
         }, TaskScheduler.FromCurrentSynchronizationContext());
     }
 
-    /// <summary>If a live trace is in progress on MainWindow, restore the UI to
-    /// the "recording" state and start consuming relay events again. Called on
-    /// every page Load — when the user navigates to RuntimeTracePage and a
-    /// trace is already running (started earlier, then nav'd away), the page
-    /// re-attaches transparently.</summary>
+    /// <summary>If a live trace is running on MainWindow, restore the recording UI and resume consuming relay events.</summary>
     private void AdoptLiveTraceIfRunning()
     {
         if (!_main.IsTraceActive) return;
@@ -82,8 +71,7 @@ public partial class RuntimeTracePage : Page
         }
         _elapsedTimer?.Stop();
         _elapsedTimer = null;
-        // NB: do not touch _main.ActiveTracer — the trace continues running
-        // until the user clicks Stop (or closes the app).
+        // Do not touch _main.ActiveTracer — trace continues until user clicks Stop.
     }
 
     private async Task InitAsync()
@@ -94,8 +82,7 @@ public partial class RuntimeTracePage : Page
             await Task.Delay(50);
             UpdateModeUi();
 
-            // Restore Launch target. MainWindow memory wins if set (current session),
-            // otherwise fall back to the cross-restart persisted path from AppConfig.
+            // Session memory wins; fall back to persisted AppConfig path.
             if (!string.IsNullOrEmpty(_main.LastRuntimeLaunchExe))
                 TargetBox.Text = _main.LastRuntimeLaunchExe;
             else if (!string.IsNullOrEmpty(ConfigManager.Current.UiState.LastRuntimeExePath))
@@ -107,13 +94,9 @@ public partial class RuntimeTracePage : Page
                 ConfigManager.Save();
             };
 
-            // "← Back to Wizard" only shows if the user got here from the wizard's
-            // Runtime Trace entry point. Otherwise this is a standalone visit.
+            // Wizard-mode controls only show if a wizard session is active.
             ResumeWizardBtn.Visibility = _main.CurrentWizardSession != null
                 ? Visibility.Visible : Visibility.Collapsed;
-            // Same gate flips Promote's label: 'Promote to Wizard' when a wizard
-            // session is alive (the action conceptually returns the user to it),
-            // 'Promote to Scan' otherwise (the destination is just the Scan page).
             PromoteBtn.Content = _main.CurrentWizardSession != null
                 ? "Promote to Wizard" : "Promote to Scan";
 
@@ -148,8 +131,6 @@ public partial class RuntimeTracePage : Page
         var isWatch  = ModeWatch.IsChecked == true;
 
         // Three swappable target editors, only one visible at a time.
-        // WatchCmdRow now hosts both CMD and MATCH on a single line so a
-        // single visibility toggle drives the whole Watch panel.
         TargetBox.Visibility    = isLaunch ? Visibility.Visible : Visibility.Collapsed;
         AttachPicker.Visibility = isAttach ? Visibility.Visible : Visibility.Collapsed;
         WatchNameBox.Visibility = isWatch  ? Visibility.Visible : Visibility.Collapsed;
@@ -251,17 +232,10 @@ public partial class RuntimeTracePage : Page
             if (dlg.ShowDialog() != true) return;
             if (string.IsNullOrEmpty(dlg.SelectedImageFile) || string.IsNullOrEmpty(dlg.SelectedServiceName))
                 return;
-            // Auto-fill the watch panel: image basename feeds the ETW match,
-            // service name builds an idempotent restart command. Uses 'net'
-            // because it's synchronous (waits for stop to finish before start),
-            // and the '&' (not '&&') chain runs start even if stop failed
-            // because the service was already stopped. Users can edit either.
+            // Auto-fill watch panel; '&' chain runs start even if stop fails.
             WatchNameBox.Text = dlg.SelectedImageFile;
             WatchCmdBox.Text = $"net stop {dlg.SelectedServiceName} & net start {dlg.SelectedServiceName}";
-            // Cmd-line filter: non-empty for svchost-style shared hosts, blank
-            // otherwise. Picker computes "-s ServiceName" for svchost; blank
-            // means "match by image name only" which is correct for splunkd,
-            // sshd, and any service with its own dedicated process.
+            // Cmd-line filter is non-empty for svchost-style shared hosts.
             WatchMatchBox.Text = dlg.SelectedCmdLineFilter ?? "";
         }
         catch (Exception ex)
@@ -278,26 +252,14 @@ public partial class RuntimeTracePage : Page
         Start_Click(sender, e);
     }
 
-    /// <summary>
-    /// True when the page or MainWindow holds the residue of an earlier trace —
-    /// either an in-memory <see cref="EtwTraceResult"/> (this session) or a hydrated
-    /// one restored from disk on launch, or scan results promoted from such a trace.
-    /// Drives the Start_Click confirmation gate so a researcher doesn't accidentally
-    /// stack a new capture on top of stale rows.
-    /// </summary>
+    /// <summary>True when page/MainWindow holds residue of an earlier trace; drives the Start confirmation gate.</summary>
     private bool HasPreviousTraceData() =>
         _lastResult != null
         || _main.LastEtwResult != null
         || (_main.LastScanResults?.Phantoms.Count ?? 0) > 0
         || (_main.LastScanResults?.Existing.Count ?? 0) > 0;
 
-    /// <summary>
-    /// Atomic wipe of every trace-related residue: in-memory page state, the
-    /// MainWindow-level handles, the persisted companion files. Wizard state
-    /// is intentionally NOT touched here — that's File → Delete Session's job;
-    /// a researcher mid-wizard who restarts a trace usually wants to replace
-    /// the promoted candidate, not lose the rest of their wizard progress.
-    /// </summary>
+    /// <summary>Atomic wipe of every trace-related residue. Does NOT touch wizard state.</summary>
     private void ClearPreviousTraceData()
     {
         _lastResult = null;
@@ -318,10 +280,7 @@ public partial class RuntimeTracePage : Page
 
     private void Start_Click(object sender, RoutedEventArgs e)
     {
-        // Destructive-action gate: if previous trace data (in-memory or restored
-        // from disk) is present, warn before nuking it. The new trace would mix
-        // with stale rows on the same page and leave a stale etw_result.json
-        // sitting next to a fresh capture, so we wipe both halves atomically.
+        // Destructive-action gate: confirm before discarding previous trace data.
         if (HasPreviousTraceData())
         {
             var answer = MessageBox.Show(
@@ -422,15 +381,11 @@ public partial class RuntimeTracePage : Page
         }
         finally { Overlay.Hide(); }
 
-        // Hand the tracer to MainWindow so it survives navigation. From here on
-        // the page consults _main.ActiveTracer / _main.ActiveTraceStopwatch /
-        // _main.ActiveTraceLiveCount — local fields are gone.
+        // Hand tracer to MainWindow so it survives navigation.
         var mode = isLaunch ? "Launch" : isAttach ? "Attach" : "Watch";
         _main.StartActiveTrace(tracer, cts, mode);
 
-        // Wire ourselves to MainWindow's relay events. Loaded/Unloaded keep us
-        // tidy across nav, but Start_Click here may fire on first Loaded too —
-        // guard via the same flag.
+        // Wire to MainWindow's relay events; guard against double-subscribe.
         if (!_subscribedToLiveTrace)
         {
             _main.TraceEventCaptured  += OnEventCaptured;
@@ -459,10 +414,7 @@ public partial class RuntimeTracePage : Page
             Window.GetWindow(this)!.WindowState = WindowState.Minimized;
     }
 
-    /// <summary>Apply the "recording in progress" look to the page: stop icon, REC
-    /// badge pulsing, inputs disabled, elapsed-timer ticking from MainWindow's
-    /// stopwatch. Called from both Start_Click (fresh trace) and AdoptLiveTrace
-    /// (returning to the page mid-recording).</summary>
+    /// <summary>Apply the recording-in-progress look: stop icon, REC pulse, inputs disabled, elapsed-timer ticking.</summary>
     private void EnterRecordingUi()
     {
         TraceBtn.Content = "■";
@@ -509,8 +461,7 @@ public partial class RuntimeTracePage : Page
 
         try
         {
-            // Tracer lives on MainWindow; this call unhooks its handlers, calls
-            // Stop, disposes, and clears the ActiveTracer / Stopwatch / Cts.
+            // Unhooks tracer handlers, stops, disposes, and clears MainWindow state.
             _lastResult = _main.StopAndDisposeActiveTrace();
             _main.LastEtwResult = _lastResult;
         }
@@ -530,8 +481,7 @@ public partial class RuntimeTracePage : Page
 
         TraceBtn.Content = "▶";
         TraceBtn.ToolTip = "Start trace";
-        // Hide + stop the REC pulse — leaving the storyboard running on a hidden
-        // element burns CPU on the compositor for nothing.
+        // Stop the storyboard so it doesn't burn compositor CPU while hidden.
         StopRecPulse();
         RecBadge.Visibility = Visibility.Collapsed;
         TargetBox.IsEnabled = true;
@@ -587,10 +537,167 @@ public partial class RuntimeTracePage : Page
             events = events.Where(e => _processFilterPids.Contains(e.ProcessId));
 
         var summary = EtwResultConverter.DeduplicatedSummary(events);
+
+        // Run elevation transition detection to tag rows with PRIVESC.
+        var probeEvents = events.Select(e => new ProcmonEvent
+        {
+            ProcessName = e.ProcessName,
+            Operation = "CreateFile",
+            Result = "NAME NOT FOUND",
+            Path = e.FilePath,
+            Pid = e.ProcessId,
+            Timestamp = e.Timestamp,
+            Access = e.Access,
+        }).ToList();
+        var transitions = Core.Services.ElevationTransitionDetector.DetectAndTag(probeEvents);
+
+        // Direct IL signal: tags High/System IL PIDs even when UAC parent is missing from capture.
+        var highIlPids = result.ProcessTree
+            .Where(p => p.IntegrityLevel == IntegrityLevel.High || p.IntegrityLevel == IntegrityLevel.System)
+            .Select(p => p.Pid)
+            .ToHashSet();
+        if (highIlPids.Count > 0)
+        {
+            foreach (var ev in probeEvents)
+                if (ev.Pid.HasValue && highIlPids.Contains(ev.Pid.Value))
+                    ev.Phase = IlPhase.HighIl;
+        }
+        var highIlProcesses = result.ProcessTree
+            .Where(p => p.IntegrityLevel == IntegrityLevel.High || p.IntegrityLevel == IntegrityLevel.System)
+            .ToList();
+        var elevatedDllNames = probeEvents
+            .Where(e => e.Phase == IlPhase.HighIl)
+            .Select(e => e.DllName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         _allRows.Clear();
+        var carrierInputs = new List<Core.Services.CarrierInput>();
         foreach (var s in summary)
+        {
+            // Real ACL probe (matches ProcmonPage); IsUserWritable includes live CurrentUserWrite probe.
+            var aclPerms = _dirAcl.Get(s.Directory);
+            bool writable = string.IsNullOrEmpty(aclPerms.Error) && aclPerms.IsUserWritable;
+
+            bool highIl = elevatedDllNames.Contains(s.DllName);
+
+            // Canonical privesc-carrier identifier (same gates as ProcmonPage banner).
+            var input = new Core.Services.CarrierInput(
+                DllName: s.DllName,
+                IsHighIlSearch: highIl,
+                SearchedDirs: new[] { s.Directory },
+                LoaderLikeCount: s.LoadCount,
+                MetadataProbeCount: s.ProbeCount,
+                EventCount: s.EventCount);
+            carrierInputs.Add(input);
+
+            bool isCarrier = Core.Services.PrivescCarrierIdentifier.Qualifies(input, _dirAcl, out _);
             _allRows.Add(new TraceRow(s.ProcessImage, s.DllName, s.Directory,
-                s.EventCount, s.DirWritable, s.LoadCount, s.ProbeCount));
+                s.EventCount, writable, s.LoadCount, s.ProbeCount, isCarrier));
+        }
+
+        UpdateElevationBanner(transitions, highIlProcesses, carrierInputs);
+        _carriersForBanner = Core.Services.PrivescCarrierIdentifier.Identify(carrierInputs, _dirAcl);
+        _transitionSummaryForBanner = BuildTransitionSummary(transitions, highIlProcesses);
+    }
+
+    private static string BuildTransitionSummary(
+        IReadOnlyList<Core.Models.ElevationTransition> transitions,
+        IReadOnlyList<Core.Models.TracedProcess> highIlProcesses)
+    {
+        if (transitions != null && transitions.Count > 0)
+        {
+            return transitions.Count == 1
+                ? $"{transitions[0].ProcessName} PID {transitions[0].ParentPid} -> {transitions[0].ChildPid}"
+                : string.Join(" · ", transitions.Select(t => $"{t.ProcessName} {t.ParentPid}->{t.ChildPid}"));
+        }
+        if (highIlProcesses != null && highIlProcesses.Count > 0)
+            return string.Join(" · ", highIlProcesses.Take(3).Select(p => $"{p.Name} PID {p.Pid} (IL={p.IntegrityLevel})"));
+        return "";
+    }
+
+    private List<Core.Services.PrivescCarrier> _carriersForBanner = [];
+
+    private string _transitionSummaryForBanner = "";
+
+    private void PromotePrivesc_Click(object sender, RoutedEventArgs e)
+    {
+        if (_carriersForBanner.Count == 0)
+        {
+            SetStatus("No carriers ranked — run the trace first", StatusKind.Warn);
+            return;
+        }
+        _main.PendingPrivescHandoff = new MainWindow.PrivescCarrierHandoff(
+            SourceLabel: "Runtime ETW trace",
+            Carriers: _carriersForBanner,
+            TransitionSummary: _transitionSummaryForBanner);
+        _main.NavigateTo(new PrivescPage(_main));
+    }
+
+    /// <summary>Shows the UAC elevation banner when a transition or High-IL process is detected, listing privesc carrier DLLs.</summary>
+    private void UpdateElevationBanner(
+        IReadOnlyList<Core.Models.ElevationTransition> transitions,
+        IReadOnlyList<Core.Models.TracedProcess> highIlProcesses,
+        IReadOnlyList<Core.Services.CarrierInput> carrierInputs)
+    {
+        bool hasTransition  = transitions != null && transitions.Count > 0;
+        bool hasHighIlProc  = highIlProcesses != null && highIlProcesses.Count > 0;
+        if (!hasTransition && !hasHighIlProc)
+        {
+            ElevationBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        string header;
+        if (hasTransition && transitions!.Count == 1)
+        {
+            var t = transitions[0];
+            var gap = t.Gap?.TotalMilliseconds switch
+            {
+                null => "gap: n/a",
+                < 1000 => $"gap: {t.Gap!.Value.TotalMilliseconds:F0} ms",
+                _ => $"gap: {t.Gap!.Value.TotalSeconds:F2} s",
+            };
+            header = $"{t.ProcessName}  PID {t.ParentPid} -> {t.ChildPid}  ({gap})";
+        }
+        else if (hasTransition)
+        {
+            header = $"{transitions!.Count} transitions: " +
+                string.Join("  ·  ",
+                    transitions.Select(t => $"{t.ProcessName} PID {t.ParentPid}->{t.ChildPid}"));
+        }
+        else
+        {
+            // Direct IL signal: surface elevated processes without needing both UAC sides.
+            var procs = highIlProcesses!
+                .Take(3)
+                .Select(p => $"{p.Name} (PID {p.Pid}, IL={p.IntegrityLevel})");
+            var moreProcs = highIlProcesses!.Count > 3 ? $" +{highIlProcesses.Count - 3} more" : "";
+            header = $"Elevated process observed (direct ETW IL signal): {string.Join(" · ", procs)}{moreProcs}";
+        }
+
+        var carriers = Core.Services.PrivescCarrierIdentifier.Identify(carrierInputs, _dirAcl);
+
+        if (carriers.Count == 0)
+        {
+            ElevationBannerText.Text =
+                header + "\nNo privesc carrier DLL identified — elevated child loaded only from KnownDLLs, locked dirs, or probe-only paths.";
+            ElevationBanner.Visibility = Visibility.Visible;
+            return;
+        }
+
+        const int show = 5;
+        var top = carriers.Take(show).Select(c => c.DllName);
+        var moreCount = carriers.Count - show;
+        var carriersText = string.Join(", ", top);
+        if (moreCount > 0)
+            carriersText += $" (+{moreCount} more)";
+
+        ElevationBannerText.Text =
+            header +
+            $"\n{carriers.Count} privesc carrier DLL{(carriers.Count == 1 ? "" : "s")}: {carriersText}";
+
+        ElevationBanner.Visibility = Visibility.Visible;
+        PromotePrivescBtn.IsEnabled = true;
     }
 
     private void ClearProcessFilter_Click(object sender, RoutedEventArgs e)
@@ -646,9 +753,7 @@ public partial class RuntimeTracePage : Page
 
     private void OnEventCaptured(EtwTraceEvent ev)
     {
-        // Counter lives on MainWindow now (so it survives navigation away). The
-        // elapsed-timer reads _main.ActiveTraceLiveCount directly. Nothing for
-        // the page to do per-event.
+        // Per-event work happens via MainWindow's counter; elapsed-timer reads it.
     }
 
     private void OnProcessDetected(TracedProcess proc)
@@ -749,10 +854,7 @@ public partial class RuntimeTracePage : Page
                    (ev.IsChildOfTarget ? "  [CHILD]" : ""),
         }).ToList();
 
-        // Update AttackPathPage focus. If a scan exists and this DLL name matches
-        // a known candidate, attach it so the chain/score render fully; otherwise
-        // the focus carries DLL name + runtime metadata only and AttackPathPage
-        // falls back to a degraded view.
+        // Update AttackPathPage focus with scan candidate match if available.
         SideloadCandidate? sideMatch = null;
         PhantomCandidate? phantomMatch = null;
         if (_main.LastScanResults != null)
@@ -801,18 +903,11 @@ public partial class RuntimeTracePage : Page
             if (keys.Add(key)) { existing.Add(p); added++; }
         }
 
-        // Destination mirrors the button label set in Refresh(): if a wizard
-        // session is alive the action returns the user to it (the wizard will
-        // resume at Survey with the freshly-promoted phantoms loaded);
-        // otherwise the Scan page is the natural landing spot.
+        // Destination: Wizard if a session is alive, otherwise Scan.
         var resumingWizard = _main.CurrentWizardSession != null;
         if (resumingWizard)
         {
-            // Tag the session as Runtime-originated and pre-fill its scan slot
-            // so WizardPage ctor lands on Survey on the first promote. Without
-            // this, a session created via the sidebar (EntryPoint=ScanFolder
-            // default) would route the user to Input the first time and the
-            // bug only resolved after the user manually re-entered via Input.
+            // Tag session as Runtime-originated so WizardPage lands on Survey.
             var s = _main.CurrentWizardSession!;
             s.EntryPoint = Core.Models.Wizard.WizardEntryPoint.RuntimeTrace;
             if (s.ScanResults == null)
@@ -821,10 +916,7 @@ public partial class RuntimeTracePage : Page
                 s.SurveyRootDir = _main.LastScanDir;
             }
         }
-        // Count probe-only phantoms (every event was a metadata probe) — the
-        // operator should know how many of the promoted candidates have weak
-        // runtime evidence so they don't waste cycles on app-internal PATH
-        // enumerations dressed up as sideload opportunities.
+        // Probe-only phantoms have weak runtime evidence; surface the count.
         var probeOnly = phantoms.Count(p => p.Evidence?.IsProbeOnly == true);
         var probeTag = probeOnly > 0 ? $", {probeOnly} probe-only" : "";
 
@@ -842,9 +934,7 @@ public partial class RuntimeTracePage : Page
 
     private void ResumeWizard_Click(object sender, RoutedEventArgs e)
     {
-        // Just navigate back — WizardPage's ctor adopts _main.CurrentWizardSession
-        // and decides whether to resume at Input or Survey based on whether the
-        // user promoted phantoms to LastScanResults while here.
+        // WizardPage ctor adopts _main.CurrentWizardSession and resumes appropriately.
         _main.NavigateTo(new Views.Wizard.WizardPage(_main));
     }
 
@@ -871,11 +961,7 @@ public partial class RuntimeTracePage : Page
         ElapsedText.Text = "";
     }
 
-    /// <summary>
-    /// Looks up the RecPulse storyboard from RecBadge.Resources and begins it.
-    /// Targets the RecDot ellipse's Opacity (1 → 0.25, AutoReverse, Forever).
-    /// Resource lookup is delayed to runtime so a missing key fails soft.
-    /// </summary>
+    /// <summary>Begins the RecPulse storyboard from RecBadge.Resources; fails soft if missing.</summary>
     private void StartRecPulse()
     {
         if (RecBadge.Resources["RecPulse"] is Storyboard sb)
@@ -912,13 +998,7 @@ public partial class RuntimeTracePage : Page
         return LaunchMode.Auto;
     }
 
-    /// <summary>
-    /// Parses a command line into (exePath, arguments). Handles:
-    ///   "C:\path to\app.exe" arg1 arg2
-    ///   C:\path\app.exe arg1 arg2
-    ///   C:\Program Files\...\app.exe C:\docs\file.pdf
-    /// Falls back to splitting at first .exe boundary.
-    /// </summary>
+    /// <summary>Parses a command line into (exePath, arguments).</summary>
     private static (string ExePath, string? Args) ParseCommandLine(string input)
     {
         var text = input.Trim();
@@ -966,8 +1046,7 @@ public partial class RuntimeTracePage : Page
         public int LoadCount { get; }
         public int ProbeCount { get; }
 
-        // Compact LOAD/PROBE/MIXED label for the grid. Empty when neither bucket
-        // has a count — corresponds to AccessClass.Unknown events only.
+        // Compact LOAD/PROBE/MIXED label; empty for Unknown-only events.
         public string AccessLabel => Core.Models.AccessClassLabels.FromCounts(LoadCount, ProbeCount);
 
         public string AccessTooltip =>
@@ -978,16 +1057,12 @@ public partial class RuntimeTracePage : Page
                   $"{Core.Models.AccessClassLabels.Probe} = GetFileAttributes-class call " +
                   "(app enumerating PATH, planted DLL would not execute).";
 
-        // Cross-surface ExploitabilityVerdict — same record AnalyzePage /
-        // ScanPage / ProcmonPage feed into the VerdictBadge control. The
-        // tier collapses Mode (derived from the DLL name via the standard
-        // classifier) + Writability (single-dir tier in Runtime's case
-        // because each row represents one (proc, dll, dir) tuple).
+        // Cross-surface verdict feeding into VerdictBadge.
         public Core.Services.Exploitability.ExploitabilityVerdict Verdict { get; }
         public int VerdictSortKey => Verdict.Score;
 
         public TraceRow(string proc, string dll, string dir, int events, bool writable,
-                        int loadCount = 0, int probeCount = 0)
+                        int loadCount = 0, int probeCount = 0, bool privescCandidate = false)
         {
             ProcessName = Path.GetFileName(proc);
             DllName = dll;
@@ -996,13 +1071,17 @@ public partial class RuntimeTracePage : Page
             IsWritable = writable;
             LoadCount = loadCount;
             ProbeCount = probeCount;
+            IsPrivescCandidate = privescCandidate;
 
             var mode = Core.Services.ProcmonRowClassifier.Classify(dll).Mode;
             var writTier = writable
                 ? Core.Services.ProcmonDirWritability.AllLowPrivWritable
                 : Core.Services.ProcmonDirWritability.AllLocked;
-            Verdict = Core.Services.Exploitability.ExploitabilityVerdict.For.ProcmonRow(mode, writTier);
+            Verdict = Core.Services.Exploitability.ExploitabilityVerdict.For.ProcmonRow(mode, writTier, privescCandidate);
         }
+
+        /// <summary>True when the elevated child searched this row's DLL; drives the PRIVESC chip and verdict.</summary>
+        public bool IsPrivescCandidate { get; }
     }
 
     public class ProcessTreeNode

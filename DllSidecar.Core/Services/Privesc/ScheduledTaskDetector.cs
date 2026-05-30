@@ -8,14 +8,7 @@ using DllSidecar.Core.Services.Execution;
 namespace DllSidecar.Core.Services.Privesc;
 
 /// <summary>
-/// Enumerates scheduled tasks stored as XML under %SystemRoot%\System32\Tasks. Each
-/// task file is an XML with schema http://schemas.microsoft.com/windows/2004/02/mit/task.
-///
-/// Sprint-2 robustness: in addition to Exec.Command we parse Arguments, WorkingDirectory,
-/// and ALL Exec actions under Actions (a task may chain several). The combined command
-/// is passed to <see cref="ExecutionResolver"/> to peel one level of wrapper (cmd/c,
-/// powershell -File, rundll32, msiexec). Findings carry full context so consumers
-/// (Sprint-3 targeted re-scan) can act on the resolved target.
+/// Enumerates scheduled tasks under %SystemRoot%\System32\Tasks; resolves wrappers via <see cref="ExecutionResolver"/>.
 /// </summary>
 public class ScheduledTaskDetector : IPrivescDetector
 {
@@ -191,9 +184,7 @@ public class ScheduledTaskDetector : IPrivescDetector
     }
 
     /// <summary>
-    /// Parse a Task Scheduler XML into zero or more TaskEntry (one per Exec action).
-    /// Pure — no file I/O, no environment side effects beyond env-var expansion inside
-    /// the resolver. Exposed publicly for unit tests.
+    /// Parse a Task Scheduler XML into zero or more TaskEntry (one per Exec action). Pure.
     /// </summary>
     public static List<TaskEntry> ParseTaskXml(string xml, string taskName)
     {
@@ -205,7 +196,7 @@ public class ScheduledTaskDetector : IPrivescDetector
         if (!string.IsNullOrEmpty(ns)) nsmgr.AddNamespace("t", ns);
         var prefix = string.IsNullOrEmpty(ns) ? "" : "t:";
 
-        // Principal — accounts and run level (same across all Exec actions in one task file)
+        // Principal — accounts and run level.
         var principalNode = doc.SelectSingleNode($"//{prefix}Principals/{prefix}Principal", nsmgr);
         var userId = principalNode?.SelectSingleNode($"{prefix}UserId", nsmgr)?.InnerText;
         var groupId = principalNode?.SelectSingleNode($"{prefix}GroupId", nsmgr)?.InnerText;

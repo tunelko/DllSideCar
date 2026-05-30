@@ -1,9 +1,6 @@
 namespace DllSidecar.Core.Models.Privesc;
 
-/// <summary>
-/// Single privesc finding attached by a detector. Multiple findings can decorate the same
-/// candidate. The highest severity across findings becomes the Context's summary.
-/// </summary>
+/// <summary>Single privesc finding attached by a detector; highest severity becomes the Context's summary.</summary>
 public class PrivescFinding
 {
     public required PrivescVector Vector { get; set; }

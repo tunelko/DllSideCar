@@ -3,11 +3,7 @@ using DllSidecar.Core.Logging;
 
 namespace DllSidecar.GUI.Helpers;
 
-/// <summary>
-/// Safely opens a URL in the default browser. Blocks any scheme other than http/https to
-/// prevent a malicious config file (or future feature) from passing arbitrary strings to
-/// ShellExecute (which would launch file:// paths, ms-settings:, javascript:, etc).
-/// </summary>
+/// <summary>Safely opens an http/https URL via ShellExecute; blocks other schemes.</summary>
 public static class SafeUrl
 {
     public static bool Open(string? url)

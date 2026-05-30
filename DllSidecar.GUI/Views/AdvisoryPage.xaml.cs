@@ -24,17 +24,10 @@ public partial class AdvisoryPage : Page
     private bool _suppressForm;
     private IAdvisoryRenderer _activeRenderer = AdvisoryRenderers.All[0]; // default to Markdown
 
-    // Dirty-flag protection — re-rendering from a template wholesale replaces the editor
-    // content. Track whether the user has manually edited the editor since the last
-    // programmatic load/render so destructive actions (template change, CVSS apply, Template
-    // Fields apply, vendor edit on non-Markdown) can prompt before discarding manual work.
-    // _suppressEditorDirty must wrap ALL programmatic MdEditor.Text writes so that internal
-    // re-renders do not flip the flag.
+    // Dirty-flag tracking; wraps all programmatic MdEditor.Text writes.
     private bool _editorDirty;
     private bool _suppressEditorDirty;
-    // Tracks the combo index actually applied to the editor. If a destructive change is
-    // cancelled, we revert TemplateCombo.SelectedIndex to this — without it the combo would
-    // show the new template while the editor still holds the old content.
+    // Combo index actually applied to the editor (for cancel-revert).
     private int _lastAppliedTemplateIndex;
     private bool _suppressTemplateChanged;
 
@@ -63,14 +56,7 @@ public partial class AdvisoryPage : Page
 
     private void ReloadContext_Click(object sender, RoutedEventArgs e)
     {
-        // Reload semantics depend on whether the DLL/PE in the current analysis matches
-        // the one bound to the active Library record:
-        //   - Same DLL/PE      → warn (rebuild discards manual editor edits) and PRESERVE
-        //                        the binding so the next Save updates the same record.
-        //   - Different DLL/PE → silently detach + reload. The Save-time identity guard
-        //                        (see SaveToLibrary_Click) already covers any accidental
-        //                        overwrite, so a modal here only fear-mongers when the
-        //                        user is clearly switching subjects.
+        // Same DLL → warn + preserve binding; different DLL → silently detach.
         if (!string.IsNullOrEmpty(_main.PendingAdvisoryRecordId))
         {
             var pe = _main.CurrentAnalysis;
@@ -96,8 +82,7 @@ public partial class AdvisoryPage : Page
                 return;
             }
 
-            // Different DLL/PE — detach silently. UpdateDynamicLabels refreshes the
-            // Save button label from "Update record · …" to "Create library record".
+            // Different DLL — detach silently; Save button label refreshes.
             _main.PendingAdvisoryRecordId = null;
         }
         ReloadContext();
@@ -106,10 +91,7 @@ public partial class AdvisoryPage : Page
 
     private void ReloadContext(bool preserveRecordId = false)
     {
-        // Wizard handoff — if ReportStage stashed an AdvisoryContext + markdown,
-        // adopt them verbatim (preserves any edits the user made inside the Report
-        // stage's MdView). Consume once so a later manual "Reload context" rebuilds
-        // from CurrentAnalysis as normal.
+        // Wizard handoff: adopt stashed context + markdown verbatim.
         if (_main.PendingAdvisoryContext != null)
         {
             _ctx = _main.PendingAdvisoryContext;
@@ -118,16 +100,10 @@ public partial class AdvisoryPage : Page
             _main.PendingAdvisoryContext = null;
             _main.PendingAdvisoryMarkdown = null;
             _main.PendingAdvisoryTemplateId = null;
-            // Wizard handoff is always a fresh research flow — even if it happens to target
-            // the same DLL/PE as a previously-opened Library record, the leftover record id
-            // from that session would mis-bind the new draft on Save (Save-time identity guard
-            // fires when ctx.PeFilename != record.PeFilename). Drop it here unless the caller
-            // explicitly asked to preserve it.
+            // Drop stale record id for the fresh wizard flow unless preserveRecordId.
             if (!preserveRecordId) _main.PendingAdvisoryRecordId = null;
 
-            // Restore the renderer that was active when the advisory was last saved BEFORE any
-            // render call — otherwise a non-Markdown body would briefly fall through the Markdown
-            // renderer and a subsequent Template Fields apply would silently overwrite it.
+            // Restore last-saved renderer BEFORE any render call.
             ApplyPendingTemplate(templateId);
 
             _suppressCvssChanged = true;
@@ -154,10 +130,7 @@ public partial class AdvisoryPage : Page
             return;
         }
 
-        // Fresh context — drop any pending library record id so next "Save to Library"
-        // creates a new row instead of overwriting the one that was last opened.
-        // Callers reloading after confirming "same DLL/PE" pass preserveRecordId=true so the
-        // binding survives and Save updates the existing record instead of duplicating it.
+        // Fresh context: drop pending record id unless preserveRecordId.
         if (!preserveRecordId) _main.PendingAdvisoryRecordId = null;
 
         var pe = _main.CurrentAnalysis;
@@ -196,11 +169,7 @@ public partial class AdvisoryPage : Page
         }
     }
 
-    /// <summary>
-    /// Build an AdvisoryContext from whatever the session currently holds. Pulls from
-    /// CurrentAnalysis, and — if the last scan contains a candidate matching this PE —
-    /// enriches with privesc + directory ACL data.
-    /// </summary>
+    /// <summary>Build an AdvisoryContext from CurrentAnalysis, enriching with scan data if available.</summary>
     private AdvisoryContext BuildContextFromSession(PeAnalysis? pe)
     {
         var ctx = new AdvisoryContext();
@@ -247,8 +216,7 @@ public partial class AdvisoryPage : Page
 
     private static string? ExtractVendorHint(PeAnalysis pe)
     {
-        // Prefer Authenticode Subject CN (cryptographically bound to publisher) over the
-        // self-reported version-info CompanyName. Falls back to Extract(pe) on unsigned files.
+        // Prefer Authenticode Subject CN over version-info CompanyName.
         if (!string.IsNullOrWhiteSpace(pe.Path) && System.IO.File.Exists(pe.Path))
         {
             var fromCert = Core.Services.Advisory.VendorResolver.ResolveFromFile(pe.Path);
@@ -290,9 +258,7 @@ public partial class AdvisoryPage : Page
         if (!IsLoaded) return;
         if (_suppressTemplateChanged) return;
 
-        // Destructive: switching template re-renders the editor from scratch. If the user
-        // has manual edits and cancels the prompt, we have to revert the combo to the
-        // previously applied index — without _suppressTemplateChanged this would re-enter.
+        // Destructive: template switch re-renders editor; on cancel revert combo silently.
         if (!ConfirmDestructiveRerender())
         {
             _suppressTemplateChanged = true;
@@ -314,12 +280,7 @@ public partial class AdvisoryPage : Page
         _previewTimer.Start();
     }
 
-    /// <summary>
-    /// Replace MdEditor.Text without flipping the dirty flag. Use for every programmatic
-    /// write (template re-render, fresh load, CVSS apply, Template Fields apply). The
-    /// guard is reset in <c>finally</c> so an exception during assignment can't leave the
-    /// page in a state where genuine user edits no longer mark dirty.
-    /// </summary>
+    /// <summary>Replace MdEditor.Text without flipping the dirty flag.</summary>
     private void SetEditorTextSilently(string text)
     {
         _suppressEditorDirty = true;
@@ -331,10 +292,7 @@ public partial class AdvisoryPage : Page
         }
     }
 
-    /// <summary>
-    /// Prompt before any action that wholesale replaces editor content. Returns true if the
-    /// caller may proceed (no manual edits, or user accepted the discard).
-    /// </summary>
+    /// <summary>Prompt before any action that wholesale replaces editor content. Returns true to proceed.</summary>
     private bool ConfirmDestructiveRerender()
     {
         if (!_editorDirty) return true;
@@ -347,18 +305,7 @@ public partial class AdvisoryPage : Page
         return res == MessageBoxResult.OK;
     }
 
-    /// <summary>
-    /// Restore the renderer that was active when the advisory was last saved. Resolves the id
-    /// against <see cref="AdvisoryRenderers.ById"/>; falls back to Markdown if the id is null,
-    /// blank, or unknown (e.g. a renderer was removed in a future build). Caller must invoke
-    /// this BEFORE any RerenderEditor / Render call so the editor doesn't briefly hold Markdown
-    /// content for a non-Markdown advisory.
-    /// </summary>
-    /// <summary>
-    /// Refresh button labels and tooltips that depend on the active renderer or on whether
-    /// the editor is bound to an existing Library record. Centralised so every state change
-    /// (template switch, Save creating a record, Reload context detaching, etc.) lands here.
-    /// </summary>
+    /// <summary>Refresh button labels and tooltips that depend on the active renderer or record binding.</summary>
     private void UpdateDynamicLabels()
     {
         if (_activeRenderer == null) return;
@@ -373,8 +320,7 @@ public partial class AdvisoryPage : Page
 
         if (SaveHtmlBtn != null)
         {
-            // HTML export only meaningful for Markdown — GHSA YAML has no markup the converter
-            // would render usefully, just escape the whole thing as <pre>.
+            // HTML export only meaningful for Markdown.
             SaveHtmlBtn.Visibility = _activeRenderer.Id == "markdown"
                 ? System.Windows.Visibility.Visible
                 : System.Windows.Visibility.Collapsed;
@@ -382,8 +328,7 @@ public partial class AdvisoryPage : Page
 
         if (ModeLabel != null)
         {
-            // Replace the generic "Output: advisory.md" with the renderer's display name + ext
-            // so the user can scan and know which format the editor body represents.
+            // Show renderer display name + ext so format is identifiable.
             ModeLabel.Text = $"{_activeRenderer.DisplayName.ToUpperInvariant()} SOURCE  ·  {_activeRenderer.DefaultFilename}";
         }
 
@@ -405,8 +350,7 @@ public partial class AdvisoryPage : Page
         var idx = AdvisoryRenderers.All.ToList().FindIndex(r => r.Id == renderer.Id);
         if (idx >= 0)
         {
-            // Suppress the change handler — this is a programmatic load, not a user-driven
-            // template switch; we don't want to prompt or re-render here.
+            // Suppress change handler during programmatic load.
             _suppressTemplateChanged = true;
             try { TemplateCombo.SelectedIndex = idx; }
             finally { _suppressTemplateChanged = false; }
@@ -420,19 +364,11 @@ public partial class AdvisoryPage : Page
     {
         if (_suppressForm || !IsLoaded) return;
         _ctx.Vendor = NullIfBlank(VendorBox.Text);
-        // For non-Markdown templates the vendor name is interpolated into the rendered text,
-        // so we'd normally re-render to reflect it. Skip the re-render entirely if the user
-        // has manual edits — the keystroke alone shouldn't trigger a destructive prompt on
-        // every character. They can pick up the new vendor by hitting "Apply CVSS" or
-        // re-selecting the template once they're ready to lose manual edits.
+        // Skip re-render when editor has manual edits to avoid destructive prompts.
         if (_activeRenderer.Id != "markdown" && !_editorDirty) RerenderEditor();
     }
 
-    /// <summary>
-    /// Opens the dedicated Template Fields modal. The dialog mutates <see cref="_ctx"/> in place
-    /// when the user clicks Apply; we then re-render the editor so the new values show up.
-    /// Prompts before re-render if there are manual edits, since the new render replaces them.
-    /// </summary>
+    /// <summary>Opens the Template Fields modal; mutates _ctx and re-renders the editor on Apply.</summary>
     private void OpenFormFields_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new TemplateFieldsDialog(_ctx, _activeRenderer) { Owner = Window.GetWindow(this) };
@@ -440,8 +376,7 @@ public partial class AdvisoryPage : Page
 
         if (!ConfirmDestructiveRerender())
         {
-            // _ctx already mutated — fields persist on next Save and on the next intentional
-            // re-render — but the editor stays as-is so manual edits aren't lost.
+            // _ctx already mutated; editor preserved.
             FooterStatus.Text = "Template fields stored. Editor not re-rendered (manual edits preserved).";
             return;
         }
@@ -451,11 +386,7 @@ public partial class AdvisoryPage : Page
 
     private static string? NullIfBlank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
-    /// <summary>
-    /// Build the canonical SourceCandidateKey stored on the advisory record. ScanPage later
-    /// queries this key to stamp a REPORTED badge on rows that match. Keys must be stable
-    /// across sessions — we use lowercased absolute paths, no trailing slashes.
-    /// </summary>
+    /// <summary>Build the canonical SourceCandidateKey using lowercased absolute paths.</summary>
     private static string? BuildSourceKey(AdvisoryContext ctx)
     {
         if (!string.IsNullOrWhiteSpace(ctx.PePath))
@@ -538,11 +469,7 @@ public partial class AdvisoryPage : Page
 
     private void ApplyCvss_Click(object sender, RoutedEventArgs e)
     {
-        // Non-destructive: recompute the CVSS score from the current combo selection and
-        // update the score label only. The editor body is NOT touched — manual edits to
-        // the document survive intact. The new score is persisted to _ctx and will be
-        // reflected in the next intentional re-render or in any future Save (which writes
-        // _ctx.CvssScore to the record regardless of editor body).
+        // Non-destructive: recompute the CVSS score; editor body untouched.
         RecomputeCvss();
         FooterStatus.Text = $"CVSS recomputed: {_ctx.CvssScore:0.0} {_ctx.CvssSeverity}  ·  editor body unchanged";
     }
@@ -551,8 +478,7 @@ public partial class AdvisoryPage : Page
 
     private void MdEditor_TextChanged(object sender, TextChangedEventArgs e)
     {
-        // Only flag dirty for genuine user edits — programmatic writes via SetEditorTextSilently
-        // are bracketed by _suppressEditorDirty and clear the flag in their finally block.
+        // Skip dirty flag for programmatic writes (bracketed by _suppressEditorDirty).
         if (!_suppressEditorDirty) _editorDirty = true;
         _previewTimer.Stop();
         _previewTimer.Start();
@@ -625,8 +551,7 @@ public partial class AdvisoryPage : Page
                     "font-family:'Cascadia Mono',Consolas,monospace;font-size:12px;}" +
                "pre{background:#111111;border:1px solid #262626;border-radius:6px;padding:12px;overflow:auto;}" +
                "pre code{background:transparent;color:#ededed;padding:0;}" +
-               // pre.raw is used by the non-markdown preview path — full viewport, no border /
-               // wrapper, so ASCII-art content doesn't get clipped.
+               // pre.raw: non-markdown preview path; full viewport, no border.
                "pre.raw{background:transparent;border:none;padding:16px;margin:0;color:#ededed;" +
                        "font-family:'Cascadia Mono',Consolas,monospace;font-size:12px;line-height:1.45;white-space:pre;}" +
                "table{border-collapse:collapse;margin:12px 0;}" +
@@ -657,10 +582,7 @@ public partial class AdvisoryPage : Page
                 var record = await repo.GetAsync(existingId);
                 if (record != null)
                 {
-                    // Identity guard: refuse to silently overwrite a record's PE identity.
-                    // If the user opened existing record A and then re-loaded context from a
-                    // different PE B (Reload context, or wizard handoff), continuing the Save
-                    // would replace A's metadata with B's — the bug that destroyed urlmon.
+                    // Identity guard against silent PE-identity overwrites.
                     var ctxPe = (_ctx.PeFilename ?? "").Trim();
                     var recPe = (record.PeFilename ?? "").Trim();
                     var identityChanged = !string.IsNullOrEmpty(ctxPe)
@@ -684,8 +606,7 @@ public partial class AdvisoryPage : Page
                         }
                         if (choice == MessageBoxResult.No)
                         {
-                            // Fall into the create-new path. Drop the pending id so the next
-                            // Save also goes to the new record, not back to the old one.
+                            // Create-new path; drop pending id so subsequent Saves stay new.
                             _main.PendingAdvisoryRecordId = null;
                             existingId = null;
                             record = null;
@@ -714,9 +635,7 @@ public partial class AdvisoryPage : Page
                 }
                 else
                 {
-                    // Identity-mismatch user chose "Save as NEW" — fall through to the
-                    // standard create path below by leaving recordId unset; we re-enter
-                    // the else branch via flow.
+                    // Identity-mismatch "Save as NEW" → standard create path.
                     var options = new Core.Models.AdvisoryLibrary.AdvisoryCreateOptions
                     {
                         SourceScanDir = _main.LastScanDir,
@@ -733,7 +652,7 @@ public partial class AdvisoryPage : Page
             }
             else
             {
-                // Stamp SourceCandidateKey so ScanPage's REPORTED badge can cross-reference later.
+                // Stamp SourceCandidateKey for ScanPage REPORTED badge cross-ref.
                 var options = new Core.Models.AdvisoryLibrary.AdvisoryCreateOptions
                 {
                     SourceScanDir = _main.LastScanDir,
@@ -748,10 +667,7 @@ public partial class AdvisoryPage : Page
                 _main.Log($"Advisory {created.Id} saved to library");
             }
 
-            // Persist the editor content as an Artifact under the active template's folder.
-            // The editor IS the canonical draft at save time, so the file on disk must mirror
-            // it verbatim — re-rendering from _ctx here would silently discard manual edits to
-            // non-Markdown bodies (DB MarkdownBody would have them, disk artifact would not).
+            // Persist editor content verbatim as an Artifact under the active template folder.
             try
             {
                 var kind = _activeRenderer.Id switch
@@ -763,12 +679,7 @@ public partial class AdvisoryPage : Page
                 _main.Log($"Artifact saved: {art.Path}");
                 FooterStatus.Text += $"   →   {_activeRenderer.DisplayName} rendered at {art.Path}";
 
-                // Keep all the advisory's other rendered artifacts (markdown / ghsa) consistent
-                // with the new metadata. Without this, a Save with a different vendor
-                // or title leaves stale renders on disk that contradict the DB record (this is
-                // the second half of the urlmon class of bug — the .md said urlmon but the
-                // record said profapi). Manual edits to non-active templates aren't possible
-                // through the UI today, so re-rendering is safe.
+                // Re-render sibling artifacts so all on-disk formats stay consistent.
                 try
                 {
                     var existing = await repo.GetArtifactsForAdvisoryAsync(recordId);
@@ -796,10 +707,8 @@ public partial class AdvisoryPage : Page
                 _main.Log($"Artifact write skipped: {aex.Message}");
             }
 
-            // Save complete — editor matches DB + disk, so manual-edits flag is clean.
+            // Save complete; dirty flag cleared, Save button label refreshed.
             _editorDirty = false;
-            // Pending record id may have flipped (new record created OR detach via identity-mismatch);
-            // refresh the Save button label so the user sees the right "Update / Create" wording next time.
             UpdateDynamicLabels();
         }
         catch (Exception ex)
@@ -821,9 +730,7 @@ public partial class AdvisoryPage : Page
             .Replace("{Filename}", ctx.PeFilename ?? "")
             .Replace("{Vendor}", ctx.Vendor ?? "")
             .Replace("  ", " ").Trim();
-        // Preserve whatever vendor the DB already has if ctx.Vendor comes in empty — the
-        // user may have just renamed it in the Library tree and re-saving from here would
-        // otherwise blank it. Only overwrite when AdvisoryPage has an explicit value.
+        // Preserve DB vendor when ctx is empty (so Library renames stick).
         if (!string.IsNullOrWhiteSpace(ctx.Vendor))
             record.Vendor = ctx.Vendor;
         record.Product = ctx.Product;
@@ -848,9 +755,7 @@ public partial class AdvisoryPage : Page
         record.ReportedOn = ctx.ReportedOn;
         record.DisclosedOn = ctx.DisclosedOn;
 
-        // Template Fields (schema v4) — these come from TemplateFieldsDialog and live entirely
-        // on the record. Researcher PGP fields are persisted verbatim; on Load we fall back to
-        // ConfigManager.Current.Researcher when the record's value is blank.
+        // Template Fields (schema v4) — record-only; PGP falls back to Config when blank.
         record.VulnerabilityTypeText = NullIfBlank(ctx.VulnerabilityTypeText);
         record.VendorUrl = NullIfBlank(ctx.VendorUrl);
         record.VendorPocName = NullIfBlank(ctx.VendorPocName);

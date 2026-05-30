@@ -5,18 +5,7 @@ using DllSidecar.Core.Models.Execution;
 namespace DllSidecar.Core.Services.Execution;
 
 /// <summary>
-/// Resolves a command line (task Command+Arguments, or service ImagePath) into a concrete
-/// <see cref="ResolvedExecutionTarget"/>. Peels exactly ONE level of wrapping (cmd /c,
-/// powershell -File, rundll32, msiexec). Does not interpret .bat/.cmd/.ps1 content and
-/// does not follow chains — out of Sprint 2 scope.
-///
-/// Design:
-/// - Environment variables are expanded via <see cref="Environment.ExpandEnvironmentVariables"/>.
-/// - The command head is determined differently depending on whether arguments were passed
-///   separately (task XML) or inlined (ImagePath): see <see cref="SplitHead"/>.
-/// - Wrapper detection matches the filename (case-insensitive) against a closed list.
-/// - Each wrapper has a dedicated micro-parser that never throws — failure degrades to
-///   <see cref="ResolutionStatus.Partial"/> with the literal preserved.
+/// Resolves a command line into a <see cref="ResolvedExecutionTarget"/>; peels one wrapper level (cmd, powershell, rundll32, msiexec).
 /// </summary>
 public static class ExecutionResolver
 {
@@ -26,9 +15,7 @@ public static class ExecutionResolver
     private static readonly HashSet<string> MsiExecNames    = new(StringComparer.OrdinalIgnoreCase) { "msiexec.exe", "msiexec" };
 
     /// <summary>
-    /// Resolve a command line. If <paramref name="arguments"/> is non-null, the caller
-    /// already split Command vs Arguments (task XML case) — we respect that split instead
-    /// of re-tokenizing the command (which would mis-split "C:\Program Files\...").
+    /// Resolve a command line; if <paramref name="arguments"/> is non-null, respect the caller's Command/Arguments split.
     /// </summary>
     public static ResolvedExecutionTarget Resolve(string command, string? arguments = null, string? workingDir = null)
     {
@@ -71,8 +58,7 @@ public static class ExecutionResolver
     private static ResolvedExecutionTarget ParseCmd(string original, string tail, ResolvedExecutionTarget r)
     {
         r.Wrapper = WrapperKind.Cmd;
-        // Consume leading switches until /c or /k (both mean "execute the following command").
-        // Anything after /c is the command; we take the first token (respect quotes) as target.
+        // /c or /k: take the first following token (respecting quotes) as the target.
         var tokens = Tokenize(tail);
         for (int i = 0; i < tokens.Count; i++)
         {
@@ -145,8 +131,7 @@ public static class ExecutionResolver
         var first = tokens.FirstOrDefault(t => !t.StartsWith('/') && !t.StartsWith('-'));
         if (first == null) { r.Status = ResolutionStatus.Partial; return r; }
 
-        // rundll32 accepts "path,Entry" (comma-separated) or "path Entry" (space-separated
-        // rare). We handle the comma form — it's overwhelmingly the common one.
+        // rundll32 "path,Entry" comma form is the common one.
         var commaIdx = first.LastIndexOf(',');
         var target = commaIdx > 0 ? first[..commaIdx] : first;
         r.ResolvedPath = StripQuotes(target);
@@ -186,9 +171,7 @@ public static class ExecutionResolver
     }
 
     /// <summary>
-    /// If arguments are supplied separately (task XML), the command IS the exe verbatim —
-    /// don't tokenize it (would mis-split "C:\Program Files\..."). Otherwise tokenize the
-    /// whole command line (service ImagePath style).
+    /// Split head/tail: if arguments supplied separately, command IS the exe verbatim.
     /// </summary>
     private static (string head, string tail) SplitHead(string command, string? arguments)
     {

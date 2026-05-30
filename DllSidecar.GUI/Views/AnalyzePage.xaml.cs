@@ -24,21 +24,13 @@ public partial class AnalyzePage : Page
 
         SetActionsEnabled(false);
 
-        // Restore prior analysis if the user is returning to this page —
-        // CurrentAnalysis already lived on MainWindow for the generation flow,
-        // so we just have to re-render the cards from it. The verdict +
-        // callsite result are cached on MainWindow so the rehydrate path
-        // doesn't trigger another disassembly pass.
+        // Restore from MainWindow's cached analysis/verdict if available.
         if (_main.CurrentAnalysis != null && _main.CurrentDllPath != null)
         {
             RenderAnalysis(_main.CurrentAnalysis, _main.CurrentDllPath,
                 _main.LastCallsiteResult, _main.LastExploitabilityVerdict);
         }
-        // Session-restore path: snapshot stored the path but heavy state (PeAnalysis,
-        // callsites, verdict) isn't serialized. If the file still exists, re-run the
-        // analysis automatically so the user sees the same cards on relaunch instead
-        // of an empty page with just the path filled in. Defer to Loaded so the page
-        // is fully constructed before we touch UI in Analyze_Click.
+        // Session-restore path: re-run analysis if file still exists.
         else if (!string.IsNullOrEmpty(_main.CurrentDllPath) && File.Exists(_main.CurrentDllPath))
         {
             Loaded += AutoAnalyzeOnce;
@@ -88,9 +80,7 @@ public partial class AnalyzePage : Page
             _main.CurrentAnalysis = analysis;
             _main.CurrentDllPath = path;
 
-            // Run the callsite scan in-line for the exploitability verdict. Iced only
-            // supports x86/x64 so arm64 falls through with null callsites — ExploitabilityVerdict
-            // handles that branch and tiers it as Theoretical with the arch as the blocker.
+            // Callsite scan for verdict; Iced only supports x86/x64 (arm64 → null).
             CallsiteScanResult? callsites = null;
             if (analysis.Arch is "x86" or "x64")
             {
@@ -99,8 +89,7 @@ public partial class AnalyzePage : Page
             }
             var verdict = ExploitabilityVerdict.For.Binary(analysis, callsites);
 
-            // Cache verdict + callsite result so rehydrating the page after a
-            // navigation round-trip doesn't have to re-run the disassembler.
+            // Cache verdict + callsite result for rehydration.
             _main.LastCallsiteResult = callsites;
             _main.LastExploitabilityVerdict = verdict;
 
@@ -115,13 +104,7 @@ public partial class AnalyzePage : Page
         }
     }
 
-    /// <summary>
-    /// Paint every analysis-derived widget on the page. Called from both
-    /// Analyze_Click (after a fresh probe) and the ctor (when restoring from
-    /// MainWindow.CurrentAnalysis after a navigation round-trip). Keeping the
-    /// render logic in one place stops the two entry points from drifting
-    /// and forgetting to repopulate a card.
-    /// </summary>
+    /// <summary>Paint every analysis-derived widget. Called from Analyze_Click and the ctor restore path.</summary>
     private void RenderAnalysis(PeAnalysis analysis, string path,
         CallsiteScanResult? callsites, ExploitabilityVerdict? verdict)
     {
@@ -170,9 +153,7 @@ public partial class AnalyzePage : Page
         // Primary generation buttons: enable based on what's technically possible.
         ApplyGenerationAvailability(analysis, isKnown);
 
-        // Verdict card. When restoring without a cached verdict (e.g. a previous
-        // session that predated Phase 2), recompute from whatever callsites we
-        // have — the cost is one disassembly pass at most.
+        // Verdict card: recompute when not cached.
         verdict ??= ExploitabilityVerdict.For.Binary(analysis, callsites);
         RenderVerdict(verdict);
     }
@@ -184,15 +165,10 @@ public partial class AnalyzePage : Page
             enabled ? Color.FromRgb(0x00, 0xCA, 0x4E) : Color.FromRgb(0xFF, 0x5B, 0x4F));
     }
 
-    /// <summary>
-    /// Decide which generation modes are technically viable for this PE and set each
-    /// tile's IsEnabled + tooltip accordingly. A disabled tile ALWAYS carries a tooltip
-    /// explaining why so the researcher understands their constraints.
-    /// </summary>
+    /// <summary>Set IsEnabled + tooltip on each generation tile based on what's viable for this PE.</summary>
     private void ApplyGenerationAvailability(PeAnalysis a, bool isKnown)
     {
-        // KnownDLL veto — neither proxy nor sideload works, the loader never
-        // consults the search path for these.
+        // KnownDLL veto: loader never consults the search path.
         if (isKnown)
         {
             DisableTile(ActProxy,    "KnownDLL — cannot be replaced in an install dir.");
@@ -278,8 +254,7 @@ public partial class AnalyzePage : Page
             MessageBox.Show("Analyze a PE first.", "Callsites", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        // arm64 binaries fail in the scanner (Iced is x86/x64 only). Surface
-        // it up-front rather than opening an empty modal.
+        // arm64 not supported by Iced — surface up-front.
         if (_main.CurrentAnalysis.Arch is not ("x86" or "x64"))
         {
             MessageBox.Show($"Callsite disassembly currently supports x86 and x64 only ({_main.CurrentAnalysis.Arch} not supported).",
@@ -293,12 +268,7 @@ public partial class AnalyzePage : Page
         dlg.ShowDialog();
     }
 
-    /// <summary>
-    /// Paint the exploitability card. Delegates the chip + tooltip rendering to
-    /// the reusable VerdictBadge control so AnalyzePage / ScanPage /
-    /// ProcmonPage / RuntimeTracePage all share the visual vocabulary. We only
-    /// own the pros/cons lists and the blocker line here.
-    /// </summary>
+    /// <summary>Paint the exploitability card via the shared VerdictBadge control.</summary>
     private void RenderVerdict(ExploitabilityVerdict verdict)
     {
         ExploitabilityPanel.Visibility = Visibility.Visible;

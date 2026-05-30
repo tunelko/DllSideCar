@@ -4,17 +4,10 @@ using DllSidecar.Core.Models.Privesc;
 
 namespace DllSidecar.Core.Models.Advisory;
 
-/// <summary>
-/// Everything needed to fill the advisory markdown template. Populated from the
-/// current PE analysis + optional privesc findings + optional CVE dedup results.
-/// The researcher then edits the rendered markdown as needed.
-/// </summary>
+/// <summary>Inputs for the advisory markdown template.</summary>
 public class AdvisoryContext
 {
-    // Researcher (identity; AdvisoryPage hydrates these from AppConfig.Researcher
-    // before rendering. Defaults are blank so a fresh install — or a path that
-    // forgets to pull from config — never bakes the project maintainer's
-    // identity into the generated advisory; templates skip empty fields cleanly.)
+    // Researcher identity; AdvisoryPage hydrates from AppConfig.Researcher before rendering.
     public string ResearcherName { get; set; } = "";
     public string ResearcherHandle { get; set; } = "";
     public string ResearcherBlog { get; set; } = "";
@@ -84,12 +77,7 @@ public class AdvisoryContext
     // References
     public List<string> References { get; set; } = [];
 
-    /// <summary>
-    /// Substitute `{Product}`, `{Filename}`, `{Vendor}` placeholders in the Title (and
-    /// any other free-text field that may contain them). Centralised so PDF export, the
-    /// library record, and renderers all produce the same resolved string — the prior
-    /// bug was each PDF export call site passing the raw Title with placeholders still in.
-    /// </summary>
+    /// <summary>Substitute `{Product}`, `{Filename}`, `{Vendor}` placeholders in the Title.</summary>
     public string ResolveTitle() => ResolvePlaceholders(Title);
 
     public string ResolvePlaceholders(string? input) => string.IsNullOrEmpty(input) ? "" :
@@ -99,14 +87,7 @@ public class AdvisoryContext
              .Replace("  ", " ")
              .Trim();
 
-    /// <summary>
-    /// Fill blank researcher identity fields from <see cref="ConfigManager.Current"/>.
-    /// Call once after constructing a fresh context (Analyze build, Wizard build) or after
-    /// projecting from a Library record, so renderers never emit "Researcher: ()" when
-    /// the user has set their identity in Configuration. Only blank fields are touched —
-    /// any value the caller already populated wins, which is the contract every advisory
-    /// renderer (GHSA, Markdown) and the persistence layer rely on.
-    /// </summary>
+    /// <summary>Fill blank researcher identity fields from <see cref="ConfigManager.Current"/>; already-populated values are preserved.</summary>
     public void ApplyResearcherFromConfig()
     {
         var r = ConfigManager.Current.Researcher;

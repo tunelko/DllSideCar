@@ -3,11 +3,7 @@ using DllSidecar.Core.Services;
 
 namespace DllSidecar.Core.Tests.Validation;
 
-/// <summary>
-/// Sprint 4A validation: scan a real Adobe Acrobat DC installation and verify
-/// that the scoring model, phantoms, and ProcMon correlation produce coherent results.
-/// Tests skip automatically if Acrobat is not installed.
-/// </summary>
+/// <summary>Sprint 4A validation against a real Acrobat DC install; skips when not installed.</summary>
 public class AdobeAcrobatScanTests
 {
     private const string AcrobatDir = @"C:\Program Files\Adobe\Acrobat DC\Acrobat";
@@ -128,8 +124,6 @@ public class AdobeAcrobatScanTests
 
         var report = ProcmonCorrelator.Correlate(results, procmon);
 
-        // Static scanner phantoms (subdirectory-relative) may not overlap with
-        // ProcMon NAME NOT FOUND entries (runtime-loaded DLLs like AID.dll).
         // When matches exist, verify confidence bumps correctly.
         var matched = results.Existing.Where(c => c.Evidence != null).ToList();
         foreach (var c in matched)

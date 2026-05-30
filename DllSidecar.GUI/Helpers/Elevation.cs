@@ -4,11 +4,7 @@ using DllSidecar.Core.Logging;
 
 namespace DllSidecar.GUI.Helpers;
 
-/// <summary>
-/// Elevation helpers. DllSidecar works unelevated but some detectors (scheduled tasks
-/// under %SystemRoot%\System32\Tasks, service ACLs, some registry keys) return partial
-/// results without admin. The UI surfaces a banner prompting the user to relaunch.
-/// </summary>
+/// <summary>Elevation helpers; some detectors return partial results without admin.</summary>
 public static class Elevation
 {
     private static readonly Lazy<bool> _isElevated = new(ComputeElevated);
@@ -29,10 +25,7 @@ public static class Elevation
         }
     }
 
-    /// <summary>
-    /// Relaunch the current executable with "runas" verb (UAC prompt) and exit the
-    /// current instance. Returns false if the user cancelled UAC or the relaunch failed.
-    /// </summary>
+    /// <summary>Relaunch via "runas" verb and exit; returns false on UAC cancel or failure.</summary>
     public static bool RelaunchElevated()
     {
         try

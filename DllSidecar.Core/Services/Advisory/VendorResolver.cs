@@ -4,12 +4,7 @@ using DllSidecar.Core.Models;
 namespace DllSidecar.Core.Services.Advisory;
 
 /// <summary>
-/// Shared heuristic for resolving a vendor name from a PE's version info. Prefers the
-/// explicit CompanyName over parsing ProductName — CompanyName is what signed binaries
-/// put there ("Blizzard Entertainment, Inc.", "Mobatek", "Microsoft Corporation"), while
-/// ProductName can be anything ("Battle.net Update Agent"). Strips common legal suffixes
-/// so "Blizzard Entertainment, Inc." and "Blizzard Entertainment" cluster together in
-/// the Library tree.
+/// Resolve a vendor name from PE version info; CompanyName preferred, then ProductName first token. Legal suffixes stripped.
 /// </summary>
 public static class VendorResolver
 {
@@ -26,11 +21,7 @@ public static class VendorResolver
     }
 
     /// <summary>
-    /// Best-effort vendor lookup from a file path. Priority:
-    ///   1. Authenticode certificate Subject CN (most authoritative — cryptographically bound to publisher identity)
-    ///   2. PE version info CompanyName (self-reported, unsigned-file fallback)
-    ///   3. PE version info ProductName first token (last resort)
-    /// Returns null when the file is unreachable or has no usable signal. Always safe.
+    /// Vendor lookup from a file path: Authenticode Subject CN -> CompanyName -> ProductName first token.
     /// </summary>
     public static string? ResolveFromFile(string filePath)
     {
@@ -42,10 +33,7 @@ public static class VendorResolver
             if (!string.IsNullOrWhiteSpace(signing.SubjectCommonName))
                 return Normalize(signing.SubjectCommonName!);
         }
-        catch
-        {
-            // Authenticode path may throw on weird/corrupt PE files — fall through to version info.
-        }
+        catch { /* fall through to version info */ }
 
         try
         {

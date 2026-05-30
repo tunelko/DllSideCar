@@ -6,11 +6,7 @@ using DllSidecar.Core.Models.Cve;
 
 namespace DllSidecar.Core.Services.Cve;
 
-/// <summary>
-/// Disk cache for NVD responses. 24h TTL — NVD updates roughly daily, and we want to be
-/// a well-behaved API consumer. Keyed by SHA256 of the query string to keep filenames
-/// filesystem-safe.
-/// </summary>
+/// <summary>Disk cache for NVD responses (24h TTL, SHA256-keyed filenames).</summary>
 public static class CveCache
 {
     public static TimeSpan DefaultTtl { get; set; } = TimeSpan.FromHours(24);

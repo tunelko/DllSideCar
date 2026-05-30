@@ -4,12 +4,7 @@ using DllSidecar.Core.Configuration;
 
 namespace DllSidecar.GUI.Views;
 
-/// <summary>
-/// First-run landing page. Shown when AppConfig.WelcomeSeen is false (fresh install
-/// or after PostInstallReset clears the flag on a version transition). Points the
-/// researcher at Configuration first so the tool paths are set before the wizard
-/// asks them to compile or run analysis. Either button marks the welcome as seen.
-/// </summary>
+/// <summary>First-run landing page. Either button marks WelcomeSeen.</summary>
 public partial class WelcomePage : Page
 {
     private readonly MainWindow _main;

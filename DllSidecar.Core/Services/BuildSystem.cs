@@ -81,9 +81,7 @@ public static class BuildSystem
             foreach (var inc in includeDirs)
                 args.AddRange(new[] { "-I", inc });
 
-        // user32/kernel32/advapi32 cover almost every payload. extraLibs lets
-        // callers tack on payload-specific imports (e.g. ws2_32 for ReverseShell
-        // when the trace code calls WSAGetLastError directly, not via GetProcAddress).
+        // Baseline libs; extraLibs covers payload-specific imports (e.g. ws2_32).
         args.AddRange(new[] { "-luser32", "-lkernel32", "-ladvapi32" });
         if (extraLibs != null)
             foreach (var lib in extraLibs)
@@ -154,9 +152,7 @@ public static class BuildSystem
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        // ArgumentList is individually escaped per-arg by the runtime — no shell interpolation,
-        // no quoting issues with spaces/quotes/backslashes in file paths. Safer than joining
-        // into a single Arguments string.
+        // ArgumentList escapes per-arg; safer than a joined Arguments string.
         foreach (var a in args) psi.ArgumentList.Add(a);
 
         // Add MinGW to PATH so child linker finds cc1.exe, libgcc, etc.

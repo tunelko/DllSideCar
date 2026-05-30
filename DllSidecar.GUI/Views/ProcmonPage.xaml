@@ -11,6 +11,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -106,8 +107,36 @@
             </Border>
         </Grid>
 
+        <!-- Elevation transition banner — visible when a UAC handoff was detected. -->
+        <Border Grid.Row="4" x:Name="ElevationBanner" Visibility="Collapsed"
+                Background="{StaticResource Mantle}" BorderBrush="{StaticResource Red}"
+                BorderThickness="1,1,1,3" CornerRadius="6" Padding="14,10" Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Foreground="{StaticResource Red}" FontWeight="Bold" FontSize="11"
+                               FontFamily="{StaticResource FontMono}" Text="UAC ELEVATION TRANSITION DETECTED"/>
+                    <TextBlock x:Name="ElevationBannerText" Foreground="{StaticResource Text}"
+                               FontFamily="{StaticResource FontMono}" FontSize="12" Margin="0,4,0,0"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Foreground="{StaticResource Overlay}" FontSize="10" Margin="0,4,0,0"
+                               TextWrapping="Wrap"
+                               Text="DLLs searched by the elevated child are privesc candidates. The verdict for those rows reflects the maximum score and an explicit elevation factor."/>
+                </StackPanel>
+                <Button Grid.Column="1" x:Name="PromotePrivescBtn" VerticalAlignment="Center"
+                        Margin="14,0,0,0" Padding="12,6" Click="PromotePrivesc_Click"
+                        Content="&#x2197;  Promote privesc"
+                        Style="{StaticResource AccentButton}"
+                        IsEnabled="False"
+                        ToolTip="Show the privilege-escalation chain explanation and promote the top carrier DLL"/>
+            </Grid>
+        </Border>
+
         <!-- Grid + details -->
-        <Grid Grid.Row="4">
+        <Grid Grid.Row="5">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="3*"/>
                 <ColumnDefinition Width="2*"/>
@@ -166,8 +195,7 @@
                                                     SortMemberPath="VerdictSortKey">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <!-- Same VerdictBadge used by AnalyzePage and ScanPage —
-                                             collapses Mode + Writability into the unified tier. -->
+                                        <!-- Shared VerdictBadge: Mode + Writability into unified tier. -->
                                         <ctrl:VerdictBadge Verdict="{Binding Verdict}"
                                                            VerticalAlignment="Center"
                                                            HorizontalAlignment="Left"/>
@@ -179,11 +207,7 @@
                             <DataGridTextColumn Header="Writable" Binding="{Binding WritabilityLabel}" Width="100"
                                                 SortMemberPath="WritabilityLabel">
                                 <DataGridTextColumn.ElementStyle>
-                                    <!-- Inlined here on purpose. DataGridColumn isn't in the visual
-                                         tree, so resources lifted into DataGrid.Resources or
-                                         Page.Resources sometimes silently fail to resolve from
-                                         column-level {StaticResource} references depending on the
-                                         WPF build. Inline keeps the lookup local and bulletproof. -->
+                                    <!-- Inlined: DataGridColumn isn't in visual tree, resource lookup can fail. -->
                                     <Style TargetType="TextBlock">
                                         <Setter Property="FontWeight" Value="SemiBold"/>
                                         <Style.Triggers>
@@ -295,7 +319,7 @@
         </Grid>
 
         <!-- Footer: status left, post-parse actions right (mirrors ScanPage layout) -->
-        <Grid Grid.Row="5" Margin="0,10,0,0">
+        <Grid Grid.Row="6" Margin="0,10,0,0">
             <TextBlock x:Name="Status" HorizontalAlignment="Left" VerticalAlignment="Center"
                        Foreground="{StaticResource Overlay}" FontSize="12" TextTrimming="CharacterEllipsis"
                        Text="Ready. Export from ProcMon with File → Save → CSV after applying your filter."/>

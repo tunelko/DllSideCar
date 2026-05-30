@@ -1,9 +1,6 @@
 namespace DllSidecar.Core.Models.Cve;
 
-/// <summary>
-/// How closely a CVE matches the target being analyzed. Drives the severity badge
-/// in the UI and whether the researcher should consider this a likely duplicate.
-/// </summary>
+/// <summary>How closely a CVE matches the target being analyzed.</summary>
 public enum MatchConfidence
 {
     /// <summary>No meaningful connection — keyword coincidence only.</summary>

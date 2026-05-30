@@ -14,7 +14,6 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header row: label + status pill -->
         <StackPanel Grid.Row="0" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="0,0,0,4">
             <TextBlock x:Name="LabelText" Text="Tool"
                        FontSize="11" FontWeight="SemiBold"
@@ -33,7 +32,6 @@
                        TextTrimming="CharacterEllipsis" MaxWidth="380"/>
         </StackPanel>
 
-        <!-- Path input + buttons -->
         <TextBox x:Name="PathBox" Grid.Row="1" Grid.Column="0"
                  FontFamily="{StaticResource FontMono}" FontSize="11"
                  TextChanged="PathBox_TextChanged"/>

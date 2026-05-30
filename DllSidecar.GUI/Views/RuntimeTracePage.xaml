@@ -34,6 +34,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -58,10 +59,7 @@
             <Border Grid.Column="0" Style="{StaticResource GroupCard}" Margin="0,0,10,0">
                 <StackPanel>
                     <TextBlock Text="TARGET" Style="{StaticResource GroupLabel}" Margin="0,0,0,6"/>
-                    <!-- Segmented mode bar — pills sized to content, hugged
-                         left. Same visual chrome as IL/FILTERS but compact
-                         instead of stretched, since the labels are short and
-                         a full-width bar wastes the rest of the card. -->
+                    <!-- Segmented mode bar — compact pills hugged left. -->
                     <Border Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
                             BorderThickness="1" CornerRadius="6" HorizontalAlignment="Left"
                             Margin="0,0,0,8">
@@ -127,9 +125,7 @@
                                 Style="{StaticResource IconButton}" Margin="6,0,0,0"
                                 Click="PickSvc_Click" ToolTip="Pick service — fills name + sc stop/start command"
                                 Visibility="Collapsed"/>
-                        <!-- REC badge — visible while ETW session is active. Red dot
-                             pulses 1 → 0.3 → 1 (1s loop, autoreverse) so the user
-                             always sees a clear "we're capturing" cue next to Stop. -->
+                        <!-- REC badge — visible while ETW session is active; red dot pulses. -->
                         <StackPanel x:Name="RecBadge" Grid.Column="4" Orientation="Horizontal"
                                     VerticalAlignment="Center" Margin="10,0,4,0"
                                     Visibility="Collapsed">
@@ -153,10 +149,7 @@
                                 Style="{StaticResource IconButton}" Margin="6,0,0,0"
                                 Click="Trace_Click" ToolTip="Start trace"/>
                     </Grid>
-                    <!-- Watch mode: trigger CMD + optional MATCH filter on the
-                         same row, labels above their textboxes. CMD gets 2x
-                         the width since shell chains (net stop X & net start X)
-                         are usually longer than the '-s ServiceName' MATCH. -->
+                    <!-- Watch mode: trigger CMD + optional MATCH filter on same row. -->
                     <Grid x:Name="WatchCmdRow" Visibility="Collapsed" Margin="0,6,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="2*"/>
@@ -277,8 +270,36 @@
             </Border>
         </Grid>
 
+        <!-- Elevation transition banner — visible when a UAC handoff was detected. -->
+        <Border Grid.Row="4" x:Name="ElevationBanner" Visibility="Collapsed"
+                Background="{StaticResource Mantle}" BorderBrush="{StaticResource Red}"
+                BorderThickness="1,1,1,3" CornerRadius="6" Padding="14,10" Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Foreground="{StaticResource Red}" FontWeight="Bold" FontSize="11"
+                               FontFamily="{StaticResource FontMono}" Text="UAC ELEVATION TRANSITION DETECTED"/>
+                    <TextBlock x:Name="ElevationBannerText" Foreground="{StaticResource Text}"
+                               FontFamily="{StaticResource FontMono}" FontSize="12" Margin="0,4,0,0"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Foreground="{StaticResource Overlay}" FontSize="10" Margin="0,4,0,0"
+                               TextWrapping="Wrap"
+                               Text="DLLs searched by the elevated child are privesc candidates. Their row verdict reflects the maximum score and an explicit elevation factor."/>
+                </StackPanel>
+                <Button Grid.Column="1" x:Name="PromotePrivescBtn" VerticalAlignment="Center"
+                        Margin="14,0,0,0" Padding="12,6" Click="PromotePrivesc_Click"
+                        Content="&#x2197;  Promote privesc"
+                        Style="{StaticResource AccentButton}"
+                        IsEnabled="False"
+                        ToolTip="Show the privilege-escalation chain explanation and select the top carrier DLL for promotion"/>
+            </Grid>
+        </Border>
+
         <!-- Main content: Process tree (left) + DLL grid + details (right) -->
-        <Grid Grid.Row="4">
+        <Grid Grid.Row="5">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="240" MinWidth="160"/>
                 <ColumnDefinition Width="3*"/>
@@ -373,8 +394,7 @@
                                                 SortMemberPath="VerdictSortKey">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <!-- Same VerdictBadge as the other three pages —
-                                         tier chip + score with full pros/cons tooltip. -->
+                                    <!-- Shared VerdictBadge: tier chip + score with tooltip. -->
                                     <ctrl:VerdictBadge Verdict="{Binding Verdict}"
                                                        VerticalAlignment="Center"
                                                        HorizontalAlignment="Left"/>
@@ -484,7 +504,7 @@
         </Grid>
 
         <!-- Footer: status + actions -->
-        <Grid Grid.Row="5" Margin="0,10,0,0">
+        <Grid Grid.Row="6" Margin="0,10,0,0">
             <TextBlock x:Name="Status" HorizontalAlignment="Left" VerticalAlignment="Center"
                        Foreground="{StaticResource Overlay}" FontSize="12"
                        Text="Ready. Choose Launch EXE, Attach to PID, or Watch by Name."/>

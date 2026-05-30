@@ -64,9 +64,7 @@
             </ItemsControl>
         </Border>
 
-        <!-- HUNTING FOR — slim wizard-wide goal selector. Lives between the
-             stage indicator and the stage content so the goal is always
-             visible, doesn't waste vertical space inside any single stage. -->
+        <!-- HUNTING FOR — wizard-wide goal selector, visible across all stages. -->
         <Border Grid.Row="2" Background="{StaticResource Mantle}" BorderBrush="{StaticResource Ring}"
                 BorderThickness="1" CornerRadius="6" Padding="14,8" Margin="0,0,0,10">
             <Grid>
@@ -121,9 +119,7 @@
             </StackPanel>
         </Border>
 
-        <!-- Nav footer — session reset moved to the global menu bar (File → Delete Session
-             and the "Delete session" chip). The wizard's own Discard button was removed
-             to avoid duplicating the unified session controls. -->
+        <!-- Nav footer — session reset lives on the global menu bar. -->
         <Grid Grid.Row="5" Margin="0,10,0,0">
             <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                 <Button x:Name="BackBtn" Content="← Back" Style="{StaticResource SecondaryButton}"

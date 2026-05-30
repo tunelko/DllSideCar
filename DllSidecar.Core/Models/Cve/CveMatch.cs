@@ -1,9 +1,6 @@
 namespace DllSidecar.Core.Models.Cve;
 
-/// <summary>
-/// A single CVE entry as returned by the NVD API, enriched with our own match
-/// confidence assessment against the target PE.
-/// </summary>
+/// <summary>A single NVD CVE entry, enriched with match-confidence against the target PE.</summary>
 public class CveMatch
 {
     public required string CveId { get; set; }                  // "CVE-2024-30283"

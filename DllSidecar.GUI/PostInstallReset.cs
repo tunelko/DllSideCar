@@ -6,30 +6,7 @@ using DllSidecar.Core.Services.Wizard;
 
 namespace DllSidecar.GUI;
 
-/// <summary>
-/// Runs once per (re)install. The installer drops {app}\.install-marker.txt with
-/// the version on every install. App startup compares that marker against the
-/// last-launched-version recorded in %APPDATA%\DllSidecar\.last-launched-version;
-/// when they differ (fresh install OR upgrade), per-user state that should not
-/// carry over between releases is wiped:
-///
-///   · advisories\library.db       — SQLite library, fully reset
-///   · config.Researcher           — Name / Handle / Blog / Email / PGP fields cleared
-///   · config.Tools.NvdApiKey      — researcher-specific NVD API key cleared
-///   · config.WelcomeSeen          — reset so the next launch shows the welcome screen
-///   · %LOCALAPPDATA%\DllSidecar\app_session.json + wizard_session.json + etw_result.json
-///                                  — stale snapshots from a previous version would
-///                                  otherwise resume the wizard mid-step with no data
-///
-/// Preserved (these are environment, not identity):
-///   · Tools paths (sysinternals, procmon, sigcheck, x64dbg …)
-///   · MSYS / MinGW paths
-///   · UI state (last paths, window sizes, console height …)
-///   · XOR preset keys
-///
-/// Dev mode never sees the marker (installer doesn't run in dev), so the reset
-/// is a no-op there — researcher config persists across dotnet run invocations.
-/// </summary>
+/// <summary>Runs once per install: wipes advisory DB, researcher identity, NVD key, sessions, welcome flag.</summary>
 internal static class PostInstallReset
 {
     private static readonly string MarkerPath = Path.Combine(
@@ -75,8 +52,7 @@ internal static class PostInstallReset
                 File.Delete(db);
                 Log.Info("post-install", $"deleted {db}");
             }
-            // SQLite WAL/SHM siblings — leftovers from an open connection would
-            // otherwise resurrect the deleted DB on next open.
+            // SQLite WAL/SHM siblings.
             foreach (var sidecar in new[] { db + "-wal", db + "-shm", db + "-journal" })
                 if (File.Exists(sidecar)) File.Delete(sidecar);
         }
@@ -99,11 +75,6 @@ internal static class PostInstallReset
 
     private static void ClearSessionSnapshots()
     {
-        // app_session.json + wizard_session.json + companion etw_result.json all live
-        // under %LOCALAPPDATA%\DllSidecar\. The Inno [UninstallDelete] section only
-        // touches files in {app}, so without this an upgrade leaves the wizard
-        // snapshot in place — silently restored on next launch — and WizardPage
-        // opens mid-step on what the user expected to be a clean install.
         try
         {
             AppSessionStore.DeleteAll();

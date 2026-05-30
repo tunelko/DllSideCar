@@ -5,29 +5,7 @@ using DllSidecar.GUI.Views;
 
 namespace DllSidecar.GUI;
 
-/// <summary>
-/// Probes the host for MinGW-w64 (gcc + windres) at startup. When the
-/// compilers are missing, surfaces a modal warning that tells the
-/// researcher exactly which toolchain is missing and offers a one-click
-/// shortcut to the build-prerequisites section of the project README.
-///
-/// Rationale: the application's compile flow (GeneratePage / BuildPage /
-/// AutoBuild) silently fails when gcc is not on the system. Without an
-/// upfront check the user discovers the missing toolchain at the worst
-/// possible moment — after spending time on PE analysis, payload picks,
-/// and evasion configuration. This check fires once per session, never
-/// blocks startup, and goes away automatically the moment a working
-/// MSYS2/MinGW install is found on PATH.
-///
-/// Design choices:
-///   · Warns about x64 AND x86 — both architectures are first-class
-///     code-gen targets; missing either is a defect the researcher
-///     should know about up-front.
-///   · No persistent "skip" flag. The warning only surfaces when the
-///     toolchain is genuinely missing; installing MSYS2 resolves it.
-///   · Runs on the UI thread via Dispatcher because BuildSystem.FindGcc
-///     does cheap File.Exists probes — no async overhead needed here.
-/// </summary>
+/// <summary>Probes for MinGW-w64 (gcc + windres) at startup and warns if missing.</summary>
 internal static class CompilerHealthCheck
 {
     private const string RepoUrl =
@@ -39,7 +17,6 @@ internal static class CompilerHealthCheck
         var gcc32 = BuildSystem.FindGcc("x86");
         var windres = BuildSystem.FindWindres("x64") ?? BuildSystem.FindWindres("x86");
 
-        // Nothing to warn about — both compilers resolved.
         if (gcc64 != null && gcc32 != null) return;
 
         var sb = new System.Text.StringBuilder();
@@ -76,7 +53,6 @@ internal static class CompilerHealthCheck
             }
             catch (System.ComponentModel.Win32Exception)
             {
-                // Browser refused to launch — degrade to a copy-paste hint.
                 AppDialog.Show(owner,
                     $"Open this URL manually:\n\n{RepoUrl}",
                     "DllSidecar",

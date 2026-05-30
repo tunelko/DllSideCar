@@ -3,21 +3,14 @@ using System.Windows.Media;
 
 namespace DllSidecar.GUI.Views;
 
-/// <summary>
-/// Drop-in replacement for <see cref="MessageBox"/> with the app's dark theme.
-/// Mirrors the static Show(...) overloads so callers can swap the type name and
-/// keep the rest of the call site unchanged. The window itself is just a thin
-/// chrome around a header (glyph + title), a body TextBlock, and a button strip
-/// built dynamically from the requested <see cref="MessageBoxButton"/>.
-/// </summary>
+/// <summary>Drop-in replacement for <see cref="MessageBox"/> with the app's dark theme; mirrors Show(...) overloads.</summary>
 public partial class AppDialog : Window
 {
     private MessageBoxResult _result = MessageBoxResult.None;
 
     private AppDialog() { InitializeComponent(); }
 
-    // Title-strip close button. Sets result to Cancel (or None for OK-only dialogs)
-    // so callers reading the result don't get a false-OK from clicking the X.
+    // Close X sets Cancel so callers don't read a false-OK.
     private void Close_Click(object sender, RoutedEventArgs e)
     {
         if (_result == MessageBoxResult.None)
@@ -80,13 +73,7 @@ public partial class AppDialog : Window
         _ => MessageBoxResult.None,
     };
 
-    /// <summary>
-    /// Like <see cref="Show(Window?,string,string,MessageBoxButton,MessageBoxImage,MessageBoxResult)"/>
-    /// but with caller-supplied button labels. Useful when the standard "Yes/No/Cancel"
-    /// wording doesn't carry the action intent (e.g. "Yes, Store" / "No, Discard" /
-    /// "Cancel, Stay" for the exit prompt). Pass null for <paramref name="cancelLabel"/>
-    /// to render a two-button dialog mapped to Yes/No only.
-    /// </summary>
+    /// <summary>Like <see cref="Show(Window?,string,string,MessageBoxButton,MessageBoxImage,MessageBoxResult)"/> with caller-supplied button labels; pass null cancelLabel for a Yes/No dialog.</summary>
     public static MessageBoxResult ShowCustom(
         Window? owner, string text, string caption,
         string yesLabel, string noLabel, string? cancelLabel,

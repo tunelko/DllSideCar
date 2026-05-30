@@ -13,9 +13,38 @@ public class DirectoryPermissions
     public List<string> WritableBy { get; set; } = [];
     public string? Error { get; set; }
 
-    public bool IsUserWritable =>
-        UsersWrite || EveryoneWrite || AuthenticatedUsersWrite || CurrentUserWrite;
+    /// <summary>
+    /// Effective writability for the targeted user. When the host process is elevated, the
+    /// CurrentUserWrite probe overstates (admin can write to System32) — drop that signal and
+    /// fall back to DACL-explicit grants plus any non-admin SID listed in <see cref="WritableBy"/>
+    /// (which covers owner-only grants like portable installs in the user profile).
+    /// </summary>
+    public bool IsUserWritable
+    {
+        get
+        {
+            if (UsersWrite || EveryoneWrite || AuthenticatedUsersWrite) return true;
+            if (WritableBy.Count > 0) return true;
+            if (CurrentUserWrite && !ProcessElevation.IsElevated) return true;
+            return false;
+        }
+    }
 
     public bool IsLowPrivWritable =>
         UsersWrite || EveryoneWrite || AuthenticatedUsersWrite;
+}
+
+internal static class ProcessElevation
+{
+    public static bool IsElevated { get; } = ComputeElevated();
+    private static bool ComputeElevated()
+    {
+        try
+        {
+            using var id = System.Security.Principal.WindowsIdentity.GetCurrent();
+            var principal = new System.Security.Principal.WindowsPrincipal(id);
+            return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+        }
+        catch { return false; }
+    }
 }

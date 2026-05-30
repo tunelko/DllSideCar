@@ -6,12 +6,7 @@ public enum EvidenceSource
     RuntimeTrace,
 }
 
-/// <summary>
-/// Ground-truth evidence that the loader actually attempted to resolve this DLL at runtime.
-/// Attached to a SideloadCandidate or PhantomCandidate after correlation (ProcMon CSV) or
-/// live tracing (ETW). Presence of evidence raises the Confidence axis of ScoreBreakdown;
-/// it never affects Exploitability or Impact.
-/// </summary>
+/// <summary>Runtime evidence that the loader attempted to resolve this DLL; raises the Confidence axis only.</summary>
 public class DynamicEvidence
 {
     public required string DllName { get; set; }
@@ -29,17 +24,10 @@ public class DynamicEvidence
 
     public bool IsRuntimeObserved => Source == EvidenceSource.RuntimeTrace;
 
-    /// <summary>
-    /// All evidence is metadata probes — the loader never attempted a real open on
-    /// this DLL. Indicates app-internal PATH enumeration, not a sideload primitive.
-    /// </summary>
+    /// <summary>All evidence is metadata probes; no real loader open occurred.</summary>
     public bool IsProbeOnly => LoaderLikeEventCount == 0 && MetadataProbeEventCount > 0;
 
-    /// <summary>
-    /// User-facing access label mirroring ProcMon's <c>Options:</c> field. One of
-    /// <see cref="AccessClassLabels.Load"/>, <see cref="AccessClassLabels.Probe"/>,
-    /// <see cref="AccessClassLabels.Mixed"/>, or empty when the events were Unknown.
-    /// </summary>
+    /// <summary>User-facing access label mirroring ProcMon's <c>Options:</c> field.</summary>
     public string AccessLabel => AccessClassLabels.FromCounts(LoaderLikeEventCount, MetadataProbeEventCount);
 
     /// <summary>Match quality heuristic — 1.0 means DLL+dir matched, 0.6 means only name.</summary>

@@ -10,8 +10,7 @@ public class AccessClassifierTests
     [Fact]
     public void Classify_Detail_MobaXtermProbe_ReturnsMetadataProbe()
     {
-        // Real Detail string from MobaXterm 26.4 Preview1 trace (cygwin1.dll probe).
-        // Pure GetFileAttributes-class call: Read Attributes only, Open Reparse Point.
+        // Real Detail from MobaXterm 26.4 Preview1 trace (cygwin1.dll probe).
         const string detail =
             "Desired Access: Read Attributes, Disposition: Open, Options: Open Reparse Point, " +
             "Attributes: n/a, ShareMode: Read, Write, Delete, AllocationSize: n/a";
@@ -22,7 +21,7 @@ public class AccessClassifierTests
     [Fact]
     public void Classify_Detail_LoaderImageOpen_ReturnsLoaderLike()
     {
-        // Canonical Windows loader image-map CreateFile shape.
+        // Canonical loader image-map CreateFile shape.
         const string detail =
             "Desired Access: Read Data/List Directory, Read Attributes, Synchronize, " +
             "Disposition: Open, Options: Synchronous IO Non-Alert, Non-Directory File, " +
@@ -57,9 +56,7 @@ public class AccessClassifierTests
     [Fact]
     public void Classify_Detail_LoadOptionsAlone_ReturnsLoaderLike()
     {
-        // Even with only Read Attributes in Desired Access, the combo of
-        // Non-Directory File + Synchronous IO Non-Alert in Options is the
-        // loader's image-map shape and should classify as LoaderLike.
+        // Loader's image-map Options shape classifies as LoaderLike.
         const string detail =
             "Desired Access: Read Attributes, Disposition: Open, " +
             "Options: Synchronous IO Non-Alert, Non-Directory File, " +
@@ -92,9 +89,7 @@ public class AccessClassifierTests
     [Fact]
     public void ParseDetail_HandlesCommasInsideShareMode()
     {
-        // "ShareMode: Read, Write, Delete" contains commas inside the value.
-        // The splitter must NOT cut on those — it must use the next field key
-        // (AllocationSize) as the boundary.
+        // ShareMode commas must NOT split fields; AllocationSize is the boundary.
         const string detail =
             "Desired Access: Read Attributes, Disposition: Open, Options: Open Reparse Point, " +
             "Attributes: n/a, ShareMode: Read, Write, Delete, AllocationSize: n/a";
@@ -128,10 +123,7 @@ public class AccessClassifierTests
     [Fact]
     public void Classify_CreateOptions_LoaderShapeWithReparsePoint_NotProbe()
     {
-        // If both load flags AND reparse point appear, treat as Unknown (not probe).
-        // The reparse-point flag in combination with load flags is uncommon but the
-        // semantics aren't a pure metadata probe; demoting to Unknown keeps it
-        // conservative (caller defaults Unknown to LoaderLike).
+        // Load flags + reparse-point together demote to Unknown (not probe).
         uint opts = AccessClassifier.FILE_NON_DIRECTORY_FILE
                   | AccessClassifier.FILE_SYNCHRONOUS_IO_NONALERT
                   | AccessClassifier.FILE_OPEN_REPARSE_POINT;

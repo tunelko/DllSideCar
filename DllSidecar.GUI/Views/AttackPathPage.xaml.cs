@@ -14,24 +14,7 @@ using HAlign = System.Windows.HorizontalAlignment;
 
 namespace DllSidecar.GUI.Views;
 
-/// <summary>
-/// Horizontal timeline visualization of the discovery → exploitability flow
-/// for the candidate currently focused in MainWindow.CurrentAttackFocus.
-///
-/// Layout:
-///   • Header strip (in XAML) — title, source badge, candidate identity, severity badge
-///   • Phase row (PhaseGrid) — 5 columns: Discovery / Static / Dynamic / Privesc / Score
-///       each is a small evidence card with bullet items, click → deep-link to source
-///   • Attack chain (ChainCanvas) — 5 pills laid out horizontally with connector arrows:
-///       WRITE → LOAD → TRIGGER → PRIV → EVIDENCE
-///       chain-coloured glow, EVIDENCE pulses when DynamicEvidence is attached
-///
-/// Reveal animation:
-///   • Phase columns slide-up + fade-in left-to-right (80ms stagger)
-///   • Chain pills appear in chain order (100ms stagger, starting after phases)
-///   • Connector lines fade in last
-///   • Hover bumps drop-shadow opacity. Click routes to relevant deep-link.
-/// </summary>
+/// <summary>Horizontal timeline visualization of the discovery → exploitability flow for the focused candidate.</summary>
 public partial class AttackPathPage : Page
 {
     private readonly MainWindow _main;
@@ -103,15 +86,12 @@ public partial class AttackPathPage : Page
         LayoutChainCanvas();
         if (!_chainResizeWired)
         {
-            // Pills + connectors are positioned by absolute canvas coordinates so they
-            // need re-layout on width changes. SizeChanged is the right trigger; first
-            // pass also fires during the initial layout so the diagram appears.
+            // Re-layout on width changes (absolute canvas coords).
             ChainCanvas.SizeChanged += (_, _) => LayoutChainCanvas();
             _chainResizeWired = true;
         }
 
-        // Defer animations until layout settles — the columns + chain pills must be
-        // measured before the opacity-from-zero animations look right.
+        // Defer animations until layout settles.
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
             new Action(() =>
             {
@@ -228,8 +208,7 @@ public partial class AttackPathPage : Page
         }
         else
         {
-            // SCORE column gets bar visualisations alongside the text. Other phases
-            // are bullet lines.
+            // SCORE column uses bar visualisations; others use bullet lines.
             if (phase.IsScore)
             {
                 AppendScoreBars(stack);
@@ -482,8 +461,7 @@ public partial class AttackPathPage : Page
 
     private void DrawChainConnector(double x1, double x2, double y, string fromColor, string toColor, bool hasFlow)
     {
-        // Gradient line + chevron tip. When hasFlow is false we dim and dash so the
-        // user sees the structure but reads it as 'no data flowing here yet'.
+        // Gradient line + chevron tip; dimmed/dashed when no flow.
         var gradient = new LinearGradientBrush
         {
             StartPoint = new Point(0, 0),
@@ -523,12 +501,7 @@ public partial class AttackPathPage : Page
 
     // ─────────────────── Animation ───────────────────
 
-    /// <summary>
-    /// Reveal: phase columns slide-up + fade left-to-right; chain pills appear in
-    /// chain order; connectors fade in last. Cubic ease-out. Each element gets
-    /// its initial Opacity to 0 (and TranslateTransform.Y to a small positive
-    /// offset for columns/pills) before the storyboard fires.
-    /// </summary>
+    /// <summary>Reveal animation: phase columns + chain pills slide-up/fade, connectors fade in last.</summary>
     private void AnimateReveal()
     {
         // Phase columns — left-to-right stagger.
@@ -790,13 +763,7 @@ public partial class AttackPathPage : Page
         }
         if (_focus.Phantom != null)
         {
-            // Importer EXE path is the first preference (analyzing the binary
-            // that imports the phantom is the actionable next step). But ETW
-            // process events frequently expose only ProcessName as ProcessImagePath,
-            // so ImporterRef.ExePath can be a bare filename like "Battle.net.exe".
-            // When that's the case fall back to the phantom's synthesized path
-            // (DirectoryPath + DllName) so AnalyzePage's FilePathBox shows a
-            // full path the user can act on, not a stranded filename.
+            // Prefer importer EXE; fall back to phantom synthesized path when bare.
             string? target = null;
             var imp = _focus.Phantom.Importers.FirstOrDefault();
             if (imp != null && !string.IsNullOrEmpty(imp.ExePath)

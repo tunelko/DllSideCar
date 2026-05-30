@@ -5,14 +5,7 @@ using Brush = System.Windows.Media.Brush;
 
 namespace DllSidecar.GUI.Controls;
 
-/// <summary>
-/// Reusable badge that renders a <see cref="ExploitabilityVerdict"/> as a
-/// single colored chip + tooltip with pros/cons. Bind the
-/// <see cref="Verdict"/> dependency property from any consumer; the badge
-/// repaints itself when the value changes. Same control on AnalyzePage,
-/// ScanPage, ProcmonPage and RuntimeTracePage — closes the loop on
-/// cross-surface visual consistency.
-/// </summary>
+/// <summary>Renders an <see cref="ExploitabilityVerdict"/> as a colored chip + pros/cons tooltip.</summary>
 public partial class VerdictBadge : System.Windows.Controls.UserControl
 {
     public VerdictBadge() { InitializeComponent(); }
@@ -46,9 +39,7 @@ public partial class VerdictBadge : System.Windows.Controls.UserControl
         BadgeBorder.Visibility = Visibility.Visible;
         BadgeText.Text = $"{v.TierLabel}  {v.Score}/10";
 
-        // Tier → palette. Same color mapping AnalyzePage already used in
-        // RenderVerdict, lifted into a single place so future tier
-        // additions update everywhere at once.
+        // Tier -> palette.
         var (bgKey, fgKey) = v.Tier switch
         {
             ExploitabilityTier.Real          => ("Phosphor", "Base"),

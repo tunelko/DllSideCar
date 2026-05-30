@@ -5,17 +5,12 @@ using DllSidecar.Core.Models.Cve;
 namespace DllSidecar.Core.Services.Cve;
 
 /// <summary>
-/// High-level CVE dedup: extracts relevant keywords from a PE analysis (vendor, product,
-/// filename), queries NVD, scores matches against our target by confidence, and returns
-/// a ranked CveQueryResult. Cache-first — honors the BLOCKING dedup rule from CLAUDE.md.
+/// Cache-first NVD CVE dedup; ranks matches by confidence.
 /// </summary>
 public static class CveDedupService
 {
     /// <summary>
-    /// Query NVD for CVEs related to this PE. Builds two searches:
-    ///   1. "{vendor} {product} dll hijacking" — targeted
-    ///   2. "{vendor} {product} sideloading"   — alternate wording (only if 1 yielded few)
-    /// Combines + dedups results, then scores confidence per match.
+    /// Query NVD with "{vendor} {product} dll hijacking" + optional "sideloading" fallback; dedup and score.
     /// </summary>
     public static async Task<CveQueryResult> QueryAsync(PeAnalysis pe, CancellationToken ct = default)
     {
@@ -131,13 +126,11 @@ public static class CveDedupService
     }
 
     /// <summary>
-    /// Reduce CompanyName to something NVD understands. "Adobe Inc." → "adobe".
-    /// NVD's keyword search is permissive — we pass through but clean the obvious noise.
+    /// Reduce to a first-word vendor token (e.g. "Adobe Inc." -> "adobe").
     /// </summary>
     private static string NormalizeVendor(PeAnalysis pe)
     {
-        var raw = pe.ProductName; // CompanyName isn't exposed in PeAnalysis yet — use ProductName's first word as vendor proxy
-        // In practice vendor often sneaks into ProductName ("Adobe Acrobat Reader"). Take first word as vendor hint.
+        var raw = pe.ProductName;
         if (string.IsNullOrWhiteSpace(raw)) return "";
         var firstWord = raw.Split(new[] { ' ', '_', '-' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
         return firstWord.Trim().Trim('"');
