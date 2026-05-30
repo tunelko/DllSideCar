@@ -43,13 +43,13 @@
 
                     <TextBlock Foreground="{StaticResource Red}" FontSize="15" Margin="0,16,0,6"
                                FontWeight="Bold" FontFamily="{StaticResource FontConsole}"
-                               Text="CADENA DE EXPLOTACION"/>
+                               Text="EXPLOITATION CHAIN"/>
                     <TextBlock x:Name="CarrierHandoffObservation" Foreground="{StaticResource Subtext}" FontSize="13"
                                LineHeight="20" LineStackingStrategy="BlockLineHeight"
                                TextWrapping="Wrap" FontFamily="{StaticResource FontConsole}" Margin="0,0,0,10"/>
                     <TextBlock Foreground="{StaticResource Red}" FontSize="15" Margin="0,0,0,6"
                                FontWeight="Bold" FontFamily="{StaticResource FontConsole}"
-                               Text="PASOS DEL ATAQUE"/>
+                               Text="ATTACK STEPS"/>
                     <TextBlock x:Name="CarrierHandoffSteps" Foreground="{StaticResource Subtext}" FontSize="13"
                                LineHeight="20" LineStackingStrategy="BlockLineHeight"
                                TextWrapping="Wrap" FontFamily="{StaticResource FontConsole}"/>

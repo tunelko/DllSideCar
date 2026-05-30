@@ -48,26 +48,26 @@ public partial class PrivescPage : Page
 
         var top = h.Carriers[0];
         CarrierHandoffHeader.Text =
-            $"Fuente            {h.SourceLabel}\n" +
-            $"Transicion        {(string.IsNullOrEmpty(h.TransitionSummary) ? "n/d" : h.TransitionSummary)}\n" +
-            $"Portadora top     {top.DllName}\n" +
-            $"Slot escribible   {top.PlantSlot}";
+            $"Source           {h.SourceLabel}\n" +
+            $"Transition       {(string.IsNullOrEmpty(h.TransitionSummary) ? "n/a" : h.TransitionSummary)}\n" +
+            $"Top carrier      {top.DllName}\n" +
+            $"Writable slot    {top.PlantSlot}";
 
         CarrierHandoffObservation.Text =
-            $"El proceso elevado por UAC busca {top.DllName} en {top.PlantSlot} y no la encuentra. " +
-            "El directorio es escribible para el usuario actual sin permisos de administrador, " +
-            "asi que el siguiente arranque cargaria a integridad alta cualquier copia que dejes ahi.";
+            $"The UAC-elevated process searches for {top.DllName} in {top.PlantSlot} and does not find it. " +
+            "The directory is writable by the current user without admin rights, " +
+            "so the next launch would load any copy planted there at high integrity.";
 
         CarrierHandoffSteps.Text =
-            "1.  Compilar un proxy de la DLL portadora.\n" +
-            "2.  Copiarlo al slot escribible.\n" +
-            "3.  El usuario reproduce el flujo que dispara el UAC.\n" +
-            "4.  El hijo elevado carga el proxy y ejecuta codigo a integridad alta.";
+            "1.  Compile a proxy of the carrier DLL.\n" +
+            "2.  Copy it into the writable slot.\n" +
+            "3.  Reproduce the user flow that triggers UAC.\n" +
+            "4.  The elevated child loads the proxy and runs code at high integrity.";
 
         const int rankedLimit = 4;
         var listed = h.Carriers.Take(rankedLimit)
             .Select((c, i) => $"{i + 1,2}.  {c.DllName,-32}  {c.EventCount,3} ev   {c.PlantSlot}");
-        var more = h.Carriers.Count > rankedLimit ? $"\n     ... +{h.Carriers.Count - rankedLimit} mas" : "";
+        var more = h.Carriers.Count > rankedLimit ? $"\n     ... +{h.Carriers.Count - rankedLimit} more" : "";
         CarrierHandoffList.Text = string.Join("\n", listed) + more;
 
         CarrierHandoffBanner.Visibility = Visibility.Visible;
