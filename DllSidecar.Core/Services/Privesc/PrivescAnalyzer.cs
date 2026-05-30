@@ -5,13 +5,7 @@ using DllSidecar.Core.Models.Privesc;
 namespace DllSidecar.Core.Services.Privesc;
 
 /// <summary>
-/// Orchestrates the privesc detector pipeline. Call <see cref="Prepare"/> once per scan
-/// with all analyzed PEs; then <see cref="Annotate"/> each SideloadCandidate / PhantomCandidate
-/// to attach its PrivescContext. Composes findings across detectors and applies cross-detector
-/// escalation rules (e.g. UpdaterHeuristic + ServiceSystem → Critical).
-///
-/// Modular by design: to add a new vector, implement IPrivescDetector and register it in
-/// the constructor's detector list — no changes needed elsewhere.
+/// Orchestrates the privesc detector pipeline; applies cross-detector escalation rules.
 /// </summary>
 public class PrivescAnalyzer
 {
@@ -101,9 +95,7 @@ public class PrivescAnalyzer
     }
 
     /// <summary>
-    /// Cross-detector rules: combinations of findings produce a higher-severity synthetic
-    /// finding. Example: an updater-named binary that is ALSO a SYSTEM service is the
-    /// textbook "Adobe Updater" case — jackpot.
+    /// Cross-detector rules; combined findings synthesize higher-severity entries.
     /// </summary>
     private static void ApplyCrossDetectorEscalation(PrivescContext ctx)
     {

@@ -106,8 +106,7 @@ public partial class SurveyStage : System.Windows.Controls.UserControl, IWizardS
         int privescCount = r.Existing.Count(c => c.HasPrivescPath) + r.Phantoms.Count(p => p.HasPrivescPath);
         StPrivesc.Text = privescCount.ToString();
 
-        // Default ranking: derived Total (Exploit×0.5 + Impact×0.3 + Conf×0.2).
-        // Column headers let the user re-sort by any single axis.
+        // Default ranking by Total; user can re-sort via column headers.
         var rows = new List<CandidateRow>();
         foreach (var c in r.Existing) rows.Add(new CandidateRow(c));
         foreach (var p in r.Phantoms) rows.Add(new CandidateRow(p));
@@ -127,9 +126,7 @@ public partial class SurveyStage : System.Windows.Controls.UserControl, IWizardS
             }
         }
 
-        // Show all candidates — the grid is now sized to fill available height and
-        // scrolls on its own. Previous 25-row cap existed to pair with an Advanced
-        // view button that was removed in the Phase 2 redesign.
+        // Show all candidates; grid sizes to fill available height.
         CandidatesGrid.ItemsSource = rows;
 
         StatusLine.Text = $"Surveyed {_session.SurveyRootDir}" +

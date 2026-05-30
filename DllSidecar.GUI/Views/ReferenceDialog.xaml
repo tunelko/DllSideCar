@@ -15,8 +15,7 @@
                             GlassFrameThickness="0" CornerRadius="0"/>
     </shell:WindowChrome.WindowChrome>
     <Window.Resources>
-        <!-- Oscilloscope grid — 10px minor lines, 50px major lines, all in phosphor green
-             at low opacity so text on top stays readable. Tiled across each section card. -->
+        <!-- Oscilloscope grid: 10px minor + 50px major lines, phosphor at low opacity. -->
         <DrawingBrush x:Key="ScopeGrid" TileMode="Tile" Viewport="0,0,50,50" ViewportUnits="Absolute"
                       Stretch="None">
             <DrawingBrush.Drawing>

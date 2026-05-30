@@ -4,9 +4,7 @@ using DllSidecar.Core.Models.Privesc;
 namespace DllSidecar.Core.Services.Privesc;
 
 /// <summary>
-/// Contract for a privesc vector detector. Each implementation scans one specific
-/// source of privilege escalation (services, tasks, manifests, etc.) and returns
-/// findings for PE files matched against that source.
+/// Contract for a privesc vector detector (services, tasks, manifests, etc.).
 /// </summary>
 public interface IPrivescDetector
 {
@@ -14,15 +12,12 @@ public interface IPrivescDetector
     string Name { get; }
 
     /// <summary>
-    /// Called once per scan, before Detect. Let the detector build any expensive cache
-    /// (e.g. enumerate the service registry, parse all scheduled tasks) up front rather
-    /// than per-candidate. Implementations MUST be cancel-aware and fail-soft.
+    /// Called once per scan to build caches; cancel-aware and fail-soft.
     /// </summary>
     void Prepare(PrivescDetectorContext ctx, CancellationToken ct);
 
     /// <summary>
-    /// Return findings for a specific PE. Called once per candidate. Implementations
-    /// must query pre-built caches from Prepare — no I/O per call where avoidable.
+    /// Return findings for one PE; should query pre-built caches.
     /// </summary>
     IEnumerable<PrivescFinding> Detect(PeAnalysis pe, PrivescDetectorContext ctx, CancellationToken ct);
 }

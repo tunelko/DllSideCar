@@ -1,9 +1,6 @@
 namespace DllSidecar.Core.Models.Privesc;
 
-/// <summary>
-/// Privilege escalation vector categories. One PE can match multiple vectors.
-/// Ordered loosely from highest to lowest typical impact.
-/// </summary>
+/// <summary>Privilege escalation vector categories. One PE can match multiple vectors.</summary>
 public enum PrivescVector
 {
     None,

@@ -71,21 +71,11 @@ public sealed class AdvisoryRecord
     public string? ResearcherPgpKeyId { get; set; }
 
     // ---- Schema v5 — active template restoration ----
-    /// <summary>
-    /// Renderer id ("markdown" / "ghsa") that was active the last time this advisory was saved.
-    /// Restored on reopen so editing non-Markdown bodies doesn't silently revert to Markdown
-    /// the moment the user touches Template Fields or the Vendor box. Null on legacy rows or
-    /// when the renderer is unknown — AdvisoryPage falls back to "markdown".
-    /// </summary>
+    /// <summary>Renderer id ("markdown" / "ghsa") that was active when last saved.</summary>
     public string? LastTemplateId { get; set; }
 
     // ---- Schema v6 — per-vendor sequential id ----
-    /// <summary>
-    /// 1-based sequence number scoped to <see cref="Vendor"/>. Allocated lazily on first
-    /// artifact write (or vendor change) and never reused — soft-deleted rows still hold
-    /// their slot. Drives the human-readable filename pattern e.g.
-    /// <c>DLL_SIDELOADING_ADVISORY_0001.txt</c>.
-    /// </summary>
+    /// <summary>1-based sequence number scoped to <see cref="Vendor"/>; never reused. Drives filenames like <c>DLL_SIDELOADING_ADVISORY_0001.txt</c>.</summary>
     public int? SequenceNumber { get; set; }
 
     public List<AdvisoryTimelineEvent> Timeline { get; set; } = [];
@@ -114,18 +104,9 @@ public sealed class AdvisoryArtifact
     public string? Label { get; set; }
     public string? Sha256 { get; set; }
     public DateTime CreatedAtUtc { get; set; }
-    /// <summary>
-    /// Renderer that produced this artifact (e.g. "markdown", "ghsa"). Used by the Library
-    /// tree to group files into format folders. Null for user-uploaded attachments that
-    /// aren't tied to a template.
-    /// </summary>
+    /// <summary>Renderer that produced this artifact (e.g. "markdown", "ghsa"); null for user attachments.</summary>
     public string? TemplateId { get; set; }
-    /// <summary>
-    /// Workflow state for THIS artifact, independent of the parent advisory's status. Each
-    /// format (Markdown / GHSA) tracks its own lifecycle because submission flows differ
-    /// (GHSA → GitHub, Markdown → blog) and shouldn't bleed into each other. Defaults to
-    /// Draft on create.
-    /// </summary>
+    /// <summary>Workflow state for THIS artifact, independent of the parent advisory's status.</summary>
     public AdvisoryStatus Status { get; set; } = AdvisoryStatus.Draft;
 }
 

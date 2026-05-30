@@ -5,23 +5,14 @@ using DllSidecar.Core.Services;
 
 namespace DllSidecar.GUI.Views;
 
-/// <summary>
-/// Modal that lets the user pick a Windows service to feed into Watch-by-Name.
-/// On Accept, exposes <see cref="SelectedServiceName"/> (SCM key, e.g. "splunkd")
-/// and <see cref="SelectedImageFile"/> (image basename to type into WatchNameBox,
-/// e.g. "splunkd.exe"). Caller builds the trigger CMD on top of the service name.
-/// </summary>
+/// <summary>Modal to pick a Windows service for Watch-by-Name; exposes SCM key + image basename.</summary>
 public partial class ServicePickerDialog : Window
 {
     private List<ServiceRow> _all = [];
 
     public string? SelectedServiceName { get; private set; }
     public string? SelectedImageFile { get; private set; }
-    /// <summary>
-    /// Cmd-line substring the watcher should require. Non-empty only for
-    /// shared-image services (svchost) where the bare image name would
-    /// match unrelated PIDs. Format: "-s ServiceName".
-    /// </summary>
+    /// <summary>Cmd-line substring filter ("-s ServiceName") used for shared-image hosts like svchost.</summary>
     public string? SelectedCmdLineFilter { get; private set; }
 
     public ServicePickerDialog()
@@ -37,8 +28,7 @@ public partial class ServicePickerDialog : Window
     {
         try
         {
-            // Drivers are hidden by default but we enumerate them so the user
-            // can flip the checkbox on without a refresh round-trip.
+            // Enumerate drivers so the checkbox toggle is instant (hidden by default).
             var infos = ServiceEnumerator.Enumerate(includeDrivers: true);
             _all = infos.Select(s => new ServiceRow(s)).ToList();
             ApplyFilter();
@@ -89,12 +79,7 @@ public partial class ServicePickerDialog : Window
         {
             SelectedServiceName = r.Name;
             SelectedImageFile = r.ImageFile;
-            // svchost (and a few other shared hosts) run multiple services per
-            // PID, all with the same image. Without a cmd-line filter the
-            // watcher would adopt every svchost that happens to spawn — see
-            // BITS test where an unrelated svchost was caught alongside the
-            // BITS-hosting one. The runtime cmd line of svchost includes
-            // "-s ServiceName" for every hosted service, so that's our anchor.
+            // Shared-image hosts (svchost) need "-s ServiceName" to avoid adopting unrelated PIDs.
             SelectedCmdLineFilter = IsSharedHost(r.ImageFile)
                 ? $"-s {r.Name}"
                 : null;

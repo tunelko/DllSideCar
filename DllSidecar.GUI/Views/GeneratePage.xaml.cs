@@ -11,48 +11,26 @@ namespace DllSidecar.GUI.Views;
 
 public partial class GeneratePage : Page
 {
-    // The exact bytes that get baked into g_xkey[32] in the generated .c.
-    // Fresh on page open; the user refreshes explicitly via Auto-generate.
-    // What appears in XorKeyBox when the user hits Generate is exactly what
-    // travels into TemplateConfig.LongXorKey — no surprise re-randomisation.
+    // XOR key baked into g_xkey[32]; refreshed only via Auto-generate.
     private byte[] _xorKey = XorCryptor.RandomKey(32);
 
     private readonly MainWindow _main;
-    // Mode is driven by the [Proxy | Sideload] segmented switch in the page header.
-    // Tracer is no longer reachable from the UI; default starts at Proxy and the
-    // initial pick auto-flips to Sideload if the loaded analysis has no named exports.
+    // Driven by the [Proxy | Sideload] segmented switch.
     private GenerationMode _mode = GenerationMode.Proxy;
     private PeAnalysis? _analysis;
-    // Suppresses the mode-switch handler during initial XAML hydration. Starts true:
-    // ModeProxy has IsChecked="True" in XAML, which fires Checked DURING
-    // InitializeComponent before ExportPanel/ThreadPanel exist. The ctor flips it
-    // back to false after wiring.
+    // Guards the mode-switch handler during XAML hydration.
     private bool _suppressModeChange = true;
 
-    // Deploy context, page-local so HostExeBox edits persist until Generate.
-    // Seeded from _main.PendingDeployContext (drained on ctor) or null when the
-    // user arrived at this page without a phantom hand-off.
+    // Page-local deploy context; seeded from _main.PendingDeployContext.
     private string? _deployDir;
     private string? _deployName;
     private string? _systemOrigPath;
-    // Guards against the ArchToggle_Changed handler firing during programmatic
-    // IsChecked=true on initial seed — only user clicks should re-resolve.
+    // Guards ArchToggle_Changed during programmatic seed.
     private bool _suppressArchToggle;
-    // Guards against PersistUiState firing while RestoreUiState is still writing
-    // values into the controls (otherwise every programmatic set fires a save).
+    // Guards PersistUiState during RestoreUiState.
     private bool _suppressPersist;
 
-    // AppPaths centralises dev-vs-installed resolution. In dev TemplatesDir =
-    // src/templates and OutputRoot = src/output; in installed mode templates
-    // live next to the exe (bundled by setup.iss) and output drops into
-    // %LOCALAPPDATA%\DllSidecar\output (writable without admin).
-
-    /// <summary>
-    /// Convenience overload — callers (Scan / Analyze) hand off a recommended technique
-    /// based on what the user just picked. Tracer is no longer a UI mode, so any caller
-    /// passing it falls through to Sideload. The auto-pick still kicks in if the analysis
-    /// has no named exports (Proxy needs at least one).
-    /// </summary>
+    /// <summary>Convenience overload — accepts a recommended technique from callers.</summary>
     public GeneratePage(MainWindow main, GenerationMode preferred) : this(main)
     {
         _suppressModeChange = true;
@@ -74,8 +52,7 @@ public partial class GeneratePage : Page
         RenderXorKey();
         UpdateDeployBanner();
 
-        // Prefer a pre-existing CurrentAnalysis (e.g. synthesized phantom) over re-analyzing
-        // the file — phantoms don't exist on disk, so PeAnalyzer would throw.
+        // Prefer pre-existing CurrentAnalysis; phantoms don't exist on disk.
         if (_main.CurrentAnalysis != null)
         {
             _analysis = _main.CurrentAnalysis;
@@ -88,8 +65,7 @@ public partial class GeneratePage : Page
             LoadAnalysis(_main.CurrentDllPath);
         }
 
-        // Auto-pick the technique from the loaded analysis: Proxy needs named exports,
-        // Sideload works always. Mirrors the wizard's CraftStage selection logic.
+        // Auto-pick: Proxy needs named exports, Sideload works always.
         _suppressModeChange = true;
         if (_analysis != null && _analysis.NamedExports == 0)
             ModeSideload.IsChecked = true;
@@ -104,17 +80,10 @@ public partial class GeneratePage : Page
         WirePersistence();
     }
 
-    /// <summary>
-    /// Hide SandboxEscape from the Payload combo unless the active candidate's
-    /// importer classifies as sandboxed. Same logic as CraftStage.ApplySandboxRecommendation —
-    /// both pages share the SandboxEscapeItem + SandboxHint x:Names.
-    /// </summary>
+    /// <summary>Hide SandboxEscape from the Payload combo unless the host classifies as sandboxed.</summary>
     private void ApplySandboxRecommendation()
     {
-        // Best-effort candidate lookup: the active DLL path may match a scan
-        // result. If we have no scan context, fall back to classifying the
-        // current DLL path on its own (handles "Browse → DLL → Generate" flows
-        // that bypass Scan entirely).
+        // Best-effort candidate lookup; fall back to classifying the current path.
         var kind = SandboxKind.None;
         var path = _main.CurrentDllPath;
         if (!string.IsNullOrEmpty(path) && _main.LastScanResults != null)
@@ -129,8 +98,7 @@ public partial class GeneratePage : Page
                 if (phantom != null) kind = phantom.SandboxKind;
             }
         }
-        // Last-resort static classification when no scan match — handles "Browse
-        // for DLL → Generate" without going through Scan.
+        // Last-resort static classification when no scan match.
         if (kind == SandboxKind.None && !string.IsNullOrEmpty(path))
             kind = Core.Services.SandboxClassifier.Classify(path);
 
@@ -155,15 +123,10 @@ public partial class GeneratePage : Page
         ApplyMode();
     }
 
-    /// <summary>
-    /// Push the segmented switch's state into <see cref="_mode"/> and reflect it in the
-    /// dependent UI: page subtitle, ExportPanel (Proxy only), ThreadPanel.
-    /// </summary>
+    /// <summary>Push the segmented switch's state into <see cref="_mode"/> and reflect it in dependent UI.</summary>
     private void ApplyMode()
     {
-        // Defensive — XAML hydration order can fire RadioButton.Checked before the
-        // dependent panels are instantiated. The ctor's _suppressModeChange flag is
-        // the primary guard; this is a second line of defense.
+        // Defensive: XAML hydration can fire Checked before panels exist.
         if (ModeSideload == null || ModeProxy == null) return;
 
         _mode = ModeSideload.IsChecked == true ? GenerationMode.Sideload : GenerationMode.Proxy;
@@ -214,8 +177,7 @@ public partial class GeneratePage : Page
             PreLaunchDelayBox.Text = s.PreLaunchDelaySec.ToString();
             if (s.WaitBlock) WaitBlock.IsChecked = true; else WaitFire.IsChecked = true;
             FireTimeoutBox.Text = s.FireTimeoutSec.ToString();
-            // Mirror WaitBlock state onto FireTimeoutRow visibility (XAML binding handles
-            // this dynamically on user clicks, but programmatic set doesn't fire the event).
+            // Programmatic set doesn't fire the event; mirror WaitBlock onto FireTimeoutRow.
             FireTimeoutRow.Visibility = s.WaitBlock ? Visibility.Collapsed : Visibility.Visible;
         }
         finally { _suppressPersist = false; }
@@ -266,17 +228,12 @@ public partial class GeneratePage : Page
         ChkPatchEtw.Checked += OnChanged; ChkPatchEtw.Unchecked += OnChanged;
         ChkEncrypt.Checked += OnChanged; ChkEncrypt.Unchecked += OnChanged;
 
-        // XOR key row only makes sense when string encryption is on. Show it as
-        // a consequence of the checkbox so the user is never staring at a key
-        // they have no way to opt into.
+        // XOR key row visibility tracks ChkEncrypt.
         ChkEncrypt.Checked   += (_, _) => XorKeyRow.Visibility = Visibility.Visible;
         ChkEncrypt.Unchecked += (_, _) => XorKeyRow.Visibility = Visibility.Collapsed;
         XorKeyRow.Visibility = ChkEncrypt.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
 
-        // Direct and Indirect syscalls share the same sc_NtFoo() wrapper names in
-        // the emitted C, so including both headers would duplicate definitions.
-        // Enforce mutual exclusion at the UI layer so the user picks one path
-        // (or none); the model layer trusts the flags as-is.
+        // Direct and Indirect syscalls are mutually exclusive (shared sc_NtFoo wrappers).
         ChkSyscalls.Checked += (_, _) => { if (ChkIndirectSyscalls.IsChecked == true) ChkIndirectSyscalls.IsChecked = false; };
         ChkIndirectSyscalls.Checked += (_, _) => { if (ChkSyscalls.IsChecked == true) ChkSyscalls.IsChecked = false; };
         DelayBox.TextChanged += OnChanged;
@@ -293,11 +250,7 @@ public partial class GeneratePage : Page
         ArchX86.Checked += OnChanged; ArchX64.Checked += OnChanged;
     }
 
-    // Sentinel shown as the first item in the Target Export combo. When selected,
-    // we treat TargetExport as null → GenerateProxy emits a pure-forwarder build
-    // (no trampolines, .def forwards to _orig at load time). Selecting any real
-    // export name falls into the trampoline variant, where payload_execute fires
-    // on that specific export AND from DllMain (once-guarded).
+    // Sentinel for "no hook — pure forwarder build, payload runs from DllMain only".
     private const string NoHookSentinel = "(no hook — pure forwarder, payload from DllMain)";
 
     private void PopulateFromAnalysis(PeAnalysis a)
@@ -311,10 +264,7 @@ public partial class GeneratePage : Page
 
     private void UpdateDeployBanner()
     {
-        // Read context on every ctor but DO NOT clear it — persists across
-        // navigation (nav to DLL Proxy tab in sidebar recreates the page and
-        // we want the banner to still be there). Cleared explicitly on Generate
-        // success or user's Clear click.
+        // Read context every ctor; cleared explicitly on Generate success or Clear click.
         if (_main.PendingDeployContext is { } d)
         {
             _deployDir = d.TargetDir;
@@ -322,8 +272,7 @@ public partial class GeneratePage : Page
             _systemOrigPath = d.SystemOrigPath;
             HostExeBox.Text = d.HostExePath;
 
-            // Seed the arch override toggle from the analysis (which inherited
-            // the Scan's majority vote). User can flip if the vote picked wrong.
+            // Seed arch toggle from analysis; user can flip if needed.
             ArchRow.Visibility = Visibility.Visible;
             _suppressArchToggle = true;
             if (_analysis?.Arch == "x86") ArchX86.IsChecked = true;
@@ -383,10 +332,7 @@ public partial class GeneratePage : Page
         var newArch = ArchX86.IsChecked == true ? "x86" : "x64";
         if (_analysis.Arch == newArch) return;
 
-        // Re-resolve the system DLL for the new arch so Exports, NamedExports
-        // and SystemOrigPath all realign. For well-known DLLs present in both
-        // System32 and SysWOW64, this swaps the _orig source + recompile target
-        // without losing the forward surface.
+        // Re-resolve system DLL for the new arch; realigns Exports/NamedExports/SystemOrigPath.
         var resolved = SystemDllResolver.Resolve(_analysis.Filename, newArch);
         _analysis.Arch = newArch;
         _analysis.Exports = resolved?.Analysis.Exports ?? new List<ExportEntry>();
@@ -404,11 +350,7 @@ public partial class GeneratePage : Page
         ApplyArchCompatibilityRules(newArch);
     }
 
-    /// <summary>
-    /// Gates options that are only meaningful (or only safe) for a specific arch.
-    /// Today: DirectSyscalls — on x86 the syscall stubs are #ifdef'd out AND sc_init
-    /// corrupts g_sc on i686 ntdll prologues, breaking the PoC. Hard-disable.
-    /// </summary>
+    /// <summary>Gates arch-specific options (e.g. DirectSyscalls disabled on x86).</summary>
     private void ApplyArchCompatibilityRules(string arch)
     {
         if (ChkSyscalls == null) return;
@@ -511,13 +453,7 @@ public partial class GeneratePage : Page
             SandboxTargetsPanel.Visibility = PayloadCombo.SelectedIndex == 3
                 ? Visibility.Visible : Visibility.Collapsed;
 
-        // ReverseShell does Winsock + CreateProcess, which is unsafe under the
-        // loader lock — so when the user picks it, switch Thread mode to "New
-        // thread (CreateThread)" (so do_payload runs outside DllMain) and turn
-        // Write proof file on (so failures leave a %TEMP%\dllsidecar_proof_*.txt
-        // breadcrumb). One-shot defaults, not locked — user can override.
-        // _suppressPersist also gates the user-facing dialog: we don't want
-        // a popup when RestoreUiState() flips the combo at page load.
+        // ReverseShell: apply safe defaults (CreateThread + Write proof).
         if (PayloadCombo.SelectedIndex == 4)
         {
             if (ThreadCombo != null) ThreadCombo.SelectedIndex = 1;   // 0=Calling, 1=Std (CreateThread), 2=Native
@@ -526,11 +462,7 @@ public partial class GeneratePage : Page
         }
     }
 
-    /// <summary>
-    /// One-shot informational modal explaining the auto-applied defaults when
-    /// the user picks ReverseShell. Kept on this page (not a global helper)
-    /// because the body references the exact controls visible here.
-    /// </summary>
+    /// <summary>Informational modal explaining auto-applied ReverseShell defaults.</summary>
     private static void ShowReverseShellAdvisory()
     {
         MessageBox.Show(
@@ -569,9 +501,7 @@ public partial class GeneratePage : Page
             if (_analysis == null) return;
         }
 
-        // Mode-specific preconditions. We check BEFORE disabling the button / showing the
-        // overlay so the error UX is immediate (no flash of "Generating..." before the
-        // validation warning). Matches the AnalyzePage tile-level availability logic.
+        // Mode-specific preconditions checked before disabling the button.
         if (_mode == GenerationMode.Proxy)
         {
             if (_analysis.NamedExports == 0)
@@ -583,9 +513,7 @@ public partial class GeneratePage : Page
                     "Proxy not applicable", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            // Target export is now OPTIONAL. Payload fires from DllMain by default
-            // (always runs on DLL_PROCESS_ATTACH). If the user picks an export, it
-            // also triggers payload (guarded so it still runs exactly once).
+            // Target export is OPTIONAL; payload always fires from DllMain.
         }
 
         GenerateBtn.IsEnabled = false;
@@ -606,14 +534,9 @@ public partial class GeneratePage : Page
             Payload = (PayloadType)PayloadCombo.SelectedIndex,
             PayloadData = PayloadDataBox.Text.Trim(),
             Thread = (ThreadMode)ThreadCombo.SelectedIndex,
-            // The XOR key the user just saw in the XorKeyRow textbox is the
-            // exact byte sequence that ends up baked into g_xkey[32] in the
-            // generated .c. No silent re-randomisation inside TemplateEngine.
+            // Exact bytes baked into g_xkey[32]; no re-randomisation in TemplateEngine.
             LongXorKey = _xorKey,
-            // Pull the researcher attribution from the Configuration page so the
-            // /* Generated by DllSidecar — <handle> */ header reflects the user
-            // who is actually building the PoC, not the source-tree default.
-            // Empty handle -> no attribution emitted at all (clean header).
+            // Empty handle skips attribution.
             Researcher = ConfigManager.Current.Researcher.Handle ?? "",
         };
 
@@ -629,21 +552,16 @@ public partial class GeneratePage : Page
         if (PayloadCombo.SelectedIndex == 3 && !string.IsNullOrWhiteSpace(SandboxTargetsBox.Text))
             config.SandboxTargets = SandboxTargetsBox.Text.Trim();
 
-        // MessageBox title/body come from global Config → Payload Defaults so
-        // the same stamp is reused across PoCs. {Researcher} substitution and
-        // C-string escaping happen inside TemplateEngine.
+        // MessageBox title/body come from global Config → Payload Defaults.
         var payloadCfg = ConfigManager.Current.Payload;
         config.MessageBoxTitle = payloadCfg.MessageBoxTitle;
         config.MessageBoxBody = payloadCfg.MessageBoxBody;
 
-        // ReverseShell endpoint also comes from the global defaults — host/port
-        // typically stay stable across a session (one listener, many PoCs),
-        // so a per-PoC override on this page would just add noise.
+        // ReverseShell endpoint also comes from global defaults.
         config.ReverseShellHost = payloadCfg.ReverseShellHost;
         config.ReverseShellPort = payloadCfg.ReverseShellPort;
 
-        // Runtime / deploy options — drive the .bat tail's probe/delay/wait logic
-        // and the payload's proof file write. All three have safe defaults in XAML.
+        // Runtime / deploy options for the .bat tail and proof file.
         config.WriteProofFile = ChkWriteProof.IsChecked == true;
         int.TryParse(PreLaunchDelayBox.Text, out int preDelay);
         config.PreLaunchDelaySec = Math.Max(0, preDelay);
@@ -651,9 +569,7 @@ public partial class GeneratePage : Page
         int.TryParse(FireTimeoutBox.Text, out int fireTimeout);
         config.NonBlockingTimeoutSec = Math.Max(1, fireTimeout);
 
-        // Deploy context — page-local state, possibly edited by the user in the
-        // banner (HostExeBox). Apply only when both sides are set; if the user
-        // blanked the Host field the banner stays off and we fall back to compile-only.
+        // Deploy context applied only when both sides are set.
         var hostExe = HostExeBox.Text.Trim();
         if (_deployDir != null && _deployName != null && hostExe.Length > 0)
         {
@@ -698,8 +614,7 @@ public partial class GeneratePage : Page
             _main.Log($"  Written: {name}");
         }
 
-        // Metadata cloning — only meaningful when the source DLL exists on disk.
-        // For phantoms there's nothing to clone FROM; skip silently with a log note.
+        // Metadata cloning only meaningful for non-phantom sources.
         if (config.CloneMetadata)
         {
             if (phantomMode)
@@ -727,8 +642,7 @@ public partial class GeneratePage : Page
             }
         }
 
-        // Auto-build. builtDllPath stays null when auto-build is off or the
-        // compile fails; consumed by the post-build success modal below.
+        // Auto-build. builtDllPath drives the post-build success modal.
         string? builtDllPath = null;
         if (ChkAutoBuild.IsChecked == true)
         {
@@ -747,8 +661,7 @@ public partial class GeneratePage : Page
             }
 
             var buildProgress = new Progress<string>(msg => _main.Log($"  {msg}"));
-            // ws2_32 needed when the reverse-shell payload's trace code calls
-            // WSAGetLastError() directly (not through a GetProcAddress pointer).
+            // ws2_32 needed for ReverseShell's WSAGetLastError() call.
             var extraLibs = config.Payload == Core.Models.PayloadType.ReverseShell
                 ? new[] { "ws2_32" } : null;
             var result = await BuildSystem.CompileDllAsync(
@@ -795,11 +708,7 @@ public partial class GeneratePage : Page
         SetStatus($"Done — {outputDir}", StatusKind.Ok);
         Overlay.Hide();
 
-        // Post-build success modal — surface the on-disk location with a one-click
-        // open-in-Explorer so the researcher doesn't have to scroll the output panel
-        // hunting for the path. Only fires when auto-build ran AND succeeded;
-        // generation-only runs (no compile) don't pop the dialog because the
-        // researcher's next step is to compile manually via BuildPage anyway.
+        // Post-build success modal only fires when auto-build succeeded.
         if (builtDllPath != null)
             Helpers.BuildCompleteDialog.Show(Window.GetWindow(this), builtDllPath);
     }

@@ -175,14 +175,12 @@ public static class AuthenticodeVerifier
             info.ThumbprintSha1 = cert.Thumbprint;
             info.NotBefore = cert.NotBefore;
             info.NotAfter = cert.NotAfter;
-            // Just the CN — "Blizzard Entertainment, Inc.", "Microsoft Corporation", etc.
-            // Fed into VendorResolver as the most authoritative vendor source we have.
+            // CN feeds VendorResolver as the authoritative vendor source.
             info.SubjectCommonName = cert.GetNameInfo(X509NameType.SimpleName, forIssuer: false);
         }
         catch (CryptographicException ex)
         {
-            // File is not Authenticode-signed, or signature block is unreadable.
-            // This is expected for unsigned files — log at debug level only.
+            // Expected for unsigned files.
             Log.Debug("authenticode.cert", $"No extractable certificate from {filePath}: {ex.Message}");
         }
         catch (Exception ex)
@@ -210,8 +208,7 @@ public static class AuthenticodeVerifier
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        // Use ArgumentList — each arg is escaped individually by the runtime, eliminating
-        // the risk of a filePath with embedded quotes or ampersands being interpreted.
+        // ArgumentList escapes each arg individually.
         psi.ArgumentList.Add("-nobanner");
         psi.ArgumentList.Add("-accepteula");
         psi.ArgumentList.Add("-q");

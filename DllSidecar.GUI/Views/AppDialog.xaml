@@ -16,11 +16,7 @@
                             GlassFrameThickness="0" CornerRadius="0"/>
     </shell:WindowChrome.WindowChrome>
 
-    <!-- Outer frame: 14px transparent margin reserves room for the drop shadow,
-         so the dialog reads as "lifted" over whatever main-window content sits
-         behind it. The inner Border carries the actual dialog chrome + accent
-         ring; Mantle (#111111) is a step above Base so the modal does not vanish
-         into the page background. -->
+    <!-- Outer frame: 14px transparent margin for drop shadow; inner Border carries dialog chrome + accent ring. -->
     <Border Margin="14" CornerRadius="6"
             Background="{StaticResource Mantle}"
             BorderBrush="{StaticResource RingStrong}"

@@ -1,10 +1,6 @@
 namespace DllSidecar.Core.Models.Execution;
 
-/// <summary>
-/// Known command-line wrappers that Task Scheduler / service ImagePath entries commonly
-/// use to launch their real target. The resolver peels exactly one level of wrapping
-/// (Sprint 2 scope) — recursive resolution is out of scope.
-/// </summary>
+/// <summary>Known command-line wrappers Task Scheduler / service ImagePath entries use to launch their target.</summary>
 public enum WrapperKind
 {
     None,

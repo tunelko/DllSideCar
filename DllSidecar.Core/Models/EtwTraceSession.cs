@@ -9,9 +9,7 @@ public class EtwTraceFilter
     public bool NameNotFoundOnly { get; set; } = true;
     public bool DllOnly { get; set; } = true;
 
-    // When set, EtwDllTracer.StartWatchByName picks up every ProcessStart whose
-    // image basename matches (case-insensitive, with or without .exe). Used to
-    // capture services that restart and change PID (splunkd, sshd, etc.).
+    // Case-insensitive image basename (with or without .exe) for StartWatchByName.
     public string? WatchProcessName { get; set; }
 }
 

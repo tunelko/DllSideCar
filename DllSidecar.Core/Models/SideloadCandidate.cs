@@ -2,11 +2,7 @@ using DllSidecar.Core.Models.Privesc;
 
 namespace DllSidecar.Core.Models;
 
-/// <summary>
-/// How the candidate was surfaced. DirectEnumeration = scanner walked the directory and
-/// found it; PrivescResolvedTarget = Sprint-3 re-scan added it after a task/service
-/// finding resolved to its path (no recursion — these candidates are not re-scanned).
-/// </summary>
+/// <summary>How the candidate was surfaced.</summary>
 public enum DiscoveryOrigin
 {
     DirectEnumeration,
@@ -36,26 +32,18 @@ public class SideloadCandidate
     public PrivescContext? Privesc { get; set; }     // set by PrivescAnalyzer
     public Cve.CveQueryResult? Cve { get; set; }     // set by background CVE query from ScanPage
 
-    /// <summary>Verdict from SandboxClassifier for the primary importer. Gates whether
-    /// SandboxEscape appears in the Payload picker for this candidate.</summary>
+    /// <summary>SandboxClassifier verdict for the primary importer; gates the SandboxEscape payload.</summary>
     public SandboxKind SandboxKind { get; set; } = SandboxKind.None;
 
-    /// <summary>How this candidate was surfaced (Sprint 3 targeted re-scan awareness).</summary>
+    /// <summary>How this candidate was surfaced.</summary>
     public DiscoveryOrigin Discovery { get; set; } = DiscoveryOrigin.DirectEnumeration;
 
-    /// <summary>
-    /// For <see cref="DiscoveryOrigin.PrivescResolvedTarget"/>, a short label explaining
-    /// which privesc finding led to this candidate (e.g. "Task 'Adobe\\Updater'").
-    /// </summary>
+    /// <summary>Short label describing which privesc finding led to a PrivescResolvedTarget candidate.</summary>
     public string? DiscoveredViaLabel { get; set; }
 
     public bool HasImporters => Importers.Count > 0;
     public bool AnyImporterSigned => Importers.Any(i => i.Signing.IsTrusted);
-    /// <summary>
-    /// True when at least one real loader open backs this candidate. Probe-only
-    /// evidence does NOT count as verified — the loader never attempted to map the
-    /// DLL, so a "verified" badge would be misleading.
-    /// </summary>
+    /// <summary>True iff at least one real loader open backs this candidate (probe-only does not count).</summary>
     public bool IsDynamicallyVerified => Evidence != null && !Evidence.IsProbeOnly;
     /// <summary>True iff runtime evidence exists but every event was a metadata probe.</summary>
     public bool IsRuntimeProbeOnly => Evidence?.IsProbeOnly == true;

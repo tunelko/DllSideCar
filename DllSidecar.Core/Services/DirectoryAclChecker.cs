@@ -65,7 +65,6 @@ public static class DirectoryAclChecker
                 }
                 else
                 {
-                    // Any other non-admin principal getting write is worth listing
                     if (!IsAdministrative(sid))
                     {
                         if (!perms.WritableBy.Contains(name)) perms.WritableBy.Add(name);
@@ -73,7 +72,6 @@ public static class DirectoryAclChecker
                 }
             }
 
-            // Effective check for the currently running process (complements DACL analysis)
             perms.CurrentUserWrite = TestCurrentUserWritable(directory);
         }
         catch (Exception ex)
@@ -106,7 +104,7 @@ public static class DirectoryAclChecker
         try { return sid.Translate(typeof(NTAccount)).Value; }
         catch (IdentityNotMappedException)
         {
-            // Orphan SID (deleted user, unresolvable domain) — fall back to raw SID string
+            // Orphan SID — fall back to raw SID string
             return sid.Value;
         }
         catch (Exception ex)
@@ -129,7 +127,6 @@ public static class DirectoryAclChecker
         catch (IOException) { return false; }
         finally
         {
-            // Best-effort cleanup — if probe succeeded, remove it. If it failed to create, nothing to remove.
             try { if (File.Exists(probe)) File.Delete(probe); }
             catch (Exception ex) { Log.Warn("acl", $"Failed to remove write probe {probe}", ex); }
         }

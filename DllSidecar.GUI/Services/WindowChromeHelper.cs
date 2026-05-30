@@ -21,15 +21,7 @@ using Border = System.Windows.Controls.Border;
 
 namespace DllSidecar.GUI.Services;
 
-/// <summary>
-/// Applies the MainWindow chrome look (WindowStyle=None + WindowChrome + themed Ring
-/// border + caption bar with close button) to any Window, programmatically. Call once
-/// in the dialog ctor after InitializeComponent.
-///
-/// This avoids duplicating ~30 lines of XAML across every modal. The existing Window
-/// content is wrapped in a Grid with the caption bar on top; the original Content is
-/// moved untouched into row 1 so layouts/bindings stay intact.
-/// </summary>
+/// <summary>Applies the MainWindow chrome (WindowChrome + Ring border + caption bar) to any Window.</summary>
 public static class WindowChromeHelper
 {
     public static void Apply(Window window, string? captionTitle = null)

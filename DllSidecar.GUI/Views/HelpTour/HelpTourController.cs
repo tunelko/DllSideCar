@@ -4,13 +4,7 @@ using System.Windows.Threading;
 
 namespace DllSidecar.GUI.Views.HelpTour;
 
-/// <summary>
-/// Drives the spotlight overlay through a sequence of <see cref="TourStep"/>s
-/// over the active ConfigPage. Resolves each step's target by x:Name via
-/// <see cref="FrameworkElement.FindName"/> on the page, falling back to
-/// <see cref="LogicalTreeHelper.FindLogicalNode"/> for elements nested inside
-/// templated controls (like ToolPathRow).
-/// </summary>
+/// <summary>Drives the spotlight overlay through <see cref="TourStep"/>s over ConfigPage, resolving targets by x:Name.</summary>
 public sealed class HelpTourController
 {
     public static IReadOnlyList<TourStep> ConfigPageSteps => _configSteps;
@@ -68,9 +62,7 @@ public sealed class HelpTourController
         _running = true;
         _index = 0;
 
-        // Navigate to ConfigPage so all the named elements exist in the visual
-        // tree. ConfigPage is constructed fresh each navigation; capture the
-        // instance via the Frame's Content once loaded.
+        // Navigate to ConfigPage so named elements exist in the visual tree.
         var page = new ConfigPage(_main);
         page.Loaded += OnConfigLoaded;
         _main.NavigateTo(page);
@@ -101,8 +93,7 @@ public sealed class HelpTourController
         var target = ResolveTarget(_page, step.TargetName);
         if (target == null)
         {
-            // Unknown name — skip and continue. Avoids the tour stalling on a
-            // renamed element after a UI refactor.
+            // Unknown name — skip so a renamed element doesn't stall the tour.
             Move(+1);
             return;
         }
@@ -111,10 +102,7 @@ public sealed class HelpTourController
 
     private static FrameworkElement? ResolveTarget(FrameworkElement scope, string name)
     {
-        // FindName works for elements registered in the page's NameScope. For
-        // elements buried inside templated controls (ToolPathRow) this still
-        // works because we expose the x:Name on the ToolPathRow itself, not on
-        // the internal TextBox.
+        // FindName covers page NameScope; LogicalTreeHelper covers templated controls.
         if (scope.FindName(name) is FrameworkElement fe) return fe;
         if (LogicalTreeHelper.FindLogicalNode(scope, name) is FrameworkElement le) return le;
         return null;

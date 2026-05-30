@@ -3,8 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="24,20">
-            <!-- Header: title on the left, mode tiles top-right.
-                 Tiles act as page-level mode toggles, always visible without scrolling. -->
+            <!-- Header: title left, mode tiles top-right. -->
             <Grid Margin="0,0,0,4">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -40,9 +39,7 @@
             </Grid>
             <TextBlock x:Name="HeaderHint" FontSize="12" Foreground="{StaticResource Subtext}" Margin="0,0,0,14" TextWrapping="Wrap"/>
 
-            <!-- Deploy banner — seeded from ResolveTarget. Arch toggle + host editor
-                 mirror GeneratePage so the researcher can correct a bad majority vote
-                 or redirect to the upstream launcher. -->
+            <!-- Deploy banner — seeded from ResolveTarget. -->
             <Border x:Name="DeployBanner"
                     Background="#1F00F0A3" BorderBrush="{StaticResource Phosphor}" BorderThickness="0,0,0,1"
                     CornerRadius="6" Padding="14,10" Margin="0,0,0,14">
@@ -90,12 +87,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Config: 3 stacked columns mirroring DLL Techniques (GeneratePage).
-                 Col 1: PAYLOAD → TARGET EXPORT (proxy only) → THREAD MODE (proxy only)
-                 Col 2: EVASION (wider; internal TUNING mini-card to its right)
-                 Col 3: POST-PROCESSING → EXECUTION
-                 EVASION column is the growth area — new techniques (AMSI hooks,
-                 ETW patch, hellgate, etc.) plug in as more checkboxes here. -->
+            <!-- Config: 3 columns. Col 1 payload/export/thread; Col 2 evasion+tuning; Col 3 post-processing+execution. -->
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1*"/>
@@ -187,9 +179,7 @@
                                           Margin="0,5"/>
                                 <CheckBox x:Name="ChkEncrypt" Content="XOR string encryption" Margin="0,5"/>
 
-                                <!-- Same pattern as the standalone Generate page: the key
-                                     shown here is the exact byte sequence that travels
-                                     into g_xkey[32] in the produced DLL. -->
+                                <!-- Byte sequence embedded into g_xkey[32] in the produced DLL. -->
                                 <StackPanel x:Name="XorKeyRow" Margin="22,4,0,4" Visibility="Collapsed">
                                     <TextBlock Text="g_xkey[32] embedded into the built DLL"
                                                Foreground="{StaticResource Subtext}" FontSize="11" Margin="0,0,0,3"/>

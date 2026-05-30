@@ -5,8 +5,7 @@ namespace DllSidecar.Core.Tests.Privesc;
 
 public class ScheduledTaskDetectorTests
 {
-    // Minimal task XML template with the Task Scheduler v1.0 namespace — the form
-    // emitted by schtasks /create and the form present under %SystemRoot%\System32\Tasks.
+    // Task Scheduler v1.0 namespace.
     private const string TaskNs = "http://schemas.microsoft.com/windows/2004/02/mit/task";
 
     private static string BuildTaskXml(

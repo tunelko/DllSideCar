@@ -7,16 +7,7 @@ using DllSidecar.Core.Services.Advisory.Rendering;
 
 namespace DllSidecar.GUI.Views;
 
-/// <summary>
-/// Dedicated modal for editing the template-specific fields of an AdvisoryContext.
-/// Shows / hides rows based on the active renderer's <see cref="IAdvisoryRenderer.FieldHints"/>
-/// so the researcher only sees inputs the destination format actually consumes.
-///
-/// Lifecycle:
-///   - ctor takes the working AdvisoryContext + renderer; populates controls from ctx
-///   - Apply: pulls all visible controls back into ctx (mutates in-place) → DialogResult=true
-///   - Cancel: leaves ctx untouched
-/// </summary>
+/// <summary>Modal for editing template-specific AdvisoryContext fields; row visibility driven by <see cref="IAdvisoryRenderer.FieldHints"/>.</summary>
 public partial class TemplateFieldsDialog : Window
 {
     private readonly AdvisoryContext _ctx;

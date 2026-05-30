@@ -8,18 +8,8 @@ using DllSidecar.Core.Services.Execution;
 namespace DllSidecar.Core.Services.Privesc;
 
 /// <summary>
-/// Detects PEs loaded by Windows services. Reads HKLM\SYSTEM\CurrentControlSet\Services
-/// directly — no elevation required for read.
-///
-/// Sprint-2 robustness: ImagePath is parsed through <see cref="ExecutionResolver"/>, so
-/// quoted paths with spaces, embedded arguments, env vars, and cmd/powershell/rundll32/msiexec
-/// wrappers are all recognised (one level of wrapping). ServiceDll is resolved the same
-/// way so svchost-hosted services reach findings via a uniform code path.
-///
-/// Match severity:
-///   - LocalSystem / NT AUTHORITY\SYSTEM = High (user → SYSTEM)
-///   - LocalService / NetworkService     = Medium
-///   - user-specific account             = Informational
+/// Detects PEs loaded by Windows services via HKLM\SYSTEM\CurrentControlSet\Services.
+/// Severity: LocalSystem=High, Local/NetworkService=Medium, user=Informational.
 /// </summary>
 public class ServicesDetector : IPrivescDetector
 {
@@ -161,9 +151,7 @@ public class ServicesDetector : IPrivescDetector
     }
 
     /// <summary>
-    /// Build candidate ServiceEntry rows from raw registry values. Pure — no I/O.
-    /// Exposed for unit tests. Returns both the ImagePath entry and the ServiceDll entry
-    /// when present; callers filter by whether the path actually matches a scanned PE.
+    /// Build ServiceEntry rows from raw registry values; pure, no I/O. Exposed for tests.
     /// </summary>
     public static List<ServiceEntry> BuildEntries(
         string serviceName,
@@ -196,8 +184,7 @@ public class ServicesDetector : IPrivescDetector
             }
         }
 
-        // ServiceDll — a bare module path (REG_EXPAND_SZ). Never has arguments — svchost
-        // loads it via LoadLibrary. Skip the tokenizer so paths with spaces aren't split.
+        // ServiceDll: bare module path (REG_EXPAND_SZ), no arguments.
         if (!string.IsNullOrWhiteSpace(serviceDll))
         {
             var expanded = ExpandEnvSafe(serviceDll).Trim().Trim('"');

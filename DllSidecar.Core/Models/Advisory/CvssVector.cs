@@ -1,14 +1,6 @@
 namespace DllSidecar.Core.Models.Advisory;
 
-/// <summary>
-/// CVSS 3.1 base metrics. Captures the 8 inputs that drive the base score.
-/// AttackVector: Network(N), Adjacent(A), Local(L), Physical(P)
-/// AttackComplexity: Low(L), High(H)
-/// PrivilegesRequired: None(N), Low(L), High(H)
-/// UserInteraction: None(N), Required(R)
-/// Scope: Unchanged(U), Changed(C)
-/// Confidentiality/Integrity/Availability: None(N), Low(L), High(H)
-/// </summary>
+/// <summary>CVSS 3.1 base metrics (8 inputs).</summary>
 public class CvssVector
 {
     public char AttackVector { get; set; } = 'L';      // Local is default for sideloading

@@ -2,8 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-// See BuildPage for rationale: WinForms is referenced fully-qualified to keep
-// the global `MessageBox` alias pointing at AppDialog.
+// Fully-qualified WinForms; global MessageBox alias points at AppDialog.
 using WinForms = System.Windows.Forms;
 using System.Windows.Media;
 using Microsoft.Win32;
@@ -17,10 +16,7 @@ namespace DllSidecar.GUI.Views;
 public partial class ScanPage : Page
 {
     private readonly MainWindow _main;
-    // _allRows: everything that survived the scan (structural filters only).
-    // _rows:    the view subset after applying MinConfidence (a view-side filter because
-    //           Confidence can change after ProcMon correlation — filtering at scan time
-    //           would drop candidates before evidence exists).
+    // _allRows: scan output. _rows: subset after MinConfidence view-filter (post-correlation).
     private readonly List<CandidateRow> _allRows = [];
     private readonly List<CandidateRow> _rows = [];
     private CancellationTokenSource? _cts;
@@ -59,10 +55,7 @@ public partial class ScanPage : Page
         }
     }
 
-    /// <summary>
-    /// Filters _allRows → _rows by the view-side MinConfidence combo and rebinds the grid.
-    /// Called after scan, after correlate, and when the MinConfidence combo changes.
-    /// </summary>
+    /// <summary>Filters _allRows → _rows by MinConfidence combo and rebinds the grid.</summary>
     private void ApplyViewFilter()
     {
         var minConf = ParseCombo(MinConfCombo);
@@ -200,8 +193,7 @@ public partial class ScanPage : Page
         {
             MinExploitability = ParseCombo(MinExploitCombo),
             MinImpact         = ParseCombo(MinImpactCombo),
-            // MinConfidence intentionally 0 at scan time — applied as a view-side filter
-            // (see ApplyViewFilter) so ProcMon correlation can raise Confidence after scan.
+            // MinConfidence is 0 at scan time; view-filter applies post-correlation.
             MinConfidence     = 0,
             RequireImporter = ChkRequireImporter.IsChecked == true,
             OnlyUserWritable = ChkOnlyWritable.IsChecked == true,
@@ -266,9 +258,7 @@ public partial class ScanPage : Page
         SetStatus(msg, cancelled ? StatusKind.Warn : StatusKind.Ok);
         _main.Log(msg);
 
-        // Auto CVE dedup (Fase 7b). Fires only on clean finish with at least one existing
-        // candidate. CveDedupService caches 24h so rerunning the same scan is cheap. Goes
-        // through RunBulkCveDedupAsync directly — CheckCves_Click is the per-DLL window.
+        // Auto CVE dedup: cached 24h; routes via RunBulkCveDedupAsync.
         if (!cancelled && ChkAutoCve.IsChecked == true && results.Existing.Count > 0)
         {
             await RunBulkCveDedupAsync();
@@ -282,12 +272,7 @@ public partial class ScanPage : Page
         ConfigManager.Save();
     }
 
-    /// <summary>
-    /// Query the Advisory Library for records that already have a SourceCandidateKey
-    /// matching any of the rows we just loaded, and stamp a REPORTED reference on those
-    /// rows so the grid can render a badge + status tooltip. Silent on failure (library
-    /// might not exist yet on a fresh install).
-    /// </summary>
+    /// <summary>Stamp REPORTED references on rows matching Advisory Library entries by SourceCandidateKey.</summary>
     private async Task StampReportedBadgesAsync()
     {
         try
@@ -305,9 +290,7 @@ public partial class ScanPage : Page
         catch (Exception ex) { _main.Log($"REPORTED lookup skipped: {ex.Message}"); }
     }
 
-    // Columns mirror the grid so TSV paste / CSV loads give the same triage view the
-    // researcher sees in the app. ScoreValue is included as a numeric column too so
-    // downstream filtering/sorting (Excel, pandas) doesn't have to parse "7/10".
+    // Columns mirror the grid; ScoreValue is numeric for downstream sorting.
     private static readonly string[] ExportHeader =
     {
         "Total", "ScoreValue", "Exploit", "Impact", "Conf",
@@ -344,9 +327,7 @@ public partial class ScanPage : Page
         }
     }
 
-    // Physical reparent: take the inline details DockPanel out of its Border, host it in
-    // the modal window at 80% of MainWindow size, and push it back on close. Keeps all
-    // bindings / selection state / current row live (no data duplication).
+    // Reparent inline details into a modal window; bindings stay live.
     private void ExpandDetails_Click(object sender, RoutedEventArgs e)
     {
         var host = CandidateDetailsHost;
@@ -389,12 +370,7 @@ public partial class ScanPage : Page
         SetStatus("Cancelling...", StatusKind.Warn);
     }
 
-    /// <summary>
-    /// Per-DLL CVE check: opens a results window for the currently selected candidate so the
-    /// researcher can inspect matches in detail (this used to disappear when the bulk-dedup
-    /// path took over). Bulk dedup over every candidate is the responsibility of Auto CVE
-    /// (the checkbox + RunBulkCveDedupAsync).
-    /// </summary>
+    /// <summary>Per-DLL CVE check: opens results window for the selected candidate.</summary>
     private void CheckCves_Click(object sender, RoutedEventArgs e)
     {
         if (CandidatesGrid.SelectedItem is not CandidateRow row)
@@ -408,8 +384,7 @@ public partial class ScanPage : Page
 
         if (row.Existing == null)
         {
-            // Phantom slots have no PE on disk — vendor/product/filename can't be extracted
-            // reliably enough to query NVD. Tell the user instead of silently doing nothing.
+            // Phantom slots have no PE on disk for vendor/product extraction.
             MessageBox.Show(
                 "This is a phantom slot — no PE on disk to derive vendor/product from.\n\n" +
                 "Pick an existing candidate (one with a real DLL) to run a CVE check.",
@@ -420,8 +395,7 @@ public partial class ScanPage : Page
         var dlg = new CveResultsWindow(row.Existing.Dll) { Owner = Window.GetWindow(this) };
         dlg.ShowDialog();
 
-        // Reload the candidate's cached CVE result (CveResultsWindow may have cached fresh
-        // data) so the table badge in this page reflects what the dialog just showed.
+        // Reload cached CVE result so the table badge reflects what the dialog showed.
         try
         {
             var fresh = Core.Services.Cve.CveCache.TryGet(
@@ -432,16 +406,12 @@ public partial class ScanPage : Page
         catch { /* badge refresh is best-effort */ }
     }
 
-    /// <summary>
-    /// Bulk dedup across every existing candidate. Triggered ONLY by the Auto CVE flow at the
-    /// end of a scan (line ~269) — the per-DLL Check CVEs button no longer routes here.
-    /// </summary>
+    /// <summary>Bulk CVE dedup across every existing candidate. Triggered by Auto CVE only.</summary>
     private async Task RunBulkCveDedupAsync()
     {
         if (_lastScan == null || _lastScan.Existing.Count == 0) return;
 
-        // Only query existing candidates — phantoms don't have a PeAnalysis on disk
-        // to extract vendor/product from (synthesized slots with no version info).
+        // Phantoms lack a PeAnalysis on disk; skip.
         var targets = _lastScan.Existing
             .Where(c => c.Cve == null)
             .ToList();
@@ -457,8 +427,7 @@ public partial class ScanPage : Page
         _main.Log($"CVE dedup starting for {targets.Count} candidates...");
         SetStatus($"Querying NVD for {targets.Count} candidates...", StatusKind.Info);
 
-        // Concurrency 3 — NVD rate limit is 5 req/30s without API key. Keeping
-        // below that with some headroom for cache misses. CveCache absorbs reruns.
+        // Concurrency 3 stays under NVD's 5 req/30s rate limit.
         using var sem = new System.Threading.SemaphoreSlim(3);
         int done = 0, errors = 0, exact = 0;
 
@@ -525,9 +494,7 @@ public partial class ScanPage : Page
 
         var report = ProcmonCorrelator.Correlate(_lastScan, parsed);
 
-        // Re-sort on updated Totals; re-apply view filter so MinConfidence actually bites
-        // now that evidence exists. This closes the Sprint-1 gap where MinConfidence=9
-        // couldn't select "only runtime-confirmed" candidates.
+        // Re-sort and re-apply view filter so MinConfidence bites post-evidence.
         _allRows.Sort((a, b) => b.ScoreValue.CompareTo(a.ScoreValue));
         ApplyViewFilter();
 
@@ -539,11 +506,7 @@ public partial class ScanPage : Page
         _main.Log(msg);
     }
 
-    /// <summary>
-    /// Hand the current scan results to the Research Wizard. The wizard ctor
-    /// detects the populated <see cref="WizardSession.ScanResults"/> and resumes
-    /// at the Survey stage, skipping Input.
-    /// </summary>
+    /// <summary>Hand current scan results to the Research Wizard; resumes at Survey stage.</summary>
     private void PromoteToWizard_Click(object sender, RoutedEventArgs e)
     {
         if (_lastScan == null || _allRows.Count == 0)
@@ -590,8 +553,7 @@ public partial class ScanPage : Page
         if (CandidatesGrid.SelectedItem is not CandidateRow row) { ClearDetails(); _main.CurrentAttackFocus = null; return; }
         if (row.Existing != null) PopulateExistingDetails(row.Existing);
         else if (row.Phantom != null) PopulatePhantomDetails(row.Phantom);
-        // Make this candidate the focus for AttackPathPage. Phantom path is synthesized
-        // (DirectoryPath + DllName) since phantom slots have no file on disk.
+        // Make candidate the AttackPathPage focus; phantom path is synthesized.
         var dllPath = row.Existing?.Dll.Path
             ?? (row.Phantom != null ? Path.Combine(row.Phantom.DirectoryPath, row.Phantom.DllName) : null);
         _main.CurrentAttackFocus = new MainWindow.AttackPathFocus(
@@ -613,10 +575,7 @@ public partial class ScanPage : Page
         }
         else if (row.Phantom != null)
         {
-            // PHANTOM: three distinct research moves. YesNoCancel with clear mapping.
-            // Yes   = Generate Sideload at this slot — the primary research action for phantoms
-            // No    = Analyze the importer (see who loads it)
-            // Cancel = Stay on scan (details visible in side panel)
+            // Phantom: Yes=Generate Sideload, No=Analyze importer, Cancel=stay.
             var importer = row.Phantom.Importers.FirstOrDefault()?.ExeFilename ?? "?";
             var res = MessageBox.Show(
                 $"Phantom slot '{row.Phantom.DllName}' is a MISSING DLL that an existing PE tries to load. " +
@@ -674,20 +633,10 @@ public partial class ScanPage : Page
         _main.NavigateTo(new AnalyzePage(_main));
     }
 
-    /// <summary>
-    /// Synthesize a PeAnalysis representing the phantom DLL slot (no file on disk,
-    /// but well-defined name + target dir + expected arch inherited from the importer)
-    /// and navigate to GeneratePage in Sideload mode. The user gets a ready-to-build
-    /// project that produces the DLL replacement — the research move for phantoms.
-    /// </summary>
+    /// <summary>Synthesize a PeAnalysis for the phantom slot and navigate to GeneratePage in Sideload mode.</summary>
     private void GenerateSideloadForPhantom(PhantomCandidate p)
     {
-        // Pick arch by MAJORITY VOTE across all importers, not FirstOrDefault — a
-        // single stray importer of a different arch in the same dir (MobaXterm's
-        // mx86_64b\bin\ has a mix) would otherwise leak x64 when the dominant
-        // loader is x86, breaking the sideload. Tie → x86 (many targets have
-        // an x86 renderer/helper subprocess that is the real sideload entry
-        // even when the main EXE is x64 — Acrobat AcroCEF.exe, Electron, etc).
+        // Pick arch by majority vote across importers; tie favours x86.
         int x86Votes = 0, x64Votes = 0;
         foreach (var importer in p.Importers)
         {
@@ -700,9 +649,7 @@ public partial class ScanPage : Page
 
         _main.Log($"Arch vote for phantom '{p.DllName}': x86={x86Votes}, x64={x64Votes} → picked {arch}");
 
-        // Primary importer used for the HostExePath default in the deploy banner.
-        // Prefer one whose arch matches the winner, so the suggested host actually
-        // loads the DLL we're about to build.
+        // Primary importer for HostExePath; prefer arch match.
         var imp = p.Importers.FirstOrDefault(i => ResolveImporterArch(i.ExePath) == arch)
                ?? p.Importers.FirstOrDefault();
 
@@ -725,8 +672,7 @@ public partial class ScanPage : Page
             FileVersion = "",
             OriginalFilename = p.DllName,
             Exports = exports,
-            // Mirror the counters PeAnalyzer maintains so downstream validations
-            // (GeneratePage checks NamedExports, not Exports.Count) work correctly.
+            // Mirror PeAnalyzer counters; GeneratePage checks NamedExports.
             NamedExports = resolved?.Analysis.NamedExports ?? 0,
             OrdinalOnlyExports = resolved?.Analysis.OrdinalOnlyExports ?? 0,
         };
@@ -734,9 +680,7 @@ public partial class ScanPage : Page
         _main.CurrentAnalysis = synth;
         _main.CurrentDllPath = synth.Path;
 
-        // Hand off the deploy/run context to GeneratePage so the build .bat will
-        // copy the compiled DLL into p.DirectoryPath and launch the importer EXE.
-        // GeneratePage consumes (and clears) this on Generate.
+        // Deploy/run context for GeneratePage; consumed and cleared on Generate.
         if (imp != null)
         {
             _main.PendingDeployContext = new MainWindow.DeployContext(
@@ -759,12 +703,7 @@ public partial class ScanPage : Page
         _main.NavigateTo(new GeneratePage(_main, autoMode));
     }
 
-    /// <summary>
-    /// Resolve a PE file's arch ("x86" / "x64") using the scan graph first (cheap
-    /// lookup) and falling back to a live PeAnalyzer pass if the PE is referenced
-    /// by a phantom but wasn't classified as "existing" (e.g. filtered out).
-    /// Returns null when the file can't be parsed or doesn't exist.
-    /// </summary>
+    /// <summary>Resolve PE arch via scan graph, fallback to live PeAnalyzer. Returns null on parse failure.</summary>
     private string? ResolveImporterArch(string exePath)
     {
         if (string.IsNullOrEmpty(exePath)) return null;
@@ -866,8 +805,7 @@ public partial class ScanPage : Page
             DetailChainSteps.ItemsSource = FormatChainSteps(priv.ChainSteps);
         }
 
-        // DiscoveredVia trace (only for Sprint-3 targeted re-scan candidates — phantoms
-        // are never discovered indirectly because they have no file on disk to resolve to)
+        // DiscoveredVia trace (existing candidates only; phantoms can't be resolved).
         if (existing?.Discovery == DiscoveryOrigin.PrivescResolvedTarget &&
             !string.IsNullOrEmpty(existing.DiscoveredViaLabel))
         {
@@ -1215,9 +1153,7 @@ public partial class ScanPage : Page
         public string ConfidenceText => ConfidenceValue.ToString();
         public string Severity => Score?.Severity ?? "?";
 
-        // Cross-surface ExploitabilityVerdict (Phase 4) — same record the
-        // VerdictBadge control consumes on AnalyzePage / ProcmonPage / Runtime.
-        // Computed lazily so we don't re-evaluate on every binding refresh.
+        // Cross-surface ExploitabilityVerdict; computed lazily.
         private Core.Services.Exploitability.ExploitabilityVerdict? _verdict;
         private bool _verdictComputed;
         public Core.Services.Exploitability.ExploitabilityVerdict? Verdict

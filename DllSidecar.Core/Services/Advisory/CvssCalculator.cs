@@ -2,11 +2,7 @@ using DllSidecar.Core.Models.Advisory;
 
 namespace DllSidecar.Core.Services.Advisory;
 
-/// <summary>
-/// Minimal CVSS 3.1 base score calculator. Implements the published formulas at
-/// https://www.first.org/cvss/v3.1/specification-document. Enough for base score + severity;
-/// temporal/environmental metrics are out of scope for the initial advisory pass.
-/// </summary>
+/// <summary>CVSS 3.1 base score calculator per https://www.first.org/cvss/v3.1/specification-document.</summary>
 public static class CvssCalculator
 {
     public static (double Score, string Severity) Compute(CvssVector v)
@@ -57,10 +53,7 @@ public static class CvssCalculator
     /// <summary>Round up to one decimal per CVSS 3.1 spec.</summary>
     private static double RoundUp(double value) => Math.Ceiling(value * 10) / 10.0;
 
-    /// <summary>
-    /// Parse a CVSS 3.1 vector string like "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"
-    /// into a CvssVector. Returns null when the string cannot be parsed.
-    /// </summary>
+    /// <summary>Parse a CVSS 3.1 vector string into a CvssVector; null when unparseable.</summary>
     public static CvssVector? ParseVector(string vector)
     {
         if (string.IsNullOrWhiteSpace(vector)) return null;

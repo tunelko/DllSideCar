@@ -3,12 +3,7 @@ using DllSidecar.Core.Models.Advisory;
 
 namespace DllSidecar.Core.Services.AdvisoryLibrary;
 
-/// <summary>
-/// Best-effort parser that turns an arbitrary markdown file into a draft AdvisoryContext.
-/// Picks up the first H1 as title, looks for CVE-YYYY-NNNNN, and a handful of structured
-/// <c>Vendor:</c> / <c>Product:</c> / <c>Version:</c> / <c>CWE-NNN</c> patterns. What the
-/// parser can't extract the researcher fills in from AdvisoryPage afterwards.
-/// </summary>
+/// <summary>Best-effort parser that turns a markdown file into a draft AdvisoryContext.</summary>
 public static class MarkdownAdvisoryImporter
 {
     private static readonly Regex H1 = new(@"^\s*#\s+(?<t>.+?)\s*$", RegexOptions.Multiline | RegexOptions.Compiled);
@@ -38,8 +33,7 @@ public static class MarkdownAdvisoryImporter
         var cwe = CweId.Match(markdown);
         if (cwe.Success) ctx.Cwe = cwe.Value;
 
-        // CVE id goes to the Title suffix if not already there — parser doesn't fill
-        // CveDedup directly since that's an NVD-API-sourced struct.
+        // CVE id appended to Title; CveDedup stays empty (NVD-API sourced).
         var cve = CveId.Match(markdown);
         if (cve.Success && !ctx.Title.Contains(cve.Value, StringComparison.OrdinalIgnoreCase))
         {

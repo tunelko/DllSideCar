@@ -4,20 +4,13 @@ using DllSidecar.Core.Models.Privesc;
 namespace DllSidecar.Core.Services.Privesc;
 
 /// <summary>
-/// Heuristic marker for "updater / maintenance / helper" binaries — these are the gold
-/// targets in the sideloading research methodology because they almost always run as
-/// SYSTEM (to update privileged files) and are triggered automatically on a schedule.
-///
-/// Fires as Informational by itself; severity escalates when combined with ServicesDetector
-/// or ScheduledTaskDetector findings on the same PE. The PrivescAnalyzer handles that
-/// escalation after all detectors have run.
+/// Heuristic marker for updater/maintenance/helper binaries; Informational alone, escalates with Services/ScheduledTask findings.
 /// </summary>
 public class UpdaterHeuristicDetector : IPrivescDetector
 {
     public string Name => "UpdaterHeuristicDetector";
 
-    // Patterns derived from observed updater/helper binaries across Adobe, Chrome,
-    // Mozilla, Forticlient, Dropbox, OneDrive, and similar vendors.
+    // Patterns observed across Adobe/Chrome/Mozilla/Forticlient/Dropbox/OneDrive updaters.
     private static readonly string[] Patterns =
     [
         "update", "updater", "autoupdate", "autoupdater",

@@ -142,9 +142,7 @@
                 <StackPanel>
                     <TextBlock Text="QUICK ACTIONS" Style="{StaticResource SectionHeader}"/>
 
-                    <!-- Primary: Proxy / Sideload tiles. Tracer is no longer reachable
-                         from the UI; both remaining techniques converge into the unified
-                         "DLL Techniques" page where the user can flip between them. -->
+                    <!-- Primary: Proxy / Sideload tiles. -->
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -223,10 +221,7 @@
             </Border>
         </Grid>
 
-        <!-- Exploitability verdict (single-PE perspective). Composes KnownDLL +
-             arch + loader-API imports + callsite scan results into a tiered
-             verdict so the researcher sees the binary-level go/no-go before
-             stepping out to ScanPage (which will add the filesystem ACL context). -->
+        <!-- Exploitability verdict (single-PE perspective). -->
         <Border Grid.Row="3" x:Name="ExploitabilityPanel" Style="{StaticResource SectionCard}"
                 Visibility="Collapsed" Margin="0,0,0,12">
             <Grid>
@@ -243,9 +238,7 @@
                 <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
                            Text="EXPLOITABILITY" Style="{StaticResource SectionHeader}"/>
 
-                <!-- Left: unified VerdictBadge — same control rendered on ScanPage,
-                     ProcmonPage and RuntimeTracePage so the chip vocabulary stays
-                     identical across surfaces. Tooltip carries pros/cons/blocker. -->
+                <!-- Left: unified VerdictBadge — shared chip vocabulary across surfaces. -->
                 <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="0,4,24,0">
                     <ctrl:VerdictBadge x:Name="VerdictBadgeControl"/>
                     <TextBlock x:Name="VerdictBlocker" FontSize="11" Foreground="{StaticResource Red}"

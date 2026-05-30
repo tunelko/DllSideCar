@@ -5,10 +5,7 @@ using DllSidecar.Core.Models;
 namespace DllSidecar.Core.Services;
 
 /// <summary>
-/// Parses ProcMon CSV exports (File > Save > CSV) and extracts DLL-resolution failures.
-/// Ported and expanded from scripts/parse_procmon.py. The CSV format uses the UTF-8 BOM
-/// and these columns:
-///   "Time of Day","Process Name","PID","Operation","Path","Result","Detail"
+/// Parses ProcMon CSV exports (UTF-8 BOM; columns: Time of Day, Process Name, PID, Operation, Path, Result, Detail) and extracts DLL-resolution failures.
 /// </summary>
 public static class ProcmonParser
 {
@@ -19,6 +16,10 @@ public static class ProcmonParser
         public int TotalRows { get; set; }
         public int FilteredRows { get; set; }
         public string? Error { get; set; }
+        /// <summary>
+        /// UAC elevation transitions detected in the event stream. Empty when none.
+        /// </summary>
+        public List<ElevationTransition> Transitions { get; set; } = [];
     }
 
     public static ParseResult Parse(string csvPath, string? processFilter = null)
@@ -114,17 +115,18 @@ public static class ProcmonParser
                     {
                         case AccessClass.LoaderLike:    agg.LoaderLikeCount++; break;
                         case AccessClass.MetadataProbe: agg.MetadataProbeCount++; break;
-                        // Unknown intentionally not counted in either bucket — it falls
-                        // through as a load candidate for downstream safety but doesn't
-                        // inflate the "real loader hits" count.
+                        // Unknown intentionally uncounted.
                     }
                 }
                 result.ByDll.Add(agg);
             }
             result.ByDll.Sort((a, b) => b.EventCount.CompareTo(a.EventCount));
 
+            // UAC elevation transition detection (idempotent, always runs).
+            result.Transitions = ElevationTransitionDetector.RunFullPipeline(result.Events, result.ByDll);
+
             Log.Info("procmon",
-                $"Parsed {csvPath}: {result.TotalRows} rows -> {result.FilteredRows} DLL NAME-NOT-FOUND events, {result.ByDll.Count} unique DLLs");
+                $"Parsed {csvPath}: {result.TotalRows} rows -> {result.FilteredRows} DLL NAME-NOT-FOUND events, {result.ByDll.Count} unique DLLs, {result.Transitions.Count} elevation transition(s)");
         }
         catch (IOException ex)
         {
@@ -157,8 +159,7 @@ public static class ProcmonParser
     }
 
     /// <summary>
-    /// Minimal CSV line splitter — handles quoted fields with embedded commas and escaped
-    /// double-quotes (RFC 4180 style). ProcMon exports conform to this subset.
+    /// Minimal RFC 4180 CSV line splitter (quoted fields, escaped double-quotes).
     /// </summary>
     private static List<string> SplitCsvLine(string line)
     {

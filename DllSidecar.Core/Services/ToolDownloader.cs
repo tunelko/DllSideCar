@@ -29,16 +29,9 @@ public class DownloadResult
     public List<string> VerificationFailures { get; set; } = [];
 }
 
-/// <summary>
-/// Downloads whitelisted tools (Sysinternals Suite / Procmon / Sigcheck) over HTTPS,
-/// extracts them to %LOCALAPPDATA%\DllSidecar\tools\, verifies Authenticode on the key
-/// binaries using our own AuthenticodeVerifier (dogfooding), and updates ConfigManager.
-/// If Authenticode fails on a required binary, the install is ABORTED and the extracted
-/// files are removed — we refuse to install untrusted code as part of a security tool.
-/// </summary>
+/// <summary>Downloads whitelisted tools over HTTPS, extracts, Authenticode-verifies, and updates config. Aborts on signature failure.</summary>
 public static class ToolDownloader
 {
-    // HTTPS hosts we are willing to download from. Anything else is refused.
     private static readonly HashSet<string> HostWhitelist = new(StringComparer.OrdinalIgnoreCase)
     {
         "download.sysinternals.com",
@@ -64,12 +57,12 @@ public static class ToolDownloader
             Id = "sysinternals-suite",
             DisplayName = "Sysinternals Suite (Microsoft)",
             Url = "https://download.sysinternals.com/files/SysinternalsSuite.zip",
-            MaxSizeBytes = 200 * 1024 * 1024,   // 200MB cap
+            MaxSizeBytes = 200 * 1024 * 1024,
             InstallSubdir = "Sysinternals",
             BinariesToVerify = ["Procmon64.exe", "sigcheck64.exe"],
             ConfigUpdates =
             {
-                ["SysinternalsDir"] = "",               // install dir itself
+                ["SysinternalsDir"] = "",
                 ["ProcmonPath"] = "Procmon64.exe",
                 ["SigcheckPath"] = "sigcheck64.exe",
             },
@@ -107,7 +100,6 @@ public static class ToolDownloader
         var result = new DownloadResult();
         var report = new DownloadProgress();
 
-        // 1) Validate URL
         report.Phase = DownloadPhase.Validating;
         report.Message = "Validating URL and policy";
         progress?.Report(report);
@@ -125,7 +117,6 @@ public static class ToolDownloader
             return Fail(result, progress, report, $"Host '{uri.Host}' not in download whitelist");
         }
 
-        // 2) Download to temp
         var tempZip = Path.Combine(Path.GetTempPath(), $"dllsidecar-{def.Id}-{Guid.NewGuid():N}.zip");
         try
         {

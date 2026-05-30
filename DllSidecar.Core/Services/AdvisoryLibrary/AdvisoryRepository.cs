@@ -5,9 +5,7 @@ using DllSidecar.Core.Models.AdvisoryLibrary;
 namespace DllSidecar.Core.Services.AdvisoryLibrary;
 
 /// <summary>
-/// SQLite-backed repository for the Advisory Library (Fase 7c.1).
-/// DB lives at %LOCALAPPDATA%\DllSidecar\advisories\library.db and is created on first use.
-/// Schema defined in spec ADVISORY_LIBRARY_SPEC.md; schema_info table carries version "1".
+/// SQLite-backed repository for the Advisory Library at %LOCALAPPDATA%\DllSidecar\advisories\library.db.
 /// </summary>
 public sealed class AdvisoryRepository
 {
@@ -73,8 +71,7 @@ public sealed class AdvisoryRepository
                 catch { /* idempotent */ }
                 existing = "3";
             }
-            // v3 → v4: Template Fields persistence — classification, vendor PoC, affected
-            // components/requirements/solution, CVSS v4, researcher PGP overrides.
+            // v3 -> v4: Template Fields persistence.
             if (existing == "3")
             {
                 foreach (var col in V4NewColumns)
@@ -84,26 +81,21 @@ public sealed class AdvisoryRepository
                 }
                 existing = "4";
             }
-            // v4 → v5: persist the active template per advisory so reopen restores the renderer
-            // (previously every reopen reverted to Markdown and could overwrite non-Markdown bodies).
+            // v4 -> v5: persist active template per advisory.
             if (existing == "4")
             {
                 try { await ExecNonQueryAsync(conn, "ALTER TABLE advisory_records ADD COLUMN last_template_id TEXT;"); }
                 catch { /* idempotent */ }
                 existing = "5";
             }
-            // v5 → v6: per-vendor sequence number (used to build human-readable filenames like
-            // DLL_SIDELOADING_ADVISORY_0001.txt). Allocated lazily on first write that needs it,
-            // never reused — soft-deleted rows still hold their slot to keep numbers stable.
+            // v5 -> v6: per-vendor sequence number (lazily allocated, never reused).
             if (existing == "5")
             {
                 try { await ExecNonQueryAsync(conn, "ALTER TABLE advisory_records ADD COLUMN sequence_number INTEGER;"); }
                 catch { /* idempotent */ }
                 existing = "6";
             }
-            // v6 → v7: per-artifact workflow status. Each format tracks its own state because
-            // submission lifecycles differ (markdown → blog, ghsa → GitHub). Backfill from the
-            // parent record so existing rows keep visible status.
+            // v6 -> v7: per-artifact workflow status; backfill from parent record.
             if (existing == "6")
             {
                 try { await ExecNonQueryAsync(conn, "ALTER TABLE advisory_artifacts ADD COLUMN status INTEGER NOT NULL DEFAULT 0;"); }
@@ -115,16 +107,10 @@ public sealed class AdvisoryRepository
                 catch { /* best effort */ }
                 existing = "7";
             }
-            // v7 → v8: drop the four classification / external-ranking columns that backed a
-            // template renderer pruned from the registry, plus a sweep of any artifact rows
-            // (and their backing files on disk) produced by that renderer. Best-effort — the
-            // ALTER TABLE DROP COLUMN form requires SQLite >= 3.35 (March 2021); on older
-            // engines the columns are simply ignored by the rest of the code path.
+            // v7 -> v8: drop incibe classification/ranking columns and their artifacts.
             if (existing == "7")
             {
-                // First unlink the physical artifact files so we don't orphan them once the
-                // DB rows go. Snapshot paths in a list — iterating the reader while issuing
-                // another command on the same connection deadlocks SQLite.
+                // Snapshot paths first; iterating the reader while issuing a command deadlocks.
                 var orphanPaths = new List<string>();
                 try
                 {

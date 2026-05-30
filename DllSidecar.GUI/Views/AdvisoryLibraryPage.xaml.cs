@@ -42,8 +42,7 @@ public partial class AdvisoryLibraryPage : Page
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshAsync();
 
-    // Root of the tree bound to RecordsTree. Rebuilt every RefreshAsync. Holds a heterogeneous
-    // list of VendorNode (regular vendors) followed by a single TrashNode at the end.
+    // Tree root: VendorNodes followed by a final TrashNode.
     private readonly ObservableCollection<object> _roots = [];
     private readonly TrashNode _trash = new();
 
@@ -57,21 +56,11 @@ public partial class AdvisoryLibraryPage : Page
             _rows.Clear();
             foreach (var it in items) _rows.Add(new RecordRow(it));
 
-            // Fetch the artifact index once so we can fold files into format folders without
-            // per-advisory round-trips.
+            // Fetch artifact index once to fold files without per-advisory round-trips.
             var artifactsByAdvisory = await _repo.GetArtifactsIndexAsync();
             var deleted = await _repo.ListDeletedAsync();
 
-            // Flat hierarchy: Vendor → FileLeafNode. The previous Vendor → FormatFolder →
-            // File grouping was dropped — the filename itself (DLL_SIDELOADING_ADVISORY_NNNN
-            // .md/.txt/.yaml) already conveys which renderer produced it, so the extra
-            // folder level was navigational tax without information. Files sort by filename
-            // so all artifacts of one advisory cluster naturally (0001.md / 0001.txt /
-            // 0001.yaml / 0002.md ...) thanks to the sequence-padded filename convention.
-            //
-            // For the Trash group we keep one AdvisoryNode per deleted record because
-            // Restore acts on the whole advisory (not on a single file), so the user needs
-            // a parent handle to drag back to the vendor tree.
+            // Flat hierarchy: Vendor → FileLeafNode. Trash keeps AdvisoryNode parent for Restore handle.
             AdvisoryNode BuildTrashNode(AdvisoryRecordListItem it)
             {
                 var adv = new AdvisoryNode(it);
@@ -142,8 +131,7 @@ public partial class AdvisoryLibraryPage : Page
         await RefreshAsync();
     }
 
-    // True when the selected advisory is currently inside the Trash group. Toggles the
-    // action icons between normal (open/status/note/delete) and trash (restore/permanent).
+    // True when the selected advisory is inside Trash; toggles action icons.
     private bool _selectedIsTrashed;
     private VendorNode? _selectedVendor;
 
@@ -165,11 +153,7 @@ public partial class AdvisoryLibraryPage : Page
                 _selectedLeaf = leaf;
                 if (leaf.Owner != null && !_selectedIsTrashed)
                 {
-                    // Main tree: a file leaf is the user's primary handle on its parent advisory.
-                    // Load the record and show the Advisory pane so the action icons (Open in
-                    // AdvisoryPage ↗, Status ⇄, Note ✎, Export 📦, Delete 🗑) all apply to the
-                    // owning record. File preview pane is reserved for Trash leaves where there
-                    // is no editable owner to act on.
+                    // File leaf in main tree → load owning advisory; preview pane is Trash-only.
                     _loaded = await _repo.GetAsync(leaf.Owner.Id);
                     if (_loaded != null) RenderDetails(_loaded);
                     UpdateAdvisoryActionIcons();
@@ -216,10 +200,7 @@ public partial class AdvisoryLibraryPage : Page
 
     // ---- Vendor rename (double-click) --------------------------------------
 
-    /// <summary>
-    /// Double-click on a vendor row → enter edit mode. Also swallows the event so the
-    /// TreeViewItem's default double-click handler doesn't toggle expansion.
-    /// </summary>
+    /// <summary>Double-click on a vendor row → enter edit mode; swallows event to prevent expansion.</summary>
     private void Vendor_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (e.ClickCount != 2) return;
@@ -263,11 +244,7 @@ public partial class AdvisoryLibraryPage : Page
 
     private async Task CommitVendorRenameAsync(VendorNode vendor)
     {
-        // Guard against double-commit: Enter fires commit → RefreshAsync rebuilds the tree →
-        // the old TextBox is destroyed → LostKeyboardFocus on the now-orphan vendor fires a
-        // second commit. Without this flip, the second commit issues UPDATE WHERE vendor=old
-        // against a DB where 0 records still match, reporting "0 record(s) re-grouped" and
-        // making the user think the rename failed.
+        // Guard against double-commit (Enter + LostFocus race on rebuilt tree).
         if (!vendor.IsEditing) return;
         vendor.IsEditing = false;
 
@@ -277,8 +254,7 @@ public partial class AdvisoryLibraryPage : Page
         {
             var n = await _repo.RenameVendorAsync(vendor.OriginalName, newName);
             _main.Log($"Vendor rename: '{vendor.OriginalName}' ({vendor.Count} in group) → '{newName}' — {n} record(s) updated");
-            // Update OriginalName so any delayed second commit on the same in-memory object
-            // short-circuits via the newName == OriginalName check above.
+            // Update OriginalName so delayed commits short-circuit.
             vendor.OriginalName = newName;
             SetStatus($"Vendor updated — {n} record(s) re-grouped as '{newName}'.", StatusKind.Ok);
             await RefreshAsync();
@@ -333,11 +309,7 @@ public partial class AdvisoryLibraryPage : Page
         VendorAdvisoriesList.ItemsSource = items.Select(i => new VendorSummaryRow(i)).ToList();
     }
 
-    /// <summary>
-    /// Map a list-item to a severity bucket for the vendor summary. We don't have CVSS in
-    /// the list DTO, so we approximate via Status (e.g. CveAssigned / Public => high signal).
-    /// Good enough for a quick glance; the real number lives in the per-advisory detail.
-    /// </summary>
+    /// <summary>Approximate a severity bucket from Status for the vendor summary glance.</summary>
     private static string BucketForVendorRow(AdvisoryRecordListItem i) => i.Status switch
     {
         AdvisoryStatus.Public or AdvisoryStatus.CveAssigned => "HIGH",
@@ -412,11 +384,7 @@ public partial class AdvisoryLibraryPage : Page
 
     // ---- Export / Import ------------------------------------------------
 
-    /// <summary>
-    /// Export every advisory under the currently selected vendor as a single ZIP containing
-    /// one <c>.dsa</c> per advisory. Reuses the single-advisory bundle machinery — no new
-    /// multi-advisory format required; the outer ZIP is just a transport wrapper.
-    /// </summary>
+    /// <summary>Export all advisories under the selected vendor as a ZIP of .dsa bundles.</summary>
     private async void ExportVendorBundle_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedVendor == null || _selectedVendor.Advisories.Count == 0) return;
@@ -511,12 +479,7 @@ public partial class AdvisoryLibraryPage : Page
         catch (Exception ex) { SetStatus($"Import failed: {ex.Message}", StatusKind.Err); }
     }
 
-    /// <summary>
-    /// Import a file that's either a single-advisory <c>.dsa</c> bundle OR a vendor-wrapper
-    /// ZIP produced by <see cref="ExportVendorBundle_Click"/>. Wrapper detection: if the ZIP
-    /// has no <c>manifest.json</c> at the root, we look for any <c>.dsa</c>/<c>.zip</c>
-    /// entries inside and import each recursively.
-    /// </summary>
+    /// <summary>Import a single-advisory .dsa or a vendor-wrapper ZIP (detected by missing manifest.json).</summary>
     private static async Task<List<string>> ImportBundleOrWrapperAsync(AdvisoryBundleService svc, string zipPath)
     {
         using var zip = System.IO.Compression.ZipFile.OpenRead(zipPath);
@@ -537,9 +500,7 @@ public partial class AdvisoryLibraryPage : Page
             var tempDirPrefix = Path.GetFullPath(tempDir) + Path.DirectorySeparatorChar;
             foreach (var entry in zip.Entries.Where(e => e.Name.EndsWith(".dsa", StringComparison.OrdinalIgnoreCase)))
             {
-                // Zip Slip defense (SCS0018): strip any directory components and verify
-                // the resolved path stays under tempDir. A crafted bundle entry like
-                // "../../foo.dsa" would otherwise let the extractor escape tempDir.
+                // Zip Slip defense (SCS0018): keep extraction inside tempDir.
                 var safeName = Path.GetFileName(entry.Name);
                 if (string.IsNullOrEmpty(safeName)) continue;
                 var inner = Path.GetFullPath(Path.Combine(tempDir, safeName));
@@ -581,9 +542,7 @@ public partial class AdvisoryLibraryPage : Page
 
     private void Tree_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        // Skip drag tracking when the click originated on the expand chevron — the
-        // TreeViewItem's internal ToggleButton handles expand/collapse, and recording
-        // _dragStart here would let a tiny mouse jitter steal the click for drag.
+        // Skip drag tracking on chevron clicks (ToggleButton handles expand/collapse).
         if (IsOverExpandToggle(e.OriginalSource as DependencyObject))
         {
             _dragStart = null;
@@ -610,18 +569,11 @@ public partial class AdvisoryLibraryPage : Page
         if (_dragStart == null || e.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
         var delta = e.GetPosition(null) - _dragStart.Value;
 
-        // Use a conservative threshold (~4x the system default) so normal clicks on the
-        // chevron ▸ or on a row aren't stolen by drag initiation. Touchpads fire tiny
-        // move events during a click; default 4-pixel WPF threshold is too trigger-happy.
+        // Conservative ~4x default threshold so clicks aren't stolen by drag.
         const double DragThreshold = 16.0;
         if (Math.Abs(delta.X) < DragThreshold && Math.Abs(delta.Y) < DragThreshold) return;
 
-        // Draggable: advisories (Trash), vendors (not in rename mode), AND file leaves
-        // that know their owning advisory (main tree). FileLeaf drag has always had a
-        // CanDrop case + a Tree_Drop handler that moves the whole owning advisory, but
-        // the move-initiation check above was missing the case — so a file row stayed
-        // un-grabbable in practice. Fixed here so "drag a file to a vendor folder"
-        // matches the behaviour the comment block above promises.
+        // Draggable: AdvisoryNode, VendorNode (not editing), FileLeafNode with Owner.
         bool draggable = _dragCandidate switch
         {
             AdvisoryNode => true,
@@ -679,10 +631,7 @@ public partial class AdvisoryLibraryPage : Page
                     break;
 
                 case (FileLeafNode leaf, VendorNode dst) when leaf.Owner != null:
-                    // Dragging a file moves the WHOLE advisory it belongs to (re-allocates seq
-                    // and moves all its files under the destination vendor folder). The user
-                    // is most likely thinking "I want this advisory under that vendor", so we
-                    // act on the parent record rather than only the single rendered file.
+                    // Drag a file → moves the whole owning advisory.
                     await _repo.MoveAdvisoryToVendorAsync(leaf.Owner.Id, dst.Name);
                     SetStatus($"Moved '{leaf.Owner.Title}' → {dst.Name}.", StatusKind.Ok);
                     break;
@@ -793,11 +742,7 @@ public partial class AdvisoryLibraryPage : Page
         catch (Exception ex) { SetStatus($"Delete failed: {ex.Message}", StatusKind.Err); }
     }
 
-    /// <summary>
-    /// Render a loaded advisory into the details panel. Called from the grid's
-    /// selection handler AND directly by actions (ChangeStatus, AddNote) after
-    /// they mutate the record, so we don't have to re-trigger the selection event.
-    /// </summary>
+    /// <summary>Render a loaded advisory into the details panel.</summary>
     private void RenderDetails(AdvisoryRecord r)
     {
         DetailEmpty.Visibility = Visibility.Collapsed;
@@ -857,17 +802,11 @@ public partial class AdvisoryLibraryPage : Page
         _main.PendingAdvisoryContext = ctx;
         _main.PendingAdvisoryRecordId = _loaded.Id;
 
-        // If the user opened from a specific file leaf, edit THAT file's template — not the
-        // advisory's last_template_id, which may correspond to a different artifact and would
-        // cause the editor to mis-render (e.g. opening .md but seeing another renderer selected,
-        // then Save creating a duplicate file in the wrong format folder).
+        // If opened from a file leaf, use THAT artifact's template + on-disk content.
         if (_selectedLeaf?.Artifact != null
             && !string.IsNullOrWhiteSpace(_selectedLeaf.Artifact.TemplateId))
         {
             _main.PendingAdvisoryTemplateId = _selectedLeaf.Artifact.TemplateId;
-            // Use the file's actual on-disk content as the editor seed; otherwise we'd show
-            // the body of whichever artifact the advisory record's MarkdownBody column happens
-            // to mirror, which is usually the LAST saved one regardless of template.
             try { _main.PendingAdvisoryMarkdown = await System.IO.File.ReadAllTextAsync(_selectedLeaf.Artifact.Path); }
             catch { _main.PendingAdvisoryMarkdown = _loaded.MarkdownBody; }
         }
@@ -885,10 +824,7 @@ public partial class AdvisoryLibraryPage : Page
         if (_loaded == null) return;
         var id = _loaded.Id;
 
-        // Per-format status: if a FileLeaf is the active selection (main tree, not Trash),
-        // change ONLY that artifact's status. Each format (markdown / ghsa) tracks its own
-        // workflow state because submission lifecycles differ — GHSA may already be in
-        // CveAssigned while Markdown is still Draft, etc.
+        // FileLeaf selection → per-artifact status change (formats track separate workflow).
         if (_selectedLeaf?.Artifact != null && !_selectedIsTrashed)
         {
             var artifact = _selectedLeaf.Artifact;
@@ -931,11 +867,7 @@ public partial class AdvisoryLibraryPage : Page
         catch (Exception ex) { SetStatus($"Add note failed: {ex.Message}", StatusKind.Err); }
     }
 
-    /// <summary>
-    /// Reload the currently selected record from DB and refresh both the list and detail
-    /// pane in-place. Avoids fiddling with RecordsGrid.SelectedItem, which was racing
-    /// with the async SelectionChanged handler and producing a NullReferenceException.
-    /// </summary>
+    /// <summary>Reload the currently selected record from DB and refresh list + detail pane.</summary>
     private async Task ReloadCurrentAsync(string id)
     {
         var fresh = await _repo.GetAsync(id);

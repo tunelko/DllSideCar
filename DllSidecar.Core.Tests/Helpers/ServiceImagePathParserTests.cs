@@ -36,9 +36,7 @@ public class ServiceImagePathParserTests
     [Fact]
     public void ExtractPath_UnquotedWithSpacesInPath_DetectsExeBoundary()
     {
-        // The bug this helper exists to fix: a naive first-space split would have
-        // returned "C:\Program" here. The .exe-terminator heuristic keeps the
-        // full path intact.
+        // The .exe-terminator heuristic keeps spaced paths intact.
         var s = @"C:\Program Files\Vendor\svc.exe -k group";
         Assert.Equal(@"C:\Program Files\Vendor\svc.exe", ServiceImagePathParser.ExtractPath(s));
     }
@@ -67,8 +65,7 @@ public class ServiceImagePathParserTests
     [Fact]
     public void ExtractPath_NoRecognizedExtension_FallsBackToFirstSpace()
     {
-        // Preserves the legacy fallback so unusual registrations (no extension at all)
-        // still return *something* useful — same as the old behaviour.
+        // Fallback for registrations without a recognized extension.
         var s = "scriptrunner -arg1 -arg2";
         Assert.Equal("scriptrunner", ServiceImagePathParser.ExtractPath(s));
     }
@@ -76,9 +73,7 @@ public class ServiceImagePathParserTests
     [Fact]
     public void ExtractPath_ArgsContainAnotherExePath_PicksEarliestBoundary()
     {
-        // Defends against an argument that itself contains an executable extension:
-        // the earliest valid boundary wins, so the actual binary is captured even
-        // when args look like another path.
+        // Earliest valid boundary wins when args contain another .exe path.
         var s = @"C:\Program Files\Vendor\svc.exe --plugin=C:\Other\helper.exe";
         Assert.Equal(@"C:\Program Files\Vendor\svc.exe", ServiceImagePathParser.ExtractPath(s));
     }

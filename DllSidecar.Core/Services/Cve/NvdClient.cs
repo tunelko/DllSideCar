@@ -8,22 +8,12 @@ using DllSidecar.Core.Models.Cve;
 namespace DllSidecar.Core.Services.Cve;
 
 /// <summary>
-/// Thin HttpClient over the NVD REST API v2. Handles:
-///   - HTTPS enforcement (hard-coded host — we never talk to anyone else)
-///   - Optional apiKey header (raises rate limit 5/30s → 50/30s)
-///   - Backoff on 429 Too Many Requests
-///   - 45s per-request timeout (NVD is slow under load, especially
-///     without an API key)
-///   - Response parsing into our CveMatch model (a flat subset of NVD's JSON)
+/// HttpClient over NVD REST API v2: optional apiKey, 429 backoff, 45s timeout, parses into CveMatch.
 /// </summary>
 public class NvdClient : IDisposable
 {
     private const string BaseUrl = "https://services.nvd.nist.gov/rest/json/cves/2.0";
-    // NVD without an API key throttles to 5 req/30s and individual responses
-    // can take 20-30s on cold cache. 15s was too tight and caused frequent
-    // user-visible timeouts; 45s is generous enough that a single slow
-    // response doesn't kill the search but short enough to bail on a
-    // genuinely unreachable endpoint.
+    // 45s accommodates NVD's slow cold-cache responses without API key.
     private const int TimeoutSeconds = 45;
 
     private readonly HttpClient _http;
@@ -34,10 +24,6 @@ public class NvdClient : IDisposable
         {
             Timeout = TimeSpan.FromSeconds(TimeoutSeconds),
         };
-        // User-Agent identifies the application + a contact URL that NIST can use
-        // if NVD operators ever need to reach the source. Kept generic on purpose —
-        // the project repo is the canonical contact point, not any single
-        // researcher's personal blog.
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("DllSidecar-Research/1.0 (+https://github.com/tunelko/DllSideCar)");
 
         var key = ConfigManager.Current.Tools.NvdApiKey;
@@ -46,8 +32,7 @@ public class NvdClient : IDisposable
     }
 
     /// <summary>
-    /// Raw keyword search. Returns up to resultsPerPage matches. CveDedupService drives
-    /// the scoring — this method just fetches and parses.
+    /// Raw keyword search; CveDedupService handles scoring.
     /// </summary>
     public async Task<CveQueryResult> SearchAsync(string keywords, int resultsPerPage = 50, CancellationToken ct = default)
     {
@@ -83,8 +68,7 @@ public class NvdClient : IDisposable
         }
         catch (TaskCanceledException)
         {
-            // Hint about API key when the user is hitting timeouts — NVD
-            // without one is throttled and noticeably slower under load.
+            // Hint about API key on timeout.
             var keyHint = string.IsNullOrWhiteSpace(ConfigManager.Current.Tools.NvdApiKey)
                 ? " (no NVD API key configured — Config → Tools → NVD API Key for higher rate limits)"
                 : "";

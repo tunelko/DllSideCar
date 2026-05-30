@@ -48,12 +48,8 @@ public static class PeAnalyzer
         analysis.Security.ForceIntegrity = (dllChars & DllCharForceIntegrity) != 0;
         analysis.Security.Cfg = (dllChars & DllCharGuardCf) != 0;
 
-        // DependentLoadFlags from LoadConfig
         if (pe.ImageLoadConfigDirectory != null)
         {
-            var lc = pe.ImageLoadConfigDirectory;
-            // PeNet exposes DependentLoadFlags in newer versions
-            // Fall back to 0 if not available
             analysis.Security.DependentLoadFlags = 0;
         }
 
@@ -118,7 +114,6 @@ public static class PeAnalyzer
             {
                 foreach (var d in delay)
                 {
-                    // PeNet 5.0: delay-load descriptor exposes name via SzName (raw field) — resolve via RVA
                     var name = ResolveDelayDllName(pe, d);
                     if (string.IsNullOrEmpty(name)) continue;
                     var existing = analysis.Imports.FirstOrDefault(
@@ -136,7 +131,6 @@ public static class PeAnalyzer
         }
         catch (Exception ex)
         {
-            // Delay-load parsing varies across PeNet versions and is best-effort
             Log.Debug("pe.delay", $"Delay-load descriptor parsing failed for {filename}", ex);
         }
 
@@ -145,8 +139,7 @@ public static class PeAnalyzer
 
     private static string? ResolveDelayDllName(PeFile pe, object descriptor)
     {
-        // PeNet 5.0 exposes SzName as an RVA (uint) in ImageDelayImportDescriptor.
-        // Resolve RVA→file offset and read zero-terminated ASCII.
+        // PeNet 5.0 SzName is an RVA (uint) in ImageDelayImportDescriptor.
         try
         {
             var prop = descriptor.GetType().GetProperty("SzName");

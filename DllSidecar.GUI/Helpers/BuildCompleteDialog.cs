@@ -5,20 +5,10 @@ using DllSidecar.GUI.Views;
 
 namespace DllSidecar.GUI.Helpers;
 
-/// <summary>
-/// Post-build confirmation modal. Surfaces the on-disk location of the compiled
-/// PoC so the researcher doesn't have to scroll the log to find it, with a
-/// one-click Open-in-Explorer action. Used by GeneratePage (one-click
-/// generate-and-build) and the Wizard's CraftStage (auto-build).
-/// </summary>
+/// <summary>Post-build confirmation modal with one-click Open-in-Explorer action.</summary>
 public static class BuildCompleteDialog
 {
-    /// <summary>
-    /// Show the success modal. <paramref name="outputDllPath"/> is the full path
-    /// to the compiled DLL; the dialog displays the parent directory as the
-    /// thing the user will navigate to. On <c>Yes</c> the parent folder opens
-    /// in Explorer (selecting the DLL itself when possible via <c>/select,</c>).
-    /// </summary>
+    /// <summary>Show the success modal; opens the parent folder in Explorer on Yes.</summary>
     public static void Show(Window? owner, string outputDllPath)
     {
         if (string.IsNullOrWhiteSpace(outputDllPath)) return;
@@ -48,11 +38,7 @@ public static class BuildCompleteDialog
         catch (UnauthorizedAccessException) { return 0; }
     }
 
-    /// <summary>
-    /// Launch Explorer with /select,&lt;path&gt; so the DLL is highlighted inside the
-    /// folder. Falls back to plain folder open when /select fails (path with
-    /// special chars, network share, etc.).
-    /// </summary>
+    /// <summary>Launch Explorer with /select,&lt;path&gt;; falls back to plain folder open.</summary>
     private static void OpenInExplorer(string dllPath, string folder)
     {
         try

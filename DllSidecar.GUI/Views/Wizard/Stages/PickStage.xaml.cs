@@ -81,11 +81,7 @@ public partial class PickStage : System.Windows.Controls.UserControl, IWizardSta
         ApplyFilter();
     }
 
-    /// <summary>
-    /// Rebuilds <see cref="_filtered"/> from <see cref="_rows"/> using the SearchBox
-    /// query. Matches filename, path, kind, and privesc label (case-insensitive).
-    /// Preserves current selection when the selected row still survives the filter.
-    /// </summary>
+    /// <summary>Rebuilds <see cref="_filtered"/> from <see cref="_rows"/> using SearchBox query, preserving selection.</summary>
     private void ApplyFilter()
     {
         var q = SearchBox?.Text?.Trim() ?? "";
@@ -155,9 +151,7 @@ public partial class PickStage : System.Windows.Controls.UserControl, IWizardSta
         public string Filename => Existing?.Dll.Filename ?? Phantom?.DllName ?? "";
         public string Privesc => (Existing?.Privesc ?? Phantom?.Privesc)?.ShortLabel ?? "—";
 
-        // Access label mirrors ProcMon's Options: field — same vocabulary as the
-        // ProcMon page and Runtime trace page. Empty when no runtime evidence; the
-        // literal strings are the single source of truth in AccessClassLabels.
+        // Access label mirrors ProcMon's Options: field; empty when no runtime evidence.
         public string AccessLabel
         {
             get
@@ -178,13 +172,7 @@ public partial class PickStage : System.Windows.Controls.UserControl, IWizardSta
                        "(app enumerating PATH, planted DLL would not execute).";
             }
         }
-        // "Dir" column — tells the researcher who can write here (lower is better
-        // from an attacker's POV): OPEN > USER > LOCKED. Reads from the ACL check.
-        //
-        //   OPEN    — BUILTIN\Users, Everyone, or AuthenticatedUsers write (low-priv)
-        //   USER    — only the current user (profile dirs like %APPDATA%)
-        //   LOCKED  — admin required (Program Files, System32)
-        //   ?       — ACL check failed / not evaluated
+        // OPEN = low-priv writable · USER = current user only · LOCKED = admin · ? = ACL check failed.
         public string DirBadge
         {
             get

@@ -7,8 +7,7 @@ public partial class App : System.Windows.Application
 {
     protected override void OnStartup(System.Windows.StartupEventArgs e)
     {
-        // Elevation check FIRST. If we're not elevated we relaunch via runas
-        // and shut this instance down before WPF does anything else.
+        // Elevation check FIRST: relaunch via runas and shut down before WPF starts.
         if (!Helpers.Elevation.IsElevated)
         {
             try
@@ -29,22 +28,10 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        // QuestPDF Community license — free for solo developers and small
-        // organisations (< $1M revenue). Pedro qualifies as an independent
-        // security researcher. The flag must be set before any PDF generation
-        // call, hence here in OnStartup rather than inside AdvisoryPage.
+        // QuestPDF Community license must be set before any PDF generation call.
         QuestPDF.Settings.License = LicenseType.Community;
 
-        // Runs once per install: wipes per-researcher state (advisories DB,
-        // identity, NVD API key) when the install marker version differs
-        // from the recorded last-launched version. Dev mode has no marker
-        // so this is a no-op there.
-        //
-        // MUST run BEFORE base.OnStartup — WPF processes StartupUri inside
-        // base.OnStartup, which constructs MainWindow, which opens
-        // library.db via SqliteConnection. Once the SQLite connection holds
-        // the file, File.Delete throws IOException and the swallowed catch
-        // silently keeps the old DB. Order matters here.
+        // MUST run BEFORE base.OnStartup — once MainWindow opens library.db, File.Delete fails.
         PostInstallReset.RunIfNeeded();
 
         base.OnStartup(e);

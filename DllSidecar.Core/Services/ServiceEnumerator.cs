@@ -16,17 +16,11 @@ public record ServiceInfo(
     ServiceState State,
     ServiceStartType StartType,
     bool IsDriver,
-    // For svchost-hosted services, this is the DLL that actually implements
-    // the service (HKLM\...\Parameters\ServiceDll). The principal target for
-    // sideload research per SandboxEscaper's workflow — that's the binary
-    // whose CreateFile / LoadLibrary callsites you actually want to scan.
-    // Empty string for self-contained (non-shared) services.
+    // ServiceDll for svchost-hosted services (Parameters\ServiceDll); empty for self-contained.
     string ServiceDll);
 
 /// <summary>
-/// Enumerates Windows services by walking HKLM\SYSTEM\CurrentControlSet\Services
-/// and overlaying live state from the SCM (EnumServicesStatusW). Used to populate
-/// the Service Picker dialog and (later) the SYSTEM-service DLL audit scan.
+/// Enumerates Windows services via the registry + SCM live state.
 /// </summary>
 public static class ServiceEnumerator
 {
@@ -73,18 +67,14 @@ public static class ServiceEnumerator
     }
 
     /// <summary>
-    /// True when the service runs as LocalSystem (the empty/null ObjectName default,
-    /// or an explicit "LocalSystem"). NetworkService and LocalService are excluded.
+    /// True when the service runs as LocalSystem.
     /// </summary>
     public static bool IsLocalSystem(ServiceInfo s) =>
         string.IsNullOrEmpty(s.Account)
         || s.Account.Equals("LocalSystem", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Reads HKLM\...\Services\&lt;name&gt;\Parameters\ServiceDll, expands env
-    /// vars, and strips the optional REG_EXPAND_SZ %SystemRoot% prefix.
-    /// Empty string when no Parameters subkey or no ServiceDll value (the
-    /// service is not svchost-hosted, e.g. splunkd, sshd, MsMpEng).
+    /// Read and expand Parameters\ServiceDll; empty when absent.
     /// </summary>
     private static string ResolveServiceDll(RegistryKey serviceKey)
     {
@@ -100,9 +90,7 @@ public static class ServiceEnumerator
     }
 
     /// <summary>
-    /// DisplayName is sometimes a "@dll,-resId" indirect string. We strip those
-    /// because they don't expand without LoadIndirectString and the friendly
-    /// fallback is just the service name.
+    /// Resolve DisplayName; strip "@dll,-resId" indirect strings.
     /// </summary>
     private static string ResolveDisplayName(RegistryKey key, string serviceName)
     {
@@ -112,10 +100,7 @@ public static class ServiceEnumerator
     }
 
     /// <summary>
-    /// ImagePath may be: '"C:\foo\bar.exe" -k arg', 'C:\foo\bar.exe -k arg',
-    /// '\??\C:\foo\bar.sys', '%SystemRoot%\System32\svchost.exe -k netsvcs'.
-    /// Returns just the filename of the executable, no args, no env-var
-    /// expansion.
+    /// Extract just the executable basename from an ImagePath value.
     /// </summary>
     private static string ExtractImageFile(string imagePath)
     {
@@ -142,8 +127,7 @@ public static class ServiceEnumerator
     // ---------- SCM enumeration for live state ----------
 
     /// <summary>
-    /// Single SCM call returns the current state of every Win32 + driver service.
-    /// Errors fail soft with an empty map — the picker still works without state.
+    /// Single SCM call for all live service states; soft-fails to an empty map.
     /// </summary>
     private static Dictionary<string, ServiceState> QueryAllStates()
     {
