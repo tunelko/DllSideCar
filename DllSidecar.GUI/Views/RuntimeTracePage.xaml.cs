@@ -549,7 +549,11 @@ public partial class RuntimeTracePage : Page
             Timestamp = e.Timestamp,
             Access = e.Access,
         }).ToList();
-        var transitions = Core.Services.ElevationTransitionDetector.DetectAndTag(probeEvents);
+        // IL map gates the detector so same-name launchers (Battle.net) don't get flagged.
+        var pidIl = result.ProcessTree
+            .GroupBy(p => p.Pid)
+            .ToDictionary(g => g.Key, g => g.First().IntegrityLevel);
+        var transitions = Core.Services.ElevationTransitionDetector.DetectAndTag(probeEvents, pidIl);
 
         // Direct IL signal: tags High/System IL PIDs even when UAC parent is missing from capture.
         var highIlPids = result.ProcessTree

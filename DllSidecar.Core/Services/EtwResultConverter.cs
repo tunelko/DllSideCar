@@ -167,8 +167,12 @@ public static class EtwResultConverter
 
         pr.ByDll.AddRange(result.ByDll);
 
-        // Idempotent elevation detection (same as the CSV path).
-        pr.Transitions = ElevationTransitionDetector.RunFullPipeline(pr.Events, pr.ByDll);
+        // IL map from ETW process tree gates the heuristic against same-name launchers
+        // (Battle.net etc.) that spawn children without ever elevating.
+        var pidIl = result.ProcessTree
+            .GroupBy(p => p.Pid)
+            .ToDictionary(g => g.Key, g => g.First().IntegrityLevel);
+        pr.Transitions = ElevationTransitionDetector.RunFullPipeline(pr.Events, pr.ByDll, pidIl);
 
         return pr;
     }

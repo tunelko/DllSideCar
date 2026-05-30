@@ -9,17 +9,24 @@ public static class ElevationTransitionDetector
     /// <summary>
     /// Scan the event list, identify elevation transitions, and tag each event's <see cref="ProcmonEvent.Phase"/>. Idempotent.
     /// </summary>
-    public static List<ElevationTransition> DetectAndTag(IList<ProcmonEvent> events)
+    public static List<ElevationTransition> DetectAndTag(
+        IList<ProcmonEvent> events,
+        IReadOnlyDictionary<int, IntegrityLevel>? pidIntegrity = null)
     {
-        var transitions = Detect(events);
+        var transitions = Detect(events, pidIntegrity);
         TagEvents(events, transitions);
         return transitions;
     }
 
     /// <summary>
-    /// Detect transitions without mutating events.
+    /// Detect transitions without mutating events. When <paramref name="pidIntegrity"/>
+    /// is non-null (live ETW path), requires the child PID to be High or System IL AND
+    /// strictly higher than the parent PID's IL — drops false positives like Battle.net
+    /// where a launcher spawns same-name children that never elevate.
     /// </summary>
-    public static List<ElevationTransition> Detect(IEnumerable<ProcmonEvent> events)
+    public static List<ElevationTransition> Detect(
+        IEnumerable<ProcmonEvent> events,
+        IReadOnlyDictionary<int, IntegrityLevel>? pidIntegrity = null)
     {
         var result = new List<ElevationTransition>();
 
@@ -34,7 +41,6 @@ public static class ElevationTransitionDetector
                 .ToList();
             if (byPid.Count < 2) continue;
 
-            // Compute per-PID time window.
             var windows = byPid
                 .Select(g => new
                 {
@@ -45,7 +51,6 @@ public static class ElevationTransitionDetector
                 })
                 .ToList();
 
-            // Find strictly ordered (parent -> child) pairs.
             for (int i = 0; i < windows.Count; i++)
             {
                 for (int j = 0; j < windows.Count; j++)
@@ -54,11 +59,19 @@ public static class ElevationTransitionDetector
                     var parent = windows[i];
                     var child  = windows[j];
 
-                    // Strict temporal ordering required.
                     if (parent.Last == null || child.First == null) continue;
                     if (parent.Last >= child.First) continue;
 
-                    // Keep the chain linear: reject reused PIDs.
+                    // IL gate: when we have integrity data, require child High/System AND > parent.
+                    if (pidIntegrity != null)
+                    {
+                        pidIntegrity.TryGetValue(child.Pid, out var childIl);
+                        pidIntegrity.TryGetValue(parent.Pid, out var parentIl);
+                        bool childElevated = childIl == IntegrityLevel.High || childIl == IntegrityLevel.System;
+                        if (!childElevated) continue;
+                        if (parentIl != IntegrityLevel.Unknown && (int)childIl <= (int)parentIl) continue;
+                    }
+
                     if (result.Any(t =>
                         string.Equals(t.ProcessName, nameGroup.Key, StringComparison.OrdinalIgnoreCase)
                         && (t.ChildPid == child.Pid || t.ParentPid == child.Pid)))
@@ -119,9 +132,12 @@ public static class ElevationTransitionDetector
     /// <summary>
     /// Runs detect, tag, and populate-aggregations in sequence. Idempotent.
     /// </summary>
-    public static List<ElevationTransition> RunFullPipeline(IList<ProcmonEvent> events, IList<ProcmonAggregation> aggregations)
+    public static List<ElevationTransition> RunFullPipeline(
+        IList<ProcmonEvent> events,
+        IList<ProcmonAggregation> aggregations,
+        IReadOnlyDictionary<int, IntegrityLevel>? pidIntegrity = null)
     {
-        var transitions = DetectAndTag(events);
+        var transitions = DetectAndTag(events, pidIntegrity);
         PopulateAggregationFlags(aggregations, events);
         if (transitions.Count > 0)
         {
