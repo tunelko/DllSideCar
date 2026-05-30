@@ -443,19 +443,8 @@ public class EtwDllTracer : IDisposable
 
         if (!_trackedPids.TryGetValue(data.ProcessID, out var procInfo))
         {
-            // Late adoption: file events can arrive before the child's ProcessStart batch.
-            if (_rejectedPids.ContainsKey(data.ProcessID))
-            {
-                Interlocked.Increment(ref _debugSkippedPid);
-                return;
-            }
-            procInfo = TryLateAdopt(data.ProcessID);
-            if (procInfo == null)
-            {
-                _rejectedPids[data.ProcessID] = 0;
-                Interlocked.Increment(ref _debugSkippedPid);
-                return;
-            }
+            Interlocked.Increment(ref _debugSkippedPid);
+            return;
         }
 
         var path = NtPathNormalizer.Normalize(data.FileName);

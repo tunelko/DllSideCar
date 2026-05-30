@@ -176,8 +176,11 @@ public class ElevationTransitionDetectorTests
         ElevationTransitionDetector.RunFullPipeline(events, byDll);
 
         // Pre-seed the ACL cache so the test doesn't depend on disk state.
+        // UsersWrite=true emulates the BUILTIN\Users explicit write ACE, which is the
+        // strict signal IsUserWritable trusts regardless of host elevation (CurrentUserWrite
+        // is dropped when the test host is admin, e.g. CI runners).
         var acl = new DirAclCache();
-        acl.Seed(writableDir, new Models.DirectoryPermissions { Path = writableDir, CurrentUserWrite = true });
+        acl.Seed(writableDir, new Models.DirectoryPermissions { Path = writableDir, UsersWrite = true });
         acl.Seed(lockedDir,   new Models.DirectoryPermissions { Path = lockedDir });
 
         var carriers = PrivescCarrierIdentifier.FromAggregations(byDll, acl);
