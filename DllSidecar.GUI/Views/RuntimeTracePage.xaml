@@ -449,7 +449,26 @@
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
                         <DataGridTextColumn Header="Directory" Binding="{Binding Directory}" Width="*"/>
-                        <DataGridTextColumn Header="W" Binding="{Binding WritableLabel}" Width="30"/>
+                        <DataGridTextColumn Binding="{Binding WritableLabel}" Width="30">
+                            <DataGridTextColumn.Header>
+                                <TextBlock Text="W">
+                                    <TextBlock.ToolTip>
+                                        <ToolTip MaxWidth="420">
+                                            <TextBlock TextWrapping="Wrap">
+                                                <Run FontWeight="Bold" Text="Writable by a standard user?"/>
+                                                <LineBreak/><LineBreak/>
+                                                <Run Text="Y = the directory's DACL grants write to "/>
+                                                <Run FontWeight="Bold" Text="BUILTIN\Users"/><Run Text=", "/>
+                                                <Run FontWeight="Bold" Text="Everyone"/><Run Text=", or "/>
+                                                <Run FontWeight="Bold" Text="Authenticated Users"/><Run Text=" — i.e. any unprivileged interactive account can plant a DLL here."/>
+                                                <LineBreak/><LineBreak/>
+                                                <Run Text="Decoupled from the DllSidecar process: elevation state and per-user owner-only grants do NOT flip this column."/>
+                                            </TextBlock>
+                                        </ToolTip>
+                                    </TextBlock.ToolTip>
+                                </TextBlock>
+                            </DataGridTextColumn.Header>
+                        </DataGridTextColumn>
                     </DataGrid.Columns>
                 </DataGrid>
                 </DockPanel>

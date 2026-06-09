@@ -12,14 +12,23 @@ public static class DirectoryAclChecker
     private static readonly SecurityIdentifier SidEveryone          = new(WellKnownSidType.WorldSid, null);
     private static readonly SecurityIdentifier SidAuthenticatedUsers = new(WellKnownSidType.AuthenticatedUserSid, null);
 
+    // Bits that grant write OR the ability to grant oneself write. Strictly write-only —
+    // NEVER include FullControl/Modify/Read/Execute aggregates here: their value masks
+    // also contain read bits (ReadData, ReadAttributes, Synchronize, ...) so AND-ing
+    // against them would flag READ-only ACEs as "writable" (the FortiClient false
+    // positive: BUILTIN\Users:(RX) matched FullControl=0x1F01FF because RX shares bits).
+    // GenericAll / GenericWrite raw-bit constants from winnt.h (not in the .NET enum).
     private const FileSystemRights WriteRights =
-        FileSystemRights.WriteData |
-        FileSystemRights.AppendData |
-        FileSystemRights.CreateFiles |
-        FileSystemRights.CreateDirectories |
-        FileSystemRights.Modify |
-        FileSystemRights.FullControl |
-        FileSystemRights.Write;
+        FileSystemRights.WriteData |                    // 0x02 = CreateFiles
+        FileSystemRights.AppendData |                   // 0x04 = CreateDirectories
+        FileSystemRights.WriteExtendedAttributes |      // 0x10
+        FileSystemRights.WriteAttributes |              // 0x100
+        FileSystemRights.Delete |                       // 0x10000
+        FileSystemRights.DeleteSubdirectoriesAndFiles | // 0x40
+        FileSystemRights.ChangePermissions |            // 0x40000 — can grant self write
+        FileSystemRights.TakeOwnership |                // 0x80000 — can take ownership
+        (FileSystemRights)0x10000000 |                  // GENERIC_ALL
+        (FileSystemRights)0x40000000;                   // GENERIC_WRITE
 
     public static DirectoryPermissions Check(string directory)
     {
@@ -38,6 +47,10 @@ public static class DirectoryAclChecker
                 includeExplicit: true,
                 includeInherited: true,
                 targetType: typeof(SecurityIdentifier));
+
+            SecurityIdentifier? ownerSid = null;
+            try { ownerSid = (SecurityIdentifier?)sec.GetOwner(typeof(SecurityIdentifier)); }
+            catch (Exception ex) { Log.Debug("acl", $"GetOwner failed for {directory}", ex); }
 
             foreach (AuthorizationRule rule in rules)
             {
@@ -70,6 +83,11 @@ public static class DirectoryAclChecker
                         if (!perms.WritableBy.Contains(name)) perms.WritableBy.Add(name);
                     }
                 }
+
+                // Owner-of-dir explicit write grant (non-administrative). Decoupled from the
+                // DllSidecar process: matches the directory's owner SID, not the running user.
+                if (ownerSid != null && sid == ownerSid && !IsAdministrative(sid))
+                    perms.OwnerHasWrite = true;
             }
 
             perms.CurrentUserWrite = TestCurrentUserWritable(directory);
@@ -82,15 +100,28 @@ public static class DirectoryAclChecker
         return perms;
     }
 
+    // SIDs that grant write but a regular interactive user cannot freely assume.
+    // Filtering them prevents Program Files / System32 from being mis-classified as
+    // user-writable via WritableBy when the only write grant is TrustedInstaller,
+    // an AppContainer SID, or CREATOR OWNER.
     private static bool IsAdministrative(SecurityIdentifier sid)
     {
         try
         {
-            return sid.IsWellKnown(WellKnownSidType.BuiltinAdministratorsSid) ||
-                   sid.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
-                   sid.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
-                   sid.IsWellKnown(WellKnownSidType.NetworkServiceSid) ||
-                   sid.IsWellKnown(WellKnownSidType.AccountDomainAdminsSid);
+            if (sid.IsWellKnown(WellKnownSidType.BuiltinAdministratorsSid) ||
+                sid.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
+                sid.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
+                sid.IsWellKnown(WellKnownSidType.NetworkServiceSid) ||
+                sid.IsWellKnown(WellKnownSidType.AccountDomainAdminsSid) ||
+                sid.IsWellKnown(WellKnownSidType.CreatorOwnerSid) ||
+                sid.IsWellKnown(WellKnownSidType.CreatorGroupSid))
+                return true;
+
+            // NT SERVICE\* (S-1-5-80-...) — TrustedInstaller and other service-virtual SIDs.
+            // APPLICATION PACKAGE AUTHORITY (S-1-15-...) — ALL APPLICATION PACKAGES etc.
+            var v = sid.Value;
+            return v.StartsWith("S-1-5-80-", StringComparison.Ordinal) ||
+                   v.StartsWith("S-1-15-",   StringComparison.Ordinal);
         }
         catch (Exception ex)
         {

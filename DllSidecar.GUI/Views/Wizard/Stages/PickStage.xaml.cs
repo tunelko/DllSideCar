@@ -172,16 +172,20 @@ public partial class PickStage : System.Windows.Controls.UserControl, IWizardSta
                        "(app enumerating PATH, planted DLL would not execute).";
             }
         }
-        // OPEN = low-priv writable · USER = current user only · LOCKED = admin · ? = ACL check failed.
+        // OPEN = any standard user · OWNER = only the dir's owner · LOCKED = admin only · ? = ACL check failed.
+        // Decoupled from the DllSidecar process: same answer whether elevated or not.
         public string DirBadge
         {
             get
             {
                 var d = Existing?.Dir ?? Phantom?.Dir;
                 if (d == null || !string.IsNullOrEmpty(d.Error)) return "?";
-                if (d.IsLowPrivWritable) return "OPEN";
-                if (d.CurrentUserWrite)  return "USER";
-                return "LOCKED";
+                return d.Tier switch
+                {
+                    WriteTier.Open      => "OPEN",
+                    WriteTier.OwnerOnly => "OWNER",
+                    _                   => "LOCKED",
+                };
             }
         }
         public string ShortPath
