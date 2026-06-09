@@ -578,9 +578,12 @@ public partial class RuntimeTracePage : Page
         var carrierInputs = new List<Core.Services.CarrierInput>();
         foreach (var s in summary)
         {
-            // Real ACL probe (matches ProcmonPage); IsUserWritable includes live CurrentUserWrite probe.
+            // "W" column = writable by ANY standard user (Users / Everyone / Authenticated Users).
+            // Decoupled from the DllSidecar process identity: ignores CurrentUserWrite (the live
+            // write-probe is contaminated when DllSidecar runs elevated) and ignores per-user
+            // owner-only grants. Strictly answers "could a generic non-admin account plant here?".
             var aclPerms = _dirAcl.Get(s.Directory);
-            bool writable = string.IsNullOrEmpty(aclPerms.Error) && aclPerms.IsUserWritable;
+            bool writable = string.IsNullOrEmpty(aclPerms.Error) && aclPerms.IsLowPrivWritable;
 
             bool highIl = elevatedDllNames.Contains(s.DllName);
 

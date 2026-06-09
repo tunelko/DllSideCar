@@ -925,15 +925,23 @@ public partial class ScanPage : Page
 
     private static string FormatAcl(DirectoryPermissions d)
     {
+        var tierLabel = d.Tier switch
+        {
+            WriteTier.Open      => "OPEN (any standard user can write)",
+            WriteTier.OwnerOnly => "OWNER-ONLY (only the directory's owner can write)",
+            _                   => "ADMIN-ONLY (no standard user can write)",
+        };
         var lines = new List<string>
         {
-            $"Path:               {d.Path}",
-            $"BUILTIN\\Users:      {YesNo(d.UsersWrite)}",
-            $"Everyone:           {YesNo(d.EveryoneWrite)}",
-            $"AuthenticatedUsers: {YesNo(d.AuthenticatedUsersWrite)}",
-            $"Current user (effective): {YesNo(d.CurrentUserWrite)}",
+            $"Path:                {d.Path}",
+            $"Tier:                {tierLabel}",
+            $"BUILTIN\\Users:       {YesNo(d.UsersWrite)}",
+            $"Everyone:            {YesNo(d.EveryoneWrite)}",
+            $"AuthenticatedUsers:  {YesNo(d.AuthenticatedUsersWrite)}",
+            $"Owner has write:     {YesNo(d.OwnerHasWrite)}",
+            $"Live probe (DllSidecar process; informational): {YesNo(d.CurrentUserWrite)}",
         };
-        if (d.WritableBy.Count > 0) lines.Add($"Other principals:   {string.Join(", ", d.WritableBy)}");
+        if (d.WritableBy.Count > 0) lines.Add($"Other principals:    {string.Join(", ", d.WritableBy)}");
         if (!string.IsNullOrEmpty(d.Error)) lines.Add($"Error: {d.Error}");
         return string.Join("\n", lines);
     }
@@ -1193,13 +1201,19 @@ public partial class ScanPage : Page
             }
         }
 
+        // Three-tier writability label, decoupled from the DllSidecar process identity.
         public string WritableText
         {
             get
             {
                 var dir = Existing?.Dir ?? Phantom?.Dir;
                 if (dir == null) return "?";
-                return dir.IsLowPrivWritable ? "LOW-PRIV" : dir.CurrentUserWrite ? "user" : "admin";
+                return dir.Tier switch
+                {
+                    WriteTier.Open      => "LOW-PRIV",
+                    WriteTier.OwnerOnly => "owner",
+                    _                   => "admin",
+                };
             }
         }
 

@@ -157,16 +157,20 @@ public partial class SurveyStage : System.Windows.Controls.UserControl, IWizardS
             : Phantom?.Evidence?.Source == EvidenceSource.RuntimeTrace ? "RUNTIME" : "IAT";
         public string Filename => Existing?.Dll.Filename ?? Phantom?.DllName ?? "";
         public string Privesc => (Existing?.Privesc ?? Phantom?.Privesc)?.ShortLabel ?? "—";
-        // OPEN = low-priv writable · USER = current user only · LOCKED = admin required.
+        // OPEN = any standard user · OWNER = only the dir's owner · LOCKED = admin required.
+        // Decoupled from the DllSidecar process: same answer whether elevated or not.
         public string DirBadge
         {
             get
             {
                 var d = Existing?.Dir ?? Phantom?.Dir;
                 if (d == null || !string.IsNullOrEmpty(d.Error)) return "?";
-                if (d.IsLowPrivWritable) return "OPEN";
-                if (d.CurrentUserWrite)  return "USER";
-                return "LOCKED";
+                return d.Tier switch
+                {
+                    WriteTier.Open      => "OPEN",
+                    WriteTier.OwnerOnly => "OWNER",
+                    _                   => "LOCKED",
+                };
             }
         }
         public string ShortPath

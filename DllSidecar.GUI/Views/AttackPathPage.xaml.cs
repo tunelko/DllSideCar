@@ -616,9 +616,12 @@ public partial class AttackPathPage : Page
         var dir = _focus.Candidate?.Dir ?? _focus.Phantom?.Dir;
         if (dir != null)
         {
-            var label = dir.IsLowPrivWritable ? "Dir: LOW-PRIV writable"
-                      : dir.CurrentUserWrite  ? "Dir: user-writable"
-                      : "Dir: admin-only";
+            var label = dir.Tier switch
+            {
+                WriteTier.Open      => "Dir: LOW-PRIV writable",
+                WriteTier.OwnerOnly => "Dir: owner-only writable",
+                _                   => "Dir: admin-only",
+            };
             yield return label;
         }
         if (_focus.Candidate != null)
