@@ -33,9 +33,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <AssemblyName>DllSidecar</AssemblyName>
-    <Version>1.1.11</Version>
-    <AssemblyVersion>1.1.11.0</AssemblyVersion>
-    <FileVersion>1.1.11.0</FileVersion>
+    <!-- Version drives AssemblyVersion/FileVersion; build-installer.ps1 overrides via -p:Version. -->
+    <Version>1.1.20</Version>
     <Product>DllSidecar</Product>
     <Company>Pedro J. Nunez-Cacho Fuentes (@tunelko)</Company>
     <Copyright>Copyright (c) 2026 Pedro J. Nunez-Cacho Fuentes</Copyright>
