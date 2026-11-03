@@ -24,7 +24,9 @@ permissions:
 # Belt-and-braces: even though push no longer fires for develop, this keeps
 # rapid-fire PR synchronize events (e.g. force-pushes) from racing each other.
 concurrency:
-  group: ci-${{ github.head_ref || github.ref_name }}
+  # Version the namespace so an orphaned pre-queue run cannot permanently
+  # lock subsequent CI executions for the same branch.
+  group: ci-v2-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 env:
