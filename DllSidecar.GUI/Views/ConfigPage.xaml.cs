@@ -22,9 +22,9 @@ public partial class ConfigPage : Page
     /// <summary>Static metadata for each tool row: candidate filenames, browse mode, required flag, download URL.</summary>
     private void ConfigureToolRows()
     {
-        // MinGW dirs use folder picker; x64 is required for compilation.
+        // Alternative toolchains: neither path is unconditionally required.
         Mingw64Row.BrowseMode = Controls.ToolPathRow.BrowseKind.Folder;
-        Mingw64Row.IsRequired = true;
+        VcVarsRow.FileFilter = "Visual C++ environment (vcvarsall.bat)|vcvarsall.bat|Batch files (*.bat)|*.bat|All files (*.*)|*.*";
         Mingw32Row.BrowseMode = Controls.ToolPathRow.BrowseKind.Folder;
         MsysRow.BrowseMode    = Controls.ToolPathRow.BrowseKind.Folder;
 
@@ -71,6 +71,8 @@ public partial class ConfigPage : Page
         var cfg = ConfigManager.Current;
 
         // MinGW (folders)
+        CompilerCombo.SelectedIndex = (int)cfg.Compiler.Preferred;
+        VcVarsRow.ToolPath = cfg.Compiler.VcVarsAllPath ?? "";
         Mingw64Row.ToolPath = cfg.Mingw.Mingw64BinDir;
         Mingw32Row.ToolPath = cfg.Mingw.Mingw32BinDir;
         MsysRow.ToolPath    = cfg.Mingw.MsysUsrBinDir;
@@ -141,6 +143,8 @@ public partial class ConfigPage : Page
             if (Directory.Exists(m32)) Mingw32Row.ToolPath = m32;
             if (Directory.Exists(usr)) MsysRow.ToolPath    = usr;
         }
+        var msvc = Core.Services.Compilation.MsvcBackend.FindVcVarsAll();
+        if (msvc != null) VcVarsRow.ToolPath = msvc;
         ValidateStatus.Text = "Detected — click Validate to confirm";
         ValidateStatus.Foreground = new System.Windows.Media.SolidColorBrush(
             System.Windows.Media.Color.FromRgb(0xF9, 0xE2, 0xAF));
@@ -149,8 +153,9 @@ public partial class ConfigPage : Page
     private async void Validate_Click(object sender, RoutedEventArgs e)
     {
         CommitToConfig();
-        Overlay.Show("Validating toolchain", "Probing gcc and windres for x86/x64...");
+        Overlay.Show("Validating toolchain", "Probing MinGW and Visual Studio C++...");
         string? gcc64 = null, gcc32 = null, wr64 = null, wr32 = null;
+        string? msvc = null;
         try
         {
             await Task.Run(() =>
@@ -159,6 +164,7 @@ public partial class ConfigPage : Page
                 gcc32 = BuildSystem.FindGcc("x86");
                 wr64  = BuildSystem.FindWindres("x64");
                 wr32  = BuildSystem.FindWindres("x86");
+                msvc = Core.Services.Compilation.MsvcBackend.FindVcVarsAll();
             });
         }
         finally { Overlay.Hide(); }
@@ -169,7 +175,8 @@ public partial class ConfigPage : Page
         parts.Add(wr64  != null ? "windres-x64 OK" : "windres-x64 MISSING");
         parts.Add(wr32  != null ? "windres-x86 OK" : "windres-x86 MISSING");
 
-        var ok = gcc64 != null || gcc32 != null;
+        parts.Add(msvc != null ? $"MSVC detected: {msvc}" : "MSVC MISSING");
+        var ok = gcc64 != null || gcc32 != null || msvc != null;
         ValidateStatus.Text = string.Join("  |  ", parts);
         ValidateStatus.Foreground = new System.Windows.Media.SolidColorBrush(
             ok ? System.Windows.Media.Color.FromRgb(0xA6, 0xE3, 0xA1)
@@ -179,6 +186,8 @@ public partial class ConfigPage : Page
     private void CommitToConfig()
     {
         var cfg = ConfigManager.Current;
+        cfg.Compiler.Preferred = (Core.Models.CompilerKind)Math.Max(0, CompilerCombo.SelectedIndex);
+        cfg.Compiler.VcVarsAllPath = NullIfBlank(VcVarsRow.ToolPath);
 
         // MinGW (folders)
         cfg.Mingw.Mingw64BinDir = Mingw64Row.ToolPath.Trim();

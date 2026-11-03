@@ -21,11 +21,16 @@ public class DynamicEvidence
     public int LoaderLikeEventCount { get; set; }
     /// <summary>How many events were metadata-only probes (GetFileAttributes-class).</summary>
     public int MetadataProbeEventCount { get; set; }
+    public int ImageLoadEventCount { get; set; }
+    public int VerifiedMissEventCount { get; set; }
 
     public bool IsRuntimeObserved => Source == EvidenceSource.RuntimeTrace;
 
     /// <summary>All evidence is metadata probes; no real loader open occurred.</summary>
-    public bool IsProbeOnly => LoaderLikeEventCount == 0 && MetadataProbeEventCount > 0;
+    public bool IsProbeOnly => LoaderLikeEventCount == 0 && ImageLoadEventCount == 0 && MetadataProbeEventCount > 0;
+
+    public bool HasLoadEvidence => Source == EvidenceSource.ProcmonCsv ? !IsProbeOnly
+        : ImageLoadEventCount > 0 || (VerifiedMissEventCount > 0 && LoaderLikeEventCount > 0);
 
     /// <summary>User-facing access label mirroring ProcMon's <c>Options:</c> field.</summary>
     public string AccessLabel => AccessClassLabels.FromCounts(LoaderLikeEventCount, MetadataProbeEventCount);

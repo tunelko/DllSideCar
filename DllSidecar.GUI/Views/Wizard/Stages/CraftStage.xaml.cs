@@ -624,23 +624,12 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
         var outputDir = Path.Combine(AppPaths.OutputRoot, $"{baseName}_{modeLabel}");
         Directory.CreateDirectory(outputDir);
 
+        config.Compiler = Core.Configuration.ConfigManager.Current.Compiler.Preferred;
         var files = TemplateEngine.Generate(_target, config);
 
         var templatesDir = AppPaths.TemplatesDir;
 
-        // Copy headers used by the evasion options — omitting these breaks the build.
-        if (config.DInvoke && File.Exists(Path.Combine(templatesDir, "dinvoke.h")))
-            File.Copy(Path.Combine(templatesDir, "dinvoke.h"), Path.Combine(outputDir, "dinvoke.h"), true);
-        if (config.DirectSyscalls && File.Exists(Path.Combine(templatesDir, "syscalls.h")))
-            File.Copy(Path.Combine(templatesDir, "syscalls.h"), Path.Combine(outputDir, "syscalls.h"), true);
-        if (config.IndirectSyscalls && File.Exists(Path.Combine(templatesDir, "syscalls_indirect.h")))
-            File.Copy(Path.Combine(templatesDir, "syscalls_indirect.h"), Path.Combine(outputDir, "syscalls_indirect.h"), true);
-        if (config.EncryptStrings && File.Exists(Path.Combine(templatesDir, "cryptor.h")))
-            File.Copy(Path.Combine(templatesDir, "cryptor.h"), Path.Combine(outputDir, "cryptor.h"), true);
-        if (config.UnhookNtdll && File.Exists(Path.Combine(templatesDir, "unhook.h")))
-            File.Copy(Path.Combine(templatesDir, "unhook.h"), Path.Combine(outputDir, "unhook.h"), true);
-        if (config.PatchEtw && File.Exists(Path.Combine(templatesDir, "etw.h")))
-            File.Copy(Path.Combine(templatesDir, "etw.h"), Path.Combine(outputDir, "etw.h"), true);
+        TemplateDependencyResolver.CopyRequiredHeaders(files.Values, templatesDir, outputDir);
 
         foreach (var (name, content) in files)
             File.WriteAllText(Path.Combine(outputDir, name), content);
@@ -665,17 +654,18 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
 
         if (!autoBuild) return;
 
-        var cFile = files.Keys.First(k => k.EndsWith(".c"));
-        var defFile = files.Keys.First(k => k.EndsWith(".def"));
+        var cFile = files.Keys.First(k => k.EndsWith(".c") && !k.EndsWith(".msvc_exports.c"));
+        var defFile = files.Keys.First(k => k.EndsWith(".def") && !k.EndsWith(".msvc.def"));
         var dllOutput = Path.Combine(outputDir, _target.Filename);
+        var compiler = BuildSystem.SelectCompiler(Path.Combine(outputDir, cFile), _target.Arch);
 
         // Compile version.rc → version.res.o if we wrote one.
         var extraObjects = new List<string>();
         var rcFile = Path.Combine(outputDir, "version.rc");
         if (File.Exists(rcFile))
         {
-            var resObj = Path.Combine(outputDir, "version.res.o");
-            if (BuildSystem.CompileResourceAsync(rcFile, resObj, _target.Arch, null)
+            var resObj = Path.Combine(outputDir, compiler == Core.Models.CompilerKind.Msvc ? "version.res" : "version.res.o");
+            if (BuildSystem.CompileResourceAsync(rcFile, resObj, _target.Arch, null, compiler)
                     .GetAwaiter().GetResult())
                 extraObjects.Add(resObj);
         }
@@ -692,7 +682,7 @@ public partial class CraftStage : System.Windows.Controls.UserControl, IWizardSt
             includeDirs: [templatesDir, outputDir],
             extraObjects: extraObjects.Count > 0 ? extraObjects : null,
             extraLibs: extraLibs,
-            progress: null).GetAwaiter().GetResult();
+            progress: null, compiler: compiler).GetAwaiter().GetResult();
 
         if (!result.Success)
             throw new InvalidOperationException($"Build failed: {result.Errors}");

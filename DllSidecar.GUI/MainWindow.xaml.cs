@@ -384,14 +384,20 @@ public partial class MainWindow : Window
 
         var gcc64 = BuildSystem.FindGcc("x64");
         var gcc32 = BuildSystem.FindGcc("x86");
-        StatusGcc.Text = gcc64 != null ? "GCC X64 — OK" : gcc32 != null ? "GCC X86 — OK" : "GCC — MISSING";
+        var msvc = Core.Services.Compilation.MsvcBackend.FindVcVarsAll();
+        var preferMsvc = Core.Configuration.ConfigManager.Current.Compiler.Preferred == Core.Models.CompilerKind.Msvc;
+        var useMsvc = preferMsvc || (gcc64 == null && gcc32 == null && msvc != null &&
+            Core.Configuration.ConfigManager.Current.Compiler.Preferred == Core.Models.CompilerKind.Auto);
+        StatusGcc.Text = useMsvc ? (msvc != null ? "MSVC - DETECTED" : "MSVC - MISSING")
+            : gcc64 != null ? "GCC X64 — OK" : gcc32 != null ? "GCC X86 — OK" : "GCC — MISSING";
+        StatusGcc.ToolTip = useMsvc ? msvc ?? "Configure vcvarsall.bat in Configuration" : gcc64 ?? gcc32;
         StatusGcc.Foreground = new SolidColorBrush(
-            gcc64 != null || gcc32 != null ? Color.FromRgb(0x00, 0xCA, 0x4E) : Color.FromRgb(0xFF, 0x5B, 0x4F));
+            (useMsvc ? msvc != null : gcc64 != null || gcc32 != null) ? Color.FromRgb(0x00, 0xCA, 0x4E) : Color.FromRgb(0xFF, 0x5B, 0x4F));
 
         var windres = BuildSystem.FindWindres("x64") ?? BuildSystem.FindWindres("x86");
-        StatusWindres.Text = windres != null ? "WINDRES — OK" : "WINDRES — MISSING";
+        StatusWindres.Text = useMsvc ? "RESOURCES - WINDOWS SDK" : windres != null ? "WINDRES — OK" : "WINDRES — MISSING";
         StatusWindres.Foreground = new SolidColorBrush(
-            windres != null ? Color.FromRgb(0x00, 0xCA, 0x4E) : Color.FromRgb(0xFF, 0x5B, 0x4F));
+            useMsvc ? Color.FromRgb(0x6C, 0x70, 0x86) : windres != null ? Color.FromRgb(0x00, 0xCA, 0x4E) : Color.FromRgb(0xFF, 0x5B, 0x4F));
 
         Log("DllSidecar GUI started");
 

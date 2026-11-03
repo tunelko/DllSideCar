@@ -5,7 +5,7 @@ using DllSidecar.GUI.Views;
 
 namespace DllSidecar.GUI;
 
-/// <summary>Probes for MinGW-w64 (gcc + windres) at startup and warns if missing.</summary>
+/// <summary>Checks the selected compiler; analysis does not require a native compiler.</summary>
 internal static class CompilerHealthCheck
 {
     private const string RepoUrl =
@@ -17,14 +17,20 @@ internal static class CompilerHealthCheck
         var gcc32 = BuildSystem.FindGcc("x86");
         var windres = BuildSystem.FindWindres("x64") ?? BuildSystem.FindWindres("x86");
 
-        if (gcc64 != null && gcc32 != null) return;
+        var preference = Core.Configuration.ConfigManager.Current.Compiler.Preferred;
+        var msvc = Core.Services.Compilation.MsvcBackend.FindVcVarsAll();
+        if (preference == Core.Models.CompilerKind.Msvc && msvc != null) return;
+        if (preference != Core.Models.CompilerKind.Msvc && gcc64 != null && gcc32 != null) return;
+        if (preference == Core.Models.CompilerKind.Auto && msvc != null) return;
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("DllSidecar needs the MinGW-w64 toolchain (via MSYS2) to compile generated proof-of-concept DLLs. The following components were not found on your system:");
+        sb.AppendLine($"Compiler preference: {preference}. Native compilation needs MinGW-w64 or Visual Studio C++ tools with the Windows SDK. Some components were not found:");
         sb.AppendLine();
         if (gcc64 == null) sb.AppendLine("  • MinGW gcc (x64) — package: mingw-w64-x86_64-gcc");
         if (gcc32 == null) sb.AppendLine("  • MinGW gcc (x86) — package: mingw-w64-i686-gcc");
         if (windres == null) sb.AppendLine("  • windres (resource compiler) — bundled with the gcc packages above");
+        if (msvc == null) sb.AppendLine("  MSVC: install the C++ workload and Windows SDK, or configure vcvarsall.bat.");
+        sb.AppendLine("MSVC supports portable C and export forwarders. GNU assembly templates remain on MinGW.");
         sb.AppendLine();
         sb.AppendLine("Quick setup once MSYS2 is installed:");
         sb.AppendLine("    pacman -S mingw-w64-x86_64-gcc mingw-w64-i686-gcc");

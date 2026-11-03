@@ -16,6 +16,7 @@ public static class EtwResultConverter
 
         // Deduplicate by (DllName, Directory) — collapse multiple events into one candidate
         var groups = result.Events
+            .Where(e => e.IsMissing)
             .GroupBy(e => (Dll: e.DllName.ToLowerInvariant(), Dir: e.Directory.ToLowerInvariant()));
 
         foreach (var g in groups)
@@ -67,6 +68,7 @@ public static class EtwResultConverter
             {
                 DllName = first.DllName,
                 DirectoryPath = dir,
+                StaticResolutionKind = ImportResolutionKind.Unresolved,
                 Dir = dirPerms,
                 Importers = importers,
                 Evidence = new DynamicEvidence
@@ -81,6 +83,7 @@ public static class EtwResultConverter
                     Source = EvidenceSource.RuntimeTrace,
                     LoaderLikeEventCount    = g.Count(e => e.Access == AccessClass.LoaderLike),
                     MetadataProbeEventCount = g.Count(e => e.Access == AccessClass.MetadataProbe),
+                    VerifiedMissEventCount = g.Count(),
                 },
             };
 
@@ -147,17 +150,19 @@ public static class EtwResultConverter
     {
         var pr = new ProcmonParser.ParseResult
         {
+            Source = EvidenceSource.RuntimeTrace,
             TotalRows = result.TotalEventsReceived,
             FilteredRows = result.FilteredEvents,
         };
 
-        foreach (var ev in result.Events)
+        foreach (var ev in result.Events.Where(e => e.IsMissing || e.Kind == EtwEventKind.ImageLoad))
         {
             pr.Events.Add(new ProcmonEvent
             {
                 ProcessName = ev.ProcessName,
-                Operation = "CreateFile",
-                Result = "NAME NOT FOUND",
+                ProcessImagePath = ev.ProcessImagePath,
+                Operation = ev.Operation,
+                Result = ev.Result,
                 Path = ev.FilePath,
                 Pid = ev.ProcessId,
                 Timestamp = ev.Timestamp,
@@ -165,7 +170,19 @@ public static class EtwResultConverter
             });
         }
 
-        pr.ByDll.AddRange(result.ByDll);
+        pr.FilteredRows = pr.Events.Count;
+        foreach (var g in pr.Events.GroupBy(e => e.DllName, StringComparer.OrdinalIgnoreCase))
+        {
+            var agg = new ProcmonAggregation { DllName = g.Key, EventCount = g.Count() };
+            foreach (var ev in g)
+            {
+                agg.Processes.Add(ev.ProcessName);
+                agg.SearchedDirs.Add(ev.SearchDir);
+                if (ev.Access == AccessClass.LoaderLike) agg.LoaderLikeCount++;
+                if (ev.Access == AccessClass.MetadataProbe) agg.MetadataProbeCount++;
+            }
+            pr.ByDll.Add(agg);
+        }
 
         // IL map from ETW process tree gates the heuristic against same-name launchers
         // (Battle.net etc.) that spawn children without ever elevating.
@@ -180,17 +197,17 @@ public static class EtwResultConverter
     /// <summary>
     /// Deduplicated summary: unique (ProcessImage, DllName, Directory) triples with load/probe counts.
     /// </summary>
-    public static List<(string ProcessImage, string DllName, string Directory, int EventCount, bool DirWritable, int LoadCount, int ProbeCount)>
+    public static List<(string ProcessImage, string DllName, string Directory, int EventCount, bool DirWritable, int LoadCount, int ProbeCount, string Result)>
         DeduplicatedSummary(EtwTraceResult result) => DeduplicatedSummary(result.Events);
 
-    public static List<(string ProcessImage, string DllName, string Directory, int EventCount, bool DirWritable, int LoadCount, int ProbeCount)>
+    public static List<(string ProcessImage, string DllName, string Directory, int EventCount, bool DirWritable, int LoadCount, int ProbeCount, string Result)>
         DeduplicatedSummary(IEnumerable<EtwTraceEvent> events)
     {
         return events
             .GroupBy(e => (
                 Proc: (e.ProcessImagePath ?? e.ProcessName).ToLowerInvariant(),
                 Dll: NormalizeDllName(e.DllName),
-                Dir: e.Directory.ToLowerInvariant()))
+                Dir: e.Directory.ToLowerInvariant(), e.Result))
             .Select(g =>
             {
                 var first = g.First();
@@ -201,7 +218,8 @@ public static class EtwResultConverter
                     EventCount: g.Count(),
                     DirWritable: IsLikelyUserWritable(first.Directory),
                     LoadCount: g.Count(e => e.Access == AccessClass.LoaderLike),
-                    ProbeCount: g.Count(e => e.Access == AccessClass.MetadataProbe));
+                    ProbeCount: g.Count(e => e.Access == AccessClass.MetadataProbe),
+                    Result: first.Result);
             })
             .OrderByDescending(x => x.DirWritable)
             .ThenByDescending(x => x.EventCount)

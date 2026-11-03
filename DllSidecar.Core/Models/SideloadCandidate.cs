@@ -19,6 +19,11 @@ public class ImporterRef
     public bool IsService { get; set; }           // heuristic: in \Services\ or .sys-adjacent — we don't detect this statically yet
     public bool ForcesSystem32Only { get; set; } // DependentLoadFlags & 0x800
     public bool IsDelayLoad { get; set; }
+    /// <summary>Static path resolution for this importer edge; Ambiguous for dynamic-only importers.</summary>
+    public ImportResolutionKind ResolutionKind { get; set; } = ImportResolutionKind.Ambiguous;
+    public string? ResolvedImportPath { get; set; }
+    public List<ImportSearchStep> SearchSteps { get; set; } = [];
+    public ProxyReadiness ProxyCompatibility { get; set; } = new();
 }
 
 public class SideloadCandidate
@@ -28,6 +33,7 @@ public class SideloadCandidate
     public DirectoryPermissions Dir { get; set; } = new() { Path = "" };
     public List<ImporterRef> Importers { get; set; } = [];
     public ScoreBreakdown Score { get; set; } = new();
+    public List<CommunityEvidence> Community { get; set; } = [];
     public DynamicEvidence? Evidence { get; set; }   // set by ProcmonCorrelator
     public PrivescContext? Privesc { get; set; }     // set by PrivescAnalyzer
     public Cve.CveQueryResult? Cve { get; set; }     // set by background CVE query from ScanPage
@@ -44,7 +50,7 @@ public class SideloadCandidate
     public bool HasImporters => Importers.Count > 0;
     public bool AnyImporterSigned => Importers.Any(i => i.Signing.IsTrusted);
     /// <summary>True iff at least one real loader open backs this candidate (probe-only does not count).</summary>
-    public bool IsDynamicallyVerified => Evidence != null && !Evidence.IsProbeOnly;
+    public bool IsDynamicallyVerified => Evidence?.HasLoadEvidence == true;
     /// <summary>True iff runtime evidence exists but every event was a metadata probe.</summary>
     public bool IsRuntimeProbeOnly => Evidence?.IsProbeOnly == true;
     public bool HasPrivescPath => Privesc != null && Privesc.Findings.Count > 0;

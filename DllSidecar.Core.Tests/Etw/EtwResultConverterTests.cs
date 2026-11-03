@@ -17,6 +17,7 @@ public class EtwResultConverterTests
                 ProcessImagePath = $@"C:\fake\{proc}",
                 FilePath = Path.Combine(dir, dll),
                 Timestamp = DateTime.Now,
+                NtStatus = 0xC0000034, Access = AccessClass.LoaderLike,
             };
             result.Events.Add(ev);
             result.FilteredEvents++;
@@ -101,12 +102,14 @@ public class EtwResultConverterTests
             ProcessId = 100, ProcessName = "A.exe",
             ProcessImagePath = @"C:\A.exe",
             FilePath = @"C:\dir\test.dll", Timestamp = DateTime.Now,
+            NtStatus = 0xC0000034, Access = AccessClass.LoaderLike,
         });
         result.Events.Add(new EtwTraceEvent
         {
             ProcessId = 200, ProcessName = "B.exe",
             ProcessImagePath = @"C:\B.exe",
             FilePath = @"C:\dir\test.dll", Timestamp = DateTime.Now,
+            NtStatus = 0xC0000034, Access = AccessClass.LoaderLike,
         });
         result.FilteredEvents = 2;
         result.ByDll.Add(new ProcmonAggregation
@@ -165,6 +168,8 @@ public class EtwResultConverterTests
             DllName = "test.dll", EventCount = 1,
             MatchedByName = true, MatchedByDirectory = true,
             MissInWritableDir = true,
+            LoaderLikeEventCount = 1,
+            VerifiedMissEventCount = 1,
             Source = EvidenceSource.RuntimeTrace,
         };
 
@@ -192,6 +197,8 @@ public class EtwResultConverterTests
             DllName = "test.dll", EventCount = 1,
             MatchedByName = true, MatchedByDirectory = false,
             Source = EvidenceSource.RuntimeTrace,
+            LoaderLikeEventCount = 1,
+            VerifiedMissEventCount = 1,
         };
 
         var s1 = new ScoreBreakdown();

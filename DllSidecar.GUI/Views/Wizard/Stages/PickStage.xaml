@@ -77,7 +77,7 @@
                     <DataGridTextColumn Header="Exploit" Binding="{Binding ExploitText}"    Width="60" SortMemberPath="ExploitValue" ElementStyle="{StaticResource ExploitCell}"/>
                     <DataGridTextColumn Header="Impact"  Binding="{Binding ImpactText}"     Width="55" SortMemberPath="ImpactValue"  ElementStyle="{StaticResource ImpactCell}"/>
                     <DataGridTextColumn Header="Conf"    Binding="{Binding ConfidenceText}" Width="50" SortMemberPath="ConfidenceValue" ElementStyle="{StaticResource ConfCell}"/>
-                    <DataGridTextColumn Header="Kind"    Binding="{Binding Kind}"           Width="80"/>
+                    <DataGridTextColumn Header="Kind"    Binding="{Binding Kind}"           Width="105"/>
                     <DataGridTextColumn Header="DLL"     Binding="{Binding Filename}"       Width="180"/>
                     <DataGridTextColumn Header="Privesc" Binding="{Binding Privesc}"        Width="80"/>
                     <DataGridTextColumn Binding="{Binding AccessLabel}" Width="200"

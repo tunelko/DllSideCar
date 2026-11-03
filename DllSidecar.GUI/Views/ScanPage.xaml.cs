@@ -758,6 +758,7 @@ public partial class ScanPage : Page
         DetailAcl.Text = FormatAcl(c.Dir);
         DetailDllSig.Text = FormatSigning(c.DllSigning);
         DetailEvidence.Text = FormatEvidence(c.Evidence);
+        DetailCommunity.Text = FormatCommunity(c.Community);
         PopulatePrivesc(c.Privesc);
         DetailImporters.ItemsSource = FormatImporters(c.Importers);
         DetailFactors.ItemsSource = FormatFactors(c.Score.Factors);
@@ -771,14 +772,21 @@ public partial class ScanPage : Page
 
         var dynTag = p.IsDynamicallyVerified ? "  [VERIFIED DYN]" : "";
         var privTag = p.HasPrivescPath ? $"  [{p.Privesc!.ShortLabel}]" : "";
-        DetailTitle.Text = $"[PHANTOM]  {p.DllName}{dynTag}{privTag}  —  {p.Score.Total}/10 ({p.Score.Severity})";
+        var staticKind = p.StaticResolutionKind == ImportResolutionKind.ResolvedSystem
+            ? "SYSTEM FALLBACK"
+            : "STATIC MISS";
+        DetailTitle.Text = $"[{staticKind}]  {p.DllName}{dynTag}{privTag}  —  {p.Score.Total}/10 ({p.Score.Severity})";
+        var searchDetail = p.SearchSteps.Count > 0
+            ? string.Join("\n  ", p.SearchSteps.Select(FormatSearchStep))
+            : string.Join("\n  ", p.SearchedLocations);
         DetailPath.Text = $"Drop target: {Path.Combine(p.DirectoryPath, p.DllName)}\n" +
-                          $"Searched (not found) in:\n  " + string.Join("\n  ", p.SearchedLocations);
+                          $"Static resolution steps:\n  {searchDetail}";
         PopulateScoreAxes(p.Score);
         PopulateChain(p.Privesc, null, p);
         DetailAcl.Text = FormatAcl(p.Dir);
         DetailDllSig.Text = "N/A — phantom slot (DLL does not exist; drop yours here)";
         DetailEvidence.Text = FormatEvidence(p.Evidence);
+        DetailCommunity.Text = FormatCommunity(p.Community);
         PopulatePrivesc(p.Privesc);
         DetailImporters.ItemsSource = FormatImporters(p.Importers);
         DetailFactors.ItemsSource = FormatFactors(p.Score.Factors);
@@ -952,10 +960,54 @@ public partial class ScanPage : Page
             Filename = i.ExeFilename,
             Meta = $"{(i.Signing.IsTrusted ? "SIGNED" : i.Signing.Status.ToString().ToUpper())}" +
                    $"  |  {SubsystemName(i.Subsystem)}" +
+                   $"  |  {FormatResolutionKind(i.ResolutionKind)}" +
                    $"{(i.IsDelayLoad ? "  |  DELAY-LOAD" : "")}" +
                    $"{(i.ForcesSystem32Only ? "  |  SYS32-ONLY" : "")}" +
-                   $"\n{i.ExePath}",
+                   $"\n{i.ExePath}\nExports: {i.ProxyCompatibility.Summary}",
         });
+
+    private static string FormatResolutionKind(ImportResolutionKind kind) => kind switch
+    {
+        ImportResolutionKind.ResolvedLocal  => "LOCAL-EXACT",
+        ImportResolutionKind.ResolvedSystem => "SYSTEM",
+        ImportResolutionKind.Unresolved     => "STATIC-MISS",
+        _                                   => "AMBIGUOUS",
+    };
+
+    private static string FormatSearchStep(ImportSearchStep step)
+    {
+        var state = step.Outcome switch
+        {
+            ImportSearchOutcome.Found    => "FOUND",
+            ImportSearchOutcome.NotFound => "MISS",
+            ImportSearchOutcome.Skipped  => "SKIP",
+            _                            => "UNKNOWN",
+        };
+        var note = string.IsNullOrWhiteSpace(step.Note) ? "" : $" — {step.Note}";
+        return $"[{state}] {step.CandidatePath}{note}";
+    }
+
+    private static string FormatCommunity(List<CommunityEvidence> items) => items.Count == 0
+        ? "No cached match. Use Update HijackLibs to refresh the local dataset."
+        : string.Join("\n\n", items.Select(e => e.Summary));
+
+    private async void UpdateCommunity_Click(object sender, RoutedEventArgs e)
+    {
+        CommunityBtn.IsEnabled = false;
+        try
+        {
+            var catalog = await Core.Services.Community.HijackLibsCatalog.UpdateAsync();
+            if (_lastScan != null)
+            {
+                catalog.Enrich(_lastScan);
+                ApplyViewFilter();
+                ClearDetails();
+            }
+            SetStatus($"HijackLibs: {catalog.Count} entries cached. Community matches are informational; scores unchanged.", StatusKind.Ok);
+        }
+        catch (Exception ex) { SetStatus($"HijackLibs update failed; previous cache retained: {ex.Message}", StatusKind.Err); }
+        finally { CommunityBtn.IsEnabled = true; }
+    }
 
     private static IEnumerable<object> FormatFactors(List<ScoreFactor> factors) =>
         // Order by axis then by absolute-impact so each axis block reads top-down by weight
@@ -1038,6 +1090,21 @@ public partial class ScanPage : Page
         public CandidateRow(SideloadCandidate c) { Existing = c; }
         public CandidateRow(PhantomCandidate p) { Phantom = p; }
 
+        private List<ImporterRef> Importers => Existing?.Importers ?? Phantom?.Importers ?? [];
+        private List<CommunityEvidence> Community => Existing?.Community ?? Phantom?.Community ?? [];
+        public string CommunityLabel => Community.Count == 0 ? "-"
+            : Community.Any(c => c.Match == CommunityMatch.ExeDllNames) ? "EXE+DLL" : "DLL NAME";
+        public string CommunityTooltip => FormatCommunity(Community);
+        public string ExportsLabel
+        {
+            get
+            {
+                var levels = Importers.Select(i => i.ProxyCompatibility.Level).Distinct().ToList();
+                return levels.Count == 0 ? "UNKNOWN" : levels.Count == 1 ? levels[0].ToString().ToUpperInvariant() : "MIXED";
+            }
+        }
+        public string ExportsTooltip => string.Join("\n", Importers.Select(i => i.ExeFilename + ": " + i.ProxyCompatibility.Summary));
+
         /// <summary>Build the canonical SourceCandidateKey for cross-ref with the library.</summary>
         public string? BuildSourceKey()
         {
@@ -1064,7 +1131,11 @@ public partial class ScanPage : Page
             get
             {
                 if (Phantom != null)
-                    return Phantom.Evidence?.Source == EvidenceSource.RuntimeTrace ? "RUNTIME" : "IAT";
+                    return Phantom.Evidence?.Source == EvidenceSource.RuntimeTrace
+                        ? "RUNTIME"
+                        : Phantom.StaticResolutionKind == ImportResolutionKind.ResolvedSystem
+                            ? "SYS-FALLBACK"
+                            : "STATIC-MISS";
                 return Existing?.Discovery switch
                 {
                     DiscoveryOrigin.PrivescResolvedTarget => "RESOLVED",
@@ -1076,14 +1147,16 @@ public partial class ScanPage : Page
         public SolidColorBrush KindBg => Freeze(new SolidColorBrush(KindLabel switch
         {
             "RUNTIME"  => Color.FromArgb(0x30, 0x00, 0xF0, 0xA3),
-            "IAT"      => Color.FromArgb(0x30, 0x0A, 0x72, 0xEF),
+            "STATIC-MISS" => Color.FromArgb(0x30, 0x0A, 0x72, 0xEF),
+            "SYS-FALLBACK" => Color.FromArgb(0x30, 0x89, 0xB4, 0xFA),
             "RESOLVED" => Color.FromArgb(0x30, 0xF5, 0xA5, 0x24),
             _          => Color.FromArgb(0x22, 0x73, 0x73, 0x73),
         }));
         public SolidColorBrush KindFg => Freeze(new SolidColorBrush(KindLabel switch
         {
             "RUNTIME"  => Color.FromRgb(0x00, 0xF0, 0xA3),
-            "IAT"      => Color.FromRgb(0x6A, 0xB0, 0xFF),
+            "STATIC-MISS" => Color.FromRgb(0x6A, 0xB0, 0xFF),
+            "SYS-FALLBACK" => Color.FromRgb(0x89, 0xB4, 0xFA),
             "RESOLVED" => Color.FromRgb(0xFF, 0xC6, 0x6E),
             _          => Color.FromRgb(0xA1, 0xA1, 0xA1),
         }));
@@ -1094,6 +1167,7 @@ public partial class ScanPage : Page
             {
                 var ev = Existing?.Evidence ?? Phantom?.Evidence;
                 if (ev == null) return "—";
+                if (!ev.HasLoadEvidence) return ev.IsProbeOnly ? "PROBE" : "OPEN";
                 return ev.MatchedByDirectory ? "VERIF" : "name";
             }
         }

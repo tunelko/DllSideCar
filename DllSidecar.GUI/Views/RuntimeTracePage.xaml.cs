@@ -153,10 +153,10 @@ public partial class RuntimeTracePage : Page
     }
 
     private static readonly string[] TraceExportHeader =
-    { "Process", "DLL", "Directory", "Events", "Writable" };
+    { "Process", "DLL", "Directory", "Events", "Writable", "Result" };
 
     private List<string[]> BuildTraceExportRows() => _allRows.Select(r => new[]
-    { r.ProcessName, r.DllName, r.Directory, r.EventCount.ToString(), r.IsWritable ? "Y" : "N" }).ToList();
+    { r.ProcessName, r.DllName, r.Directory, r.EventCount.ToString(), r.IsWritable ? "Y" : "N", r.Result }).ToList();
 
     private void CopyList_Click(object sender, RoutedEventArgs e)
     {
@@ -507,8 +507,10 @@ public partial class RuntimeTracePage : Page
 
         SetStatus(
             $"Trace complete — {_lastResult.FilteredEvents} events, {_lastResult.ByDll.Count} DLLs, " +
-            $"{_lastResult.ProcessTree.Count} processes, {_lastResult.Duration.TotalSeconds:F1}s",
-            _lastResult.FilteredEvents > 0 ? StatusKind.Ok : StatusKind.Warn);
+            $"{_lastResult.ProcessTree.Count} processes, {_lastResult.Duration.TotalSeconds:F1}s; " +
+            $"{_lastResult.UncompletedOperations} uncompleted, {_lastResult.LostEvents} lost",
+            _lastResult.FilteredEvents > 0 && _lastResult.LostEvents == 0 && _lastResult.UncompletedOperations == 0
+                ? StatusKind.Ok : StatusKind.Warn);
 
         _main.Log($"Runtime trace stopped: {_lastResult.FilteredEvents} events, {_lastResult.ByDll.Count} DLLs, {_lastResult.ProcessTree.Count} processes");
     }
@@ -530,20 +532,29 @@ public partial class RuntimeTracePage : Page
     }
 
     /// <summary>Re-aggregates _allRows from _lastResult, optionally filtering events by _processFilterPids.</summary>
+    private void ResultFilterChanged(object sender, RoutedEventArgs e)
+    {
+        if (_lastResult == null) return;
+        RebuildAllRows(_lastResult);
+        ApplyDllFilter();
+    }
+
     private void RebuildAllRows(EtwTraceResult result)
     {
         IEnumerable<EtwTraceEvent> events = result.Events;
+        if (ChkNotFoundOnly.IsChecked == true)
+            events = events.Where(e => e.IsMissing);
         if (_processFilterPids != null)
             events = events.Where(e => _processFilterPids.Contains(e.ProcessId));
 
         var summary = EtwResultConverter.DeduplicatedSummary(events);
 
         // Run elevation transition detection to tag rows with PRIVESC.
-        var probeEvents = events.Select(e => new ProcmonEvent
+        var probeEvents = events.Where(e => e.IsMissing).Select(e => new ProcmonEvent
         {
             ProcessName = e.ProcessName,
-            Operation = "CreateFile",
-            Result = "NAME NOT FOUND",
+            Operation = e.Operation,
+            Result = e.Result,
             Path = e.FilePath,
             Pid = e.ProcessId,
             Timestamp = e.Timestamp,
@@ -585,7 +596,7 @@ public partial class RuntimeTracePage : Page
             var aclPerms = _dirAcl.Get(s.Directory);
             bool writable = string.IsNullOrEmpty(aclPerms.Error) && aclPerms.IsLowPrivWritable;
 
-            bool highIl = elevatedDllNames.Contains(s.DllName);
+            bool highIl = (s.Result is "NAME NOT FOUND" or "PATH NOT FOUND") && elevatedDllNames.Contains(s.DllName);
 
             // Canonical privesc-carrier identifier (same gates as ProcmonPage banner).
             var input = new Core.Services.CarrierInput(
@@ -599,7 +610,7 @@ public partial class RuntimeTracePage : Page
 
             bool isCarrier = Core.Services.PrivescCarrierIdentifier.Qualifies(input, _dirAcl, out _);
             _allRows.Add(new TraceRow(s.ProcessImage, s.DllName, s.Directory,
-                s.EventCount, writable, s.LoadCount, s.ProbeCount, isCarrier));
+                s.EventCount, writable, s.LoadCount, s.ProbeCount, isCarrier, s.Result));
         }
 
         UpdateElevationBanner(transitions, highIlProcesses, carrierInputs);
@@ -806,7 +817,7 @@ public partial class RuntimeTracePage : Page
         DetailPaths.ItemsSource = events.Select(ev => new
         {
             Path = ev.FilePath,
-            Meta = $"@ {ev.Timestamp:HH:mm:ss.fff}",
+            Meta = $"{ev.Operation}: {ev.Result} @ {ev.Timestamp:HH:mm:ss.fff}",
         }).ToList();
 
         // Filter the DLL grid to this process and all its descendants
@@ -857,7 +868,7 @@ public partial class RuntimeTracePage : Page
         DetailPaths.ItemsSource = events.Select(ev => new
         {
             Path = ev.FilePath,
-            Meta = $"{ev.ProcessName}  (pid {ev.ProcessId})  @ {ev.Timestamp:HH:mm:ss.fff}" +
+            Meta = $"{ev.Operation}: {ev.Result} | {ev.ProcessName}  (pid {ev.ProcessId})  @ {ev.Timestamp:HH:mm:ss.fff}" +
                    (ev.IsChildOfTarget ? "  [CHILD]" : ""),
         }).ToList();
 
@@ -1052,6 +1063,7 @@ public partial class RuntimeTracePage : Page
         public string WritableLabel => IsWritable ? "Y" : "";
         public int LoadCount { get; }
         public int ProbeCount { get; }
+        public string Result { get; }
 
         // Compact LOAD/PROBE/MIXED label; empty for Unknown-only events.
         public string AccessLabel => Core.Models.AccessClassLabels.FromCounts(LoadCount, ProbeCount);
@@ -1069,8 +1081,9 @@ public partial class RuntimeTracePage : Page
         public int VerdictSortKey => Verdict.Score;
 
         public TraceRow(string proc, string dll, string dir, int events, bool writable,
-                        int loadCount = 0, int probeCount = 0, bool privescCandidate = false)
+                        int loadCount = 0, int probeCount = 0, bool privescCandidate = false, string result = "UNKNOWN")
         {
+            Result = result;
             ProcessName = Path.GetFileName(proc);
             DllName = dll;
             Directory = dir;

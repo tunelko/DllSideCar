@@ -44,7 +44,7 @@
             <TextBlock Text="Runtime Trace" FontSize="22"
                        FontWeight="Bold" Foreground="{StaticResource Text}"/>
             <TextBlock Foreground="{StaticResource Overlay}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap">
-                <Run Text="Live ETW-based monitoring of DLL load failures. Launch an EXE (zero events lost) or attach to a running PID. The process tree and all NAME NOT FOUND events are captured in real time."/>
+                <Run Text="Observe DLL file-operation results and image loads via ETW. Launch or attach to a process; uncompleted operations and lost events are reported when capture stops."/>
             </TextBlock>
         </StackPanel>
 
@@ -226,7 +226,7 @@
                                       Content=".dll only" IsChecked="True"/>
                             <CheckBox Grid.Column="2" x:Name="ChkNotFoundOnly" Style="{StaticResource SegmentedCheck}"
                                       HorizontalContentAlignment="Center"
-                                      Content="NAME NOT FOUND" IsChecked="True"/>
+                                      Content="Missing only" IsChecked="True" Checked="ResultFilterChanged" Unchecked="ResultFilterChanged"/>
                         </Grid>
                     </Border>
                 </StackPanel>
@@ -404,6 +404,7 @@
                         <DataGridTextColumn Header="DLL" Binding="{Binding DllName}" Width="160"/>
                         <DataGridTextColumn Header="Process" Binding="{Binding ProcessName}" Width="130"/>
                         <DataGridTextColumn Header="Evts" Binding="{Binding EventCount}" Width="50"/>
+                        <DataGridTextColumn Header="Result" Binding="{Binding Result}" Width="155"/>
                         <DataGridTextColumn Binding="{Binding AccessLabel}" Width="200">
                             <DataGridTextColumn.Header>
                                 <TextBlock Text="Access">

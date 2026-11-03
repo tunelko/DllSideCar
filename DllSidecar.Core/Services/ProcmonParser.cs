@@ -11,6 +11,7 @@ public static class ProcmonParser
 {
     public class ParseResult
     {
+        public EvidenceSource Source { get; set; } = EvidenceSource.ProcmonCsv;
         public List<ProcmonEvent> Events { get; } = [];
         public List<ProcmonAggregation> ByDll { get; } = [];
         public int TotalRows { get; set; }

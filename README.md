@@ -11,7 +11,7 @@
 A Windows desktop application for DLL sideloading and DLL hijacking
 research (CWE-427, CWE-426). It automates static PE analysis,
 candidate scanning, dynamic correlation with Process Monitor and ETW,
-proof-of-concept C source generation, MinGW compilation, and the full
+proof-of-concept C source generation, MinGW/MSVC compilation, and the full
 advisory authoring lifecycle (Markdown / GHSA), with a persisted case
 library and a multi-format export pipeline.
 
@@ -50,14 +50,25 @@ any direct or indirect damage arising from its use.
   *no imports* from *imports without observable callsites*.
 - **Directory ACL checker**: flags writable-by-non-admin directories
   that would let a low-privileged user plant a payload.
+- **Export coverage**: compares each importer's required names and ordinals
+  against its resolved reference DLL, including delay imports. The Exports
+  column reports UNKNOWN / READY / PARTIAL / UNSAFE / MIXED; READY describes
+  static symbol coverage, not a validated replacement DLL or working exploit.
+- **Community evidence**: optional, explicitly downloaded HijackLibs cache.
+  Scan distinguishes DLL-name matches from EXE+DLL-name pairs, retaining the
+  source URL, retrieval date and dataset hash. Installed-version compatibility
+  is not implied, and these annotations do not change scores.
 
 ### Dynamic correlation
 
 - **Process Monitor CSV ingest**: parses ProcMon exports, joins
   `NAME NOT FOUND` entries against the static scan output, and
   surfaces the actual runtime DLL search order.
-- **Live ETW tracer** (admin): real-time monitoring of LoadLibrary
-  failures across selected processes, with per-DLL aggregation and a
+- **Live ETW tracer** (admin): correlates kernel file-open starts/completions
+  by IRP and records NTSTATUS plus ImageLoad events. Missing DLLs are no longer
+  inferred from `File.Exists`. Successful opens, denied access and incomplete
+  operations are not promoted as missing DLLs. Lost/uncompleted counts are
+  displayed at stop. Includes per-DLL aggregation and a
   process tree view. Supports three modes (Launch / Attach / Watch),
   command-line filtering for svchost group disambiguation, a Service
   Picker that auto-fills Watch-by-Name, and a pulsing REC indicator
@@ -98,11 +109,12 @@ any direct or indirect damage arising from its use.
 
 ### Build pipeline
 
-- **MinGW wrapper** (`gcc` + `windres`): compiles generated C and
-  resource files into a final DLL. Supports timestamp stomping for
-  binary cosmetic mimicry.
+- **Compiler backends**: MinGW (`gcc` + `windres`) and MSVC (`cl` + SDK `rc`).
+  Auto preserves MinGW preference, using MSVC for compatible sources when
+  MinGW is absent. An explicit selection never silently changes compiler.
+  Native resources and generated build scripts follow the selected backend.
 - **Toolkit health check**: detects and validates ProcMon, sigcheck,
-  Dependencies, x64dbg, x32dbg, MinGW, and the NVD API key state.
+  Dependencies, x64dbg, x32dbg, MinGW, MSVC, and the NVD API key state.
 
 ### Advisory authoring
 
@@ -152,7 +164,8 @@ Three-project solution targeting `.NET 9.0`:
 
 Data flow: `AnalyzePage` (or `ScanPage`) populates session state on
 the main window, which `GeneratePage` consumes to emit C source and
-`BuildPage` compiles via the MinGW wrapper. Output of any phase can
+compile through the selected backend. The Wizard shares this build path.
+Output of any phase can
 be promoted to an advisory record in the persisted library.
 
 ## Build
@@ -162,12 +175,13 @@ be promoted to an advisory record in the persisted library.
 - Windows 10 or 11
 - .NET SDK 9.0.300 or newer
 - Optional, for full runtime functionality:
-  - MinGW-w64 (via MSYS2): required to compile generated PoC DLLs
+  - MinGW-w64 (via MSYS2), or Visual Studio C++ tools plus Windows SDK
+    for portable C templates. GNU assembly templates still require MinGW.
   - Sysinternals suite: required for ProcMon CSV ingest and
     sigcheck-based signature verification
 
 DllSidecar performs a toolchain probe on every launch and surfaces a
-modal warning when the MinGW compilers are not detected, so an empty
+modal warning when the selected toolchain is missing, so an empty
 MSYS2 install (or a missing PATH entry) is caught before the user
 spends time on a PoC that cannot be built. Analysis-only features
 remain usable without the compiler.
@@ -210,6 +224,28 @@ recommended way to obtain it on Windows is MSYS2.
 Once the compilers resolve, the startup warning disappears and the
 status bar at the top of the main window shows `GCC X64 — OK` /
 `WINDRES — OK` in green.
+
+### MSVC alongside MinGW
+
+Install Visual Studio / Build Tools with the C++ desktop workload and a
+Windows SDK. In **Configuration > Compiler toolchains**, select Auto, MinGW
+or MSVC. `vswhere` detects Visual Studio automatically; `vcvarsall.bat` can
+be overridden. Its environment is applied only to compiler child processes,
+not to the user's PATH or registry.
+
+MSVC supports portable C stubs and pure export forwarders on x86/x64.
+Tracers, hooked-export trampolines and specialized GNU headers remain on
+MinGW; MSVC returns a specific diagnostic for unsupported source.
+The generated pure-forwarder files include `.msvc.def` and
+`.msvc_exports.c` for `link.exe`. Forwarders are emitted as object directives
+to avoid LNK2001 from fuzzy name resolution in the installed MSVC linker;
+the resulting export table is checked in native tests.
+
+The existing pure-forwarder generator still omits ordinal-only exports.
+The MSVC backend can link such definitions, but this does not make every
+generated proxy complete: always inspect required symbols and the generated
+DLL. Export coverage in Scan compares the original/reference DLL, not the
+generated artifact. Full GNU template migration is not claimed.
 
 ### Commands
 

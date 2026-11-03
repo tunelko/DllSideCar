@@ -25,10 +25,18 @@
                 <!-- MINGW TOOLCHAIN -->
                 <Border x:Name="MingwSection" Style="{StaticResource SectionCard}">
                     <StackPanel>
-                        <TextBlock Text="MINGW TOOLCHAIN" Style="{StaticResource SectionHeader}"/>
-                        <TextBlock Text="Bin directories for the GCC builds used by Generate / Build. x64 is required; x86 is needed for 32-bit targets like Battle.net Agent."
+                        <TextBlock Text="COMPILER TOOLCHAINS" Style="{StaticResource SectionHeader}"/>
+                        <TextBlock Text="Auto prefers MinGW when installed, then MSVC for compatible C templates. GNU assembly and specialized headers require MinGW."
                                    FontSize="11" Foreground="{StaticResource Overlay}" Margin="0,0,0,8" TextWrapping="Wrap"/>
 
+                        <TextBlock Text="Compiler preference" Style="{StaticResource FieldLabel}"/>
+                        <ComboBox x:Name="CompilerCombo" Margin="0,0,0,8">
+                            <ComboBoxItem Content="Auto (MinGW preferred)"/>
+                            <ComboBoxItem Content="MinGW"/>
+                            <ComboBoxItem Content="MSVC (compatible templates)"/>
+                        </ComboBox>
+                        <ctrl:ToolPathRow x:Name="VcVarsRow" Label="MSVC vcvarsall.bat"
+                                          Purpose="Optional override; Visual Studio C++ is detected through vswhere when empty"/>
                         <ctrl:ToolPathRow x:Name="Mingw64Row" Label="MinGW-w64 x64 bin"
                                           Purpose="gcc.exe / windres.exe for 64-bit DLL compilation"/>
                         <ctrl:ToolPathRow x:Name="Mingw32Row" Label="MinGW-w64 x86 bin"
@@ -39,11 +47,11 @@
                         <Grid Margin="0,12,0,0">
                             <StackPanel HorizontalAlignment="Left" Orientation="Horizontal">
                                 <Button Content="Auto-detect" Style="{StaticResource SecondaryButton}" Click="AutoDetect_Click"
-                                        ToolTip="Probe well-known MSYS2 / mingw-w64 install roots"/>
+                                        ToolTip="Probe MSYS2 / mingw-w64 and Visual Studio C++ installations"/>
                             </StackPanel>
                             <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                                 <Button Content="&#x2713;  Validate toolchain" Style="{StaticResource AccentButton}" Click="Validate_Click"
-                                        ToolTip="Run BuildSystem.FindGcc / FindWindres for both archs"/>
+                                        ToolTip="Check gcc, windres and Visual Studio C++ paths"/>
                             </StackPanel>
                         </Grid>
                         <TextBlock x:Name="ValidateStatus" FontFamily="{StaticResource FontMono}" FontSize="11"

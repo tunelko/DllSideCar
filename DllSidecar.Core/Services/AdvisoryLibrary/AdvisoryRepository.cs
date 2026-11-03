@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using DllSidecar.Core.Logging;
 using DllSidecar.Core.Models.Advisory;
 using DllSidecar.Core.Models.AdvisoryLibrary;
 
@@ -17,14 +18,24 @@ public sealed class AdvisoryRepository
 
     public static string DbPath => Path.Combine(BaseDir, "library.db");
 
+    private readonly string _databasePath;
     private readonly string _connectionString;
 
-    public AdvisoryRepository()
+    public string DatabasePath => _databasePath;
+    public string? LastMigrationBackupPath { get; private set; }
+
+    public AdvisoryRepository() : this(DbPath) { }
+
+    public AdvisoryRepository(string databasePath)
     {
-        Directory.CreateDirectory(BaseDir);
+        if (string.IsNullOrWhiteSpace(databasePath))
+            throw new ArgumentException("Database path is required", nameof(databasePath));
+
+        _databasePath = Path.GetFullPath(databasePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(_databasePath)!);
         _connectionString = new SqliteConnectionStringBuilder
         {
-            DataSource = DbPath,
+            DataSource = _databasePath,
             Mode = SqliteOpenMode.ReadWriteCreate,
         }.ToString();
     }
@@ -55,92 +66,16 @@ public sealed class AdvisoryRepository
         }
         else if (existing != SchemaVersion)
         {
-            // v1 → v2: add template_id to advisory_artifacts
-            if (existing == "1")
-            {
-                try { await ExecNonQueryAsync(conn, "ALTER TABLE advisory_artifacts ADD COLUMN template_id TEXT;"); }
-                catch { /* column may already exist from a previous partial migration — ignore */ }
-                existing = "2";
-            }
-            // v2 → v3: soft-delete columns on advisory_records
-            if (existing == "2")
-            {
-                try { await ExecNonQueryAsync(conn, "ALTER TABLE advisory_records ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;"); }
-                catch { /* idempotent */ }
-                try { await ExecNonQueryAsync(conn, "ALTER TABLE advisory_records ADD COLUMN deleted_at_utc TEXT;"); }
-                catch { /* idempotent */ }
-                existing = "3";
-            }
-            // v3 -> v4: Template Fields persistence.
-            if (existing == "3")
-            {
-                foreach (var col in V4NewColumns)
-                {
-                    try { await ExecNonQueryAsync(conn, $"ALTER TABLE advisory_records ADD COLUMN {col};"); }
-                    catch { /* idempotent — column may already exist from a partial migration */ }
-                }
-                existing = "4";
-            }
-            // v4 -> v5: persist active template per advisory.
-            if (existing == "4")
-            {
-                try { await ExecNonQueryAsync(conn, "ALTER TABLE advisory_records ADD COLUMN last_template_id TEXT;"); }
-                catch { /* idempotent */ }
-                existing = "5";
-            }
-            // v5 -> v6: per-vendor sequence number (lazily allocated, never reused).
-            if (existing == "5")
-            {
-                try { await ExecNonQueryAsync(conn, "ALTER TABLE advisory_records ADD COLUMN sequence_number INTEGER;"); }
-                catch { /* idempotent */ }
-                existing = "6";
-            }
-            // v6 -> v7: per-artifact workflow status; backfill from parent record.
-            if (existing == "6")
-            {
-                try { await ExecNonQueryAsync(conn, "ALTER TABLE advisory_artifacts ADD COLUMN status INTEGER NOT NULL DEFAULT 0;"); }
-                catch { /* idempotent */ }
-                try { await ExecNonQueryAsync(conn, @"
-                    UPDATE advisory_artifacts SET status = (
-                        SELECT r.status FROM advisory_records r WHERE r.id = advisory_artifacts.advisory_id
-                    ) WHERE status = 0;"); }
-                catch { /* best effort */ }
-                existing = "7";
-            }
-            // v7 -> v8: drop incibe classification/ranking columns and their artifacts.
-            if (existing == "7")
-            {
-                // Snapshot paths first; iterating the reader while issuing a command deadlocks.
-                var orphanPaths = new List<string>();
-                try
-                {
-                    await using var sel = conn.CreateCommand();
-                    sel.CommandText = "SELECT path FROM advisory_artifacts WHERE template_id = 'incibe';";
-                    await using var rdr = await sel.ExecuteReaderAsync();
-                    while (await rdr.ReadAsync())
-                        if (!rdr.IsDBNull(0)) orphanPaths.Add(rdr.GetString(0));
-                }
-                catch { /* artifact table might not exist yet on a freshly-created v8 schema */ }
+            if (!int.TryParse(existing, out var existingVersion) ||
+                existingVersion < 1 ||
+                existingVersion > int.Parse(SchemaVersion))
+                throw new InvalidDataException(
+                    $"Advisory schema version '{existing}' is not supported by this build (expected 1..{SchemaVersion}).");
 
-                foreach (var p in orphanPaths)
-                {
-                    try { if (File.Exists(p)) File.Delete(p); } catch { /* best effort */ }
-                }
-
-                try { await ExecNonQueryAsync(conn, "DELETE FROM advisory_artifacts WHERE template_id = 'incibe';"); }
-                catch { /* idempotent */ }
-
-                foreach (var col in new[] { "attack_type", "impact_category", "incibe_ranking_opt_in", "incibe_public_display_name" })
-                {
-                    try { await ExecNonQueryAsync(conn, $"ALTER TABLE advisory_records DROP COLUMN {col};"); }
-                    catch { /* idempotent / unsupported on legacy SQLite — column becomes dead weight */ }
-                }
-                existing = "8";
-            }
-            await using var updVersion = conn.CreateCommand();
-            updVersion.CommandText = "UPDATE schema_info SET value=$v WHERE key='version';";
-            updVersion.Parameters.AddWithValue("$v", SchemaVersion);
-            await updVersion.ExecuteNonQueryAsync();
+            LastMigrationBackupPath = await CreateMigrationBackupAsync(conn, existingVersion);
+            await MigrateAsync(conn, existingVersion);
+            Log.Info("advisory.migration",
+                $"Migrated advisory library v{existingVersion} -> v{SchemaVersion}; backup: {LastMigrationBackupPath}");
         }
     }
 
@@ -1463,6 +1398,160 @@ public sealed class AdvisoryRepository
     private static string FormatUtc(DateTime d) => d.ToUniversalTime().ToString("o");
     private static DateTime ParseUtc(string s) => DateTime.Parse(s, System.Globalization.CultureInfo.InvariantCulture,
         System.Globalization.DateTimeStyles.RoundtripKind).ToUniversalTime();
+
+    private async Task<string> CreateMigrationBackupAsync(SqliteConnection source, int fromVersion)
+    {
+        var directory = Path.GetDirectoryName(_databasePath)!;
+        var filename = Path.GetFileNameWithoutExtension(_databasePath);
+        var backupPath = Path.Combine(directory,
+            $"{filename}.pre-v{SchemaVersion}-from-v{fromVersion}-{DateTime.UtcNow:yyyyMMddTHHmmssfff}-{Guid.NewGuid():N}.db");
+
+        await using var destination = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = backupPath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+        }.ToString());
+        await destination.OpenAsync();
+        source.BackupDatabase(destination);
+        return backupPath;
+    }
+
+    private static async Task MigrateAsync(SqliteConnection conn, int fromVersion)
+    {
+        var version = fromVersion;
+        await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync();
+        try
+        {
+            if (version == 1)
+            {
+                await AddColumnIfMissingAsync(conn, tx, "advisory_artifacts", "template_id TEXT");
+                version = 2;
+            }
+
+            if (version == 2)
+            {
+                await AddColumnIfMissingAsync(conn, tx, "advisory_records", "is_deleted INTEGER NOT NULL DEFAULT 0");
+                await AddColumnIfMissingAsync(conn, tx, "advisory_records", "deleted_at_utc TEXT");
+                version = 3;
+            }
+
+            if (version == 3)
+            {
+                foreach (var column in V4NewColumns)
+                    await AddColumnIfMissingAsync(conn, tx, "advisory_records", column);
+                version = 4;
+            }
+
+            if (version == 4)
+            {
+                await AddColumnIfMissingAsync(conn, tx, "advisory_records", "last_template_id TEXT");
+                version = 5;
+            }
+
+            if (version == 5)
+            {
+                await AddColumnIfMissingAsync(conn, tx, "advisory_records", "sequence_number INTEGER");
+                version = 6;
+            }
+
+            if (version == 6)
+            {
+                await AddColumnIfMissingAsync(conn, tx, "advisory_artifacts", "status INTEGER NOT NULL DEFAULT 0");
+                await ExecNonQueryAsync(conn, tx, @"
+                    UPDATE advisory_artifacts SET status = (
+                        SELECT r.status FROM advisory_records r WHERE r.id = advisory_artifacts.advisory_id
+                    ) WHERE status = 0;");
+                version = 7;
+            }
+
+            if (version == 7)
+            {
+                // The renderer is gone, but generated files are user data. Keep INCIBE
+                // artifact rows/files as readable legacy outputs and only clear the active
+                // renderer so reopening the advisory falls back safely to Markdown.
+                if (await ColumnExistsAsync(conn, tx, "advisory_records", "last_template_id"))
+                    await ExecNonQueryAsync(conn, tx,
+                        "UPDATE advisory_records SET last_template_id = NULL WHERE lower(last_template_id) = 'incibe';");
+
+                foreach (var column in new[]
+                         {
+                             "attack_type", "impact_category", "incibe_ranking_opt_in",
+                             "incibe_public_display_name",
+                         })
+                    await DropColumnIfExistsAsync(conn, tx, "advisory_records", column);
+
+                version = 8;
+            }
+
+            if (version != int.Parse(SchemaVersion))
+                throw new InvalidDataException(
+                    $"Migration stopped at schema v{version}; expected v{SchemaVersion}.");
+
+            await using var update = conn.CreateCommand();
+            update.Transaction = tx;
+            update.CommandText = "UPDATE schema_info SET value=$v WHERE key='version';";
+            update.Parameters.AddWithValue("$v", SchemaVersion);
+            if (await update.ExecuteNonQueryAsync() != 1)
+                throw new InvalidDataException("Could not stamp the migrated advisory schema version.");
+
+            await tx.CommitAsync();
+        }
+        catch
+        {
+            try { await tx.RollbackAsync(); } catch { }
+            throw;
+        }
+    }
+
+    private static async Task AddColumnIfMissingAsync(
+        SqliteConnection conn,
+        SqliteTransaction tx,
+        string table,
+        string columnDefinition)
+    {
+        var columnName = columnDefinition.Split(' ', 2)[0];
+        if (await ColumnExistsAsync(conn, tx, table, columnName)) return;
+        await ExecNonQueryAsync(conn, tx, $"ALTER TABLE {table} ADD COLUMN {columnDefinition};");
+    }
+
+    private static async Task DropColumnIfExistsAsync(
+        SqliteConnection conn,
+        SqliteTransaction tx,
+        string table,
+        string column)
+    {
+        if (!await ColumnExistsAsync(conn, tx, table, column)) return;
+        await ExecNonQueryAsync(conn, tx, $"ALTER TABLE {table} DROP COLUMN {column};");
+    }
+
+    private static async Task<bool> ColumnExistsAsync(
+        SqliteConnection conn,
+        SqliteTransaction tx,
+        string table,
+        string column)
+    {
+        await using var command = conn.CreateCommand();
+        command.Transaction = tx;
+        command.CommandText = $"PRAGMA table_info({table});";
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
+    private static async Task ExecNonQueryAsync(
+        SqliteConnection conn,
+        SqliteTransaction tx,
+        string sql)
+    {
+        await using var command = conn.CreateCommand();
+        command.Transaction = tx;
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync();
+    }
 
     private static async Task ExecNonQueryAsync(SqliteConnection conn, string sql)
     {
