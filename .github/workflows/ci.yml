@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   # Push triggers are intentionally limited to main: every change to develop
   # or release/** lands via a pull_request anyway, and that fires its own run.
   # Triggering on push for those branches duplicated work and the cancelled
