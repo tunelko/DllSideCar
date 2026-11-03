@@ -14,6 +14,7 @@ public class ProcmonEvent
     public string SearchDir => System.IO.Path.GetDirectoryName(Path) ?? "";
     public DateTime? Timestamp { get; set; }
     public int? Pid { get; set; }
+    public string? ProcessImagePath { get; set; }
     /// <summary>Raw ProcMon Detail string (Desired Access / Options / ...).</summary>
     public string? Detail { get; set; }
     /// <summary>Loader-vs-probe classification derived from <see cref="Detail"/>.</summary>

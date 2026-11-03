@@ -3,6 +3,7 @@ namespace DllSidecar.Core.Configuration;
 public class AppConfig
 {
     public MingwConfig Mingw { get; set; } = new();
+    public CompilerConfig Compiler { get; set; } = new();
     public PathsConfig Paths { get; set; } = new();
     public ToolsConfig Tools { get; set; } = new();
     public UiStateConfig UiState { get; set; } = new();
@@ -14,6 +15,12 @@ public class AppConfig
 
     // First-run onboarding flag; reset on every version transition by PostInstallReset.
     public bool WelcomeSeen { get; set; }
+}
+
+public class CompilerConfig
+{
+    public Models.CompilerKind Preferred { get; set; } = Models.CompilerKind.Auto;
+    public string? VcVarsAllPath { get; set; }
 }
 
 /// <summary>Default payload knobs reused across Generate runs.</summary>

@@ -157,7 +157,7 @@ public class SideloadScanner
         {
             try
             {
-                var importers = graph.GetImportersOf(dll.Filename)
+                var importers = graph.GetImportersOf(dll)
                     .Where(e => !string.Equals(e.ImporterPath, dll.Path, StringComparison.OrdinalIgnoreCase))
                     .ToList();
 
@@ -184,6 +184,10 @@ public class SideloadScanner
                         Subsystem = imp.Subsystem,
                         ForcesSystem32Only = imp.Security.ForcesSystem32Only,
                         IsDelayLoad = edge.IsDelayLoad,
+                        ResolutionKind = edge.Resolution?.Kind ?? ImportResolutionKind.Ambiguous,
+                        ResolvedImportPath = edge.Resolution?.ResolvedPath,
+                        SearchSteps = edge.Resolution?.Steps ?? [],
+                        ProxyCompatibility = ProxyCompatibilityAnalyzer.Evaluate(imp, dll.Filename, dll),
                     });
                 }
 
@@ -250,7 +254,7 @@ public class SideloadScanner
             foreach (var pe in analyses)
             {
                 ct.ThrowIfCancellationRequested();
-                var hits = PhantomDetector.Find(pe);
+                var hits = PhantomDetector.Find(pe, graph.PathToAnalysis);
                 foreach (var h in hits)
                 {
                     var key = $"{h.ImporterDirectory}|{h.DllName.ToLowerInvariant()}";
@@ -263,10 +267,14 @@ public class SideloadScanner
                 }
             }
 
+            var referenceCache = new Dictionary<string, PeAnalysis?>(StringComparer.OrdinalIgnoreCase);
             foreach (var (key, list) in hitsByKey)
             {
                 ct.ThrowIfCancellationRequested();
-                var first = list[0];
+                // Prefer a system fallback over a fully missing import: it gives us
+                // a canonical original DLL and a stronger static resolution chain.
+                var first = list.FirstOrDefault(h =>
+                    h.Resolution.Kind == ImportResolutionKind.ResolvedSystem) ?? list[0];
                 var ph = new PhantomCandidate
                 {
                     DllName = first.DllName,
@@ -275,10 +283,22 @@ public class SideloadScanner
                         ? p
                         : DirectoryAclChecker.Check(first.ImporterDirectory),
                     SearchedLocations = first.SearchedLocations,
+                    SearchSteps = first.Resolution.Steps,
+                    StaticResolutionKind = first.Resolution.Kind,
                 };
                 foreach (var h in list)
                 {
                     var impPe = graph.PathToAnalysis[h.ImporterPath];
+                    PeAnalysis? reference = null;
+                    if (h.Resolution.ResolvedPath is { } originalPath)
+                    {
+                        if (!referenceCache.TryGetValue(originalPath, out reference))
+                        {
+                            try { reference = PeAnalyzer.Analyze(originalPath); }
+                            catch (Exception ex) { Log.Debug("scan.proxy", $"Cannot inspect {originalPath}", ex); }
+                            referenceCache[originalPath] = reference;
+                        }
+                    }
                     ph.Importers.Add(new ImporterRef
                     {
                         ExePath = impPe.Path,
@@ -287,6 +307,10 @@ public class SideloadScanner
                         Subsystem = impPe.Subsystem,
                         ForcesSystem32Only = impPe.Security.ForcesSystem32Only,
                         IsDelayLoad = h.IsDelayLoad,
+                        ResolutionKind = h.Resolution.Kind,
+                        ResolvedImportPath = h.Resolution.ResolvedPath,
+                        SearchSteps = h.Resolution.Steps,
+                        ProxyCompatibility = ProxyCompatibilityAnalyzer.Evaluate(impPe, ph.DllName, reference),
                     });
                 }
                 if (privesc != null)
@@ -361,37 +385,26 @@ public class SideloadScanner
             }
         }
 
+        // Local cache only; network updates are explicitly triggered in the UI.
+        Community.HijackLibsCatalog.LoadCache()?.Enrich(results);
         return results;
     }
 
     private static List<string> EnumeratePeFiles(string dir, CancellationToken ct)
     {
-        var result = new List<string>();
-        int accessErrors = 0;
-        int pathErrors = 0;
-        try
+        var skippedOperations = 0;
+        var result = PeFileEnumerator.Enumerate(dir, ct, failure =>
         {
-            // Using EnumerationOptions to log inaccessible subtrees without aborting the walk.
-            // Directory.EnumerateFiles does NOT provide per-entry errors, so wrap in try/catch
-            // around the whole iteration and let caller know via Log how many were missed.
-            foreach (var f in Directory.EnumerateFiles(dir, "*.*", SearchOption.AllDirectories))
-            {
-                ct.ThrowIfCancellationRequested();
-                var ext = Path.GetExtension(f).ToLowerInvariant();
-                if (ext == ".dll" || ext == ".exe" || ext == ".sys" || ext == ".ocx")
-                    result.Add(f);
-            }
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            accessErrors++;
-            Log.Warn("scan.enum", $"Access denied while enumerating {dir} (partial results)", ex);
-        }
-        catch (PathTooLongException ex)
-        {
-            pathErrors++;
-            Log.Warn("scan.enum", $"Path too long encountered in {dir} (partial results)", ex);
-        }
+            skippedOperations++;
+            Log.Warn(
+                "scan.enum",
+                $"Skipped {failure.Operation.ToString().ToLowerInvariant()} at {failure.Path}; continuing with partial results",
+                failure.Exception);
+        });
+
+        if (skippedOperations > 0)
+            Log.Info("scan.enum", $"Enumeration completed with {skippedOperations} skipped operation(s)");
+
         return result;
     }
 

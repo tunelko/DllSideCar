@@ -588,22 +588,13 @@ public partial class GeneratePage : Page
 
         _main.Log($"Generating {_mode} for {_analysis.Filename}...");
 
+        config.Compiler = ConfigManager.Current.Compiler.Preferred;
         var files = TemplateEngine.Generate(_analysis, config);
 
-        // Copy headers
         var templatesDir = AppPaths.TemplatesDir;
-        if (config.DInvoke && File.Exists(Path.Combine(templatesDir, "dinvoke.h")))
-            File.Copy(Path.Combine(templatesDir, "dinvoke.h"), Path.Combine(outputDir, "dinvoke.h"), true);
-        if (config.DirectSyscalls && File.Exists(Path.Combine(templatesDir, "syscalls.h")))
-            File.Copy(Path.Combine(templatesDir, "syscalls.h"), Path.Combine(outputDir, "syscalls.h"), true);
-        if (config.IndirectSyscalls && File.Exists(Path.Combine(templatesDir, "syscalls_indirect.h")))
-            File.Copy(Path.Combine(templatesDir, "syscalls_indirect.h"), Path.Combine(outputDir, "syscalls_indirect.h"), true);
-        if (config.EncryptStrings && File.Exists(Path.Combine(templatesDir, "cryptor.h")))
-            File.Copy(Path.Combine(templatesDir, "cryptor.h"), Path.Combine(outputDir, "cryptor.h"), true);
-        if (config.UnhookNtdll && File.Exists(Path.Combine(templatesDir, "unhook.h")))
-            File.Copy(Path.Combine(templatesDir, "unhook.h"), Path.Combine(outputDir, "unhook.h"), true);
-        if (config.PatchEtw && File.Exists(Path.Combine(templatesDir, "etw.h")))
-            File.Copy(Path.Combine(templatesDir, "etw.h"), Path.Combine(outputDir, "etw.h"), true);
+        var copiedHeaders = TemplateDependencyResolver.CopyRequiredHeaders(files.Values, templatesDir, outputDir);
+        foreach (var header in copiedHeaders)
+            _main.Log($"  Dependency: {header}");
 
         var outputInfo = new System.Text.StringBuilder();
         foreach (var (name, content) in files)
@@ -646,17 +637,18 @@ public partial class GeneratePage : Page
         string? builtDllPath = null;
         if (ChkAutoBuild.IsChecked == true)
         {
-            var cFile = files.Keys.First(k => k.EndsWith(".c"));
-            var defFile = files.Keys.First(k => k.EndsWith(".def"));
+            var cFile = files.Keys.First(k => k.EndsWith(".c") && !k.EndsWith(".msvc_exports.c"));
+            var defFile = files.Keys.First(k => k.EndsWith(".def") && !k.EndsWith(".msvc.def"));
             var dllOutput = Path.Combine(outputDir, _analysis.Filename);
+            var compiler = BuildSystem.SelectCompiler(Path.Combine(outputDir, cFile), _analysis.Arch);
 
             var extraObjects = new List<string>();
             var rcFile = Path.Combine(outputDir, "version.rc");
             if (File.Exists(rcFile))
             {
-                var resObj = Path.Combine(outputDir, "version.res.o");
+                var resObj = Path.Combine(outputDir, compiler == CompilerKind.Msvc ? "version.res" : "version.res.o");
                 var progress = new Progress<string>(msg => _main.Log($"  {msg}"));
-                if (await BuildSystem.CompileResourceAsync(rcFile, resObj, _analysis.Arch, progress))
+                if (await BuildSystem.CompileResourceAsync(rcFile, resObj, _analysis.Arch, progress, compiler))
                     extraObjects.Add(resObj);
             }
 
@@ -672,7 +664,7 @@ public partial class GeneratePage : Page
                 includeDirs: [templatesDir, outputDir],
                 extraObjects: extraObjects.Count > 0 ? extraObjects : null,
                 extraLibs: extraLibs,
-                progress: buildProgress);
+                progress: buildProgress, compiler: compiler);
 
             if (result.Success)
             {

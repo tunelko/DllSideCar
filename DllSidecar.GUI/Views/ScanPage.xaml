@@ -247,7 +247,7 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTemplateColumn Header="Kind" Width="85" SortMemberPath="KindLabel">
+                        <DataGridTemplateColumn Header="Kind" Width="105" SortMemberPath="KindLabel">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Border Background="{Binding KindBg}" CornerRadius="999"
@@ -286,6 +286,16 @@
                         <DataGridTextColumn Header="DLL" Binding="{Binding Filename}" Width="*"/>
                         <DataGridTextColumn Header="Arch" Binding="{Binding Arch}" Width="55"/>
                         <DataGridTextColumn Header="Writable" Binding="{Binding WritableText}" Width="85"/>
+                        <DataGridTextColumn Header="Exports" Binding="{Binding ExportsLabel}" Width="80">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock"><Setter Property="ToolTip" Value="{Binding ExportsTooltip}"/></Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Community" Binding="{Binding CommunityLabel}" Width="90">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock"><Setter Property="ToolTip" Value="{Binding CommunityTooltip}"/></Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
                     </DataGrid.Columns>
                 </DataGrid>
                 </DockPanel>
@@ -433,6 +443,10 @@
                             <TextBlock x:Name="DetailEvidence" Foreground="{StaticResource Text}" FontSize="11"
                                        FontFamily="{StaticResource FontMono}" TextWrapping="Wrap"
                                        Text="(no ProcMon CSV loaded — static-only result)"/>
+                            <TextBlock Text="COMMUNITY EVIDENCE" Foreground="{StaticResource Blue}" FontWeight="Bold"
+                                       FontSize="10" Margin="0,12,0,4"/>
+                            <TextBlock x:Name="DetailCommunity" Foreground="{StaticResource Text}" FontSize="11"
+                                       TextWrapping="Wrap"/>
 
                             <TextBlock Text="IMPORTERS" Foreground="{StaticResource Blue}" FontWeight="Bold"
                                        FontSize="10" Margin="0,12,0,4"/>
@@ -481,10 +495,14 @@
 
         <!-- Footer: status left, post-scan actions right -->
         <Grid Grid.Row="7" Margin="0,10,0,0">
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
             <TextBlock x:Name="ScanStatus" HorizontalAlignment="Left" VerticalAlignment="Center"
                        Foreground="{StaticResource Overlay}" FontSize="12" TextTrimming="CharacterEllipsis"
                        Text="Ready. Pick an install directory — a 'sideload candidate' means a DLL actually imported by a PE in the dir, scored against CWE-427 prerequisites."/>
-            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+            <WrapPanel Grid.Row="1" HorizontalAlignment="Right" Margin="0,6,0,0">
+                <Button x:Name="CommunityBtn" Content="Update HijackLibs" Style="{StaticResource SecondaryButton}"
+                        Click="UpdateCommunity_Click" Margin="0,0,6,0"
+                        ToolTip="Download the public dataset, cache locally and annotate this scan. No local paths or candidates are uploaded. Scores are unchanged."/>
                 <CheckBox x:Name="ChkAutoCve" VerticalAlignment="Center"
                           Style="{StaticResource SegmentedCheck}" Content="Auto"
                           Checked="AutoCve_Changed" Unchecked="AutoCve_Changed"
@@ -505,7 +523,7 @@
                         Content="&#x2197;  Promote to Wizard" Style="{StaticResource AccentButton}"
                         Margin="6,0,0,0" Click="PromoteToWizard_Click" IsEnabled="False"
                         ToolTip="Hand the current scan results to the Research Wizard and resume at the Survey stage"/>
-            </StackPanel>
+            </WrapPanel>
         </Grid>
     </Grid>
 </Page>

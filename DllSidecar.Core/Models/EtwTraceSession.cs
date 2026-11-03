@@ -23,5 +23,7 @@ public class EtwTraceResult
     public TimeSpan Duration { get; set; }
     public int TotalEventsReceived { get; set; }
     public int FilteredEvents { get; set; }
+    public int UncompletedOperations { get; set; }
+    public int LostEvents { get; set; }
     public string? Error { get; set; }
 }

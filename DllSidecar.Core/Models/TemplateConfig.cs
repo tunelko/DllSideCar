@@ -2,6 +2,7 @@ namespace DllSidecar.Core.Models;
 
 public class TemplateConfig
 {
+    public CompilerKind Compiler { get; set; } = CompilerKind.Auto;
     public bool DInvoke { get; set; }
     public bool EncryptStrings { get; set; }
     public bool DirectSyscalls { get; set; }

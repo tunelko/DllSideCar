@@ -2,6 +2,7 @@ using System.Diagnostics;
 using DllSidecar.Core.Configuration;
 using DllSidecar.Core.Logging;
 using DllSidecar.Core.Models;
+using DllSidecar.Core.Services.Compilation;
 
 namespace DllSidecar.Core.Services;
 
@@ -13,6 +14,7 @@ public class BuildResult
     public string? OutputPath { get; set; }
     public long OutputSize { get; set; }
     public int ExportCount { get; set; }
+    public CompilerKind Compiler { get; set; } = CompilerKind.MinGW;
 }
 
 public static class BuildSystem
@@ -61,7 +63,27 @@ public static class BuildSystem
         return null;
     }
 
-    public static async Task<BuildResult> CompileDllAsync(
+    public static CompilerKind SelectCompiler(string sourceFile, string arch, CompilerKind? preference = null)
+    {
+        var selected = preference ?? ConfigManager.Current.Compiler.Preferred;
+        if (selected != CompilerKind.Auto) return selected;
+        if (FindGcc(arch) != null) return CompilerKind.MinGW;
+        if (MsvcBackend.CompatibilityProblem(File.ReadAllText(sourceFile)) == null && MsvcBackend.FindVcVarsAll() != null)
+            return CompilerKind.Msvc;
+        return CompilerKind.MinGW;
+    }
+
+    public static Task<BuildResult> CompileDllAsync(
+        string sourceFile, string defFile, string outputFile, string arch,
+        IEnumerable<string>? includeDirs = null, IEnumerable<string>? extraObjects = null,
+        IEnumerable<string>? extraLibs = null, IProgress<string>? progress = null, CompilerKind? compiler = null)
+    {
+        ICompilerBackend backend = SelectCompiler(sourceFile, arch, compiler) == CompilerKind.Msvc
+            ? new MsvcBackend() : new MingwBackend();
+        return backend.CompileAsync(new(sourceFile, defFile, outputFile, arch, includeDirs, extraObjects, extraLibs, progress));
+    }
+
+    internal static async Task<BuildResult> CompileMingwAsync(
         string sourceFile, string defFile, string outputFile, string arch,
         IEnumerable<string>? includeDirs = null,
         IEnumerable<string>? extraObjects = null,
@@ -119,8 +141,10 @@ public static class BuildSystem
     }
 
     public static async Task<bool> CompileResourceAsync(string rcFile, string outputObj, string arch,
-        IProgress<string>? progress = null)
+        IProgress<string>? progress = null, CompilerKind? compiler = null)
     {
+        if ((compiler ?? ConfigManager.Current.Compiler.Preferred) == CompilerKind.Msvc)
+            return await MsvcBackend.CompileResource(rcFile, outputObj, arch, progress);
         var windres = FindWindres(arch);
         if (windres == null)
         {

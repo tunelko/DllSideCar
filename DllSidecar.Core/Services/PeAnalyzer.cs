@@ -50,7 +50,11 @@ public static class PeAnalyzer
 
         if (pe.ImageLoadConfigDirectory != null)
         {
-            analysis.Security.DependentLoadFlags = 0;
+            // PeNet 5.1 exposes PE32 through LoadConfig, but PE32+ through the
+            // unified Reserved1 property (the historical name of DependentLoadFlags).
+            analysis.Security.DependentLoadFlags = pe.Is64Bit
+                ? pe.ImageLoadConfigDirectory.Reserved1
+                : pe.ImageLoadConfigDirectory.LoadConfig.DependentLoadFlags;
         }
 
         // Version info
@@ -78,7 +82,7 @@ public static class PeAnalyzer
                     Ordinal = (int)exp.Ordinal,
                     Name = exp.Name,
                     Rva = exp.Address,
-                    ForwardedTo = exp.HasForward ? exp.ForwardName : null,
+                    ForwardedTo = exp.HasForward ? exp.ForwardName : ReadOrdinalForwarder(pe, exp.Address),
                 };
                 analysis.Exports.Add(entry);
 
@@ -98,10 +102,12 @@ public static class PeAnalyzer
 
             foreach (var g in grouped)
             {
-                var imp = new ImportedDll { DllName = g.Key };
+                var imp = new ImportedDll { DllName = g.Key, SymbolsComplete = true };
                 foreach (var fn in g)
                     if (!string.IsNullOrEmpty(fn.Name))
                         imp.Functions.Add(fn.Name);
+                    else
+                        imp.Ordinals.Add(fn.Hint); // PeNet stores the ordinal in Hint for unnamed imports.
                 analysis.Imports.Add(imp);
             }
         }
@@ -116,16 +122,17 @@ public static class PeAnalyzer
                 {
                     var name = ResolveDelayDllName(pe, d);
                     if (string.IsNullOrEmpty(name)) continue;
-                    var existing = analysis.Imports.FirstOrDefault(
-                        i => string.Equals(i.DllName, name, StringComparison.OrdinalIgnoreCase));
-                    if (existing != null)
+                    var imp = new ImportedDll { DllName = name, IsDelayLoad = true };
+                    var symbols = pe.DelayImportedFunctions?.Where(f =>
+                        name.Equals(f.DLL, StringComparison.OrdinalIgnoreCase)).ToList();
+                    if (symbols is { Count: > 0 })
                     {
-                        existing.IsDelayLoad = true;
+                        imp.SymbolsComplete = true;
+                        foreach (var fn in symbols)
+                            if (!string.IsNullOrEmpty(fn.Name)) imp.Functions.Add(fn.Name);
+                            else imp.Ordinals.Add(fn.Hint);
                     }
-                    else
-                    {
-                        analysis.Imports.Add(new ImportedDll { DllName = name, IsDelayLoad = true });
-                    }
+                    analysis.Imports.Add(imp);
                 }
             }
         }
@@ -135,6 +142,24 @@ public static class PeAnalyzer
         }
 
         return analysis;
+    }
+
+    private static string? ReadOrdinalForwarder(PeFile pe, uint rva)
+    {
+        // PeNet 5.1 sets HasForward only while associating named exports.
+        var directory = pe.ImageNtHeaders?.OptionalHeader.DataDirectory?.FirstOrDefault();
+        if (rva == 0 || directory == null || rva < directory.VirtualAddress ||
+            (ulong)rva >= (ulong)directory.VirtualAddress + directory.Size) return null;
+        try
+        {
+            var offset = (long)((ulong)rva).RvaToOffset(pe.ImageSectionHeaders!);
+            var available = Math.Min(pe.RawFile.Length - offset, (long)directory.VirtualAddress + directory.Size - rva);
+            if (offset < 0 || available <= 0) return null;
+            var bytes = pe.RawFile.AsSpan(offset, (int)Math.Min(available, 4096));
+            var end = bytes.IndexOf((byte)0);
+            return end > 0 ? System.Text.Encoding.ASCII.GetString(bytes[..end]) : null;
+        }
+        catch (Exception ex) { Log.Debug("pe.exports", "Invalid ordinal forwarder", ex); return null; }
     }
 
     private static string? ResolveDelayDllName(PeFile pe, object descriptor)

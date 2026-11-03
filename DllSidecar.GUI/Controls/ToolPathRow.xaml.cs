@@ -30,6 +30,7 @@ public partial class ToolPathRow : System.Windows.Controls.UserControl
 
     /// <summary>File picker vs folder picker for the Browse button.</summary>
     public BrowseKind BrowseMode { get; set; } = BrowseKind.File;
+    public string FileFilter { get; set; } = "Executables (*.exe)|*.exe|All files (*.*)|*.*";
 
     /// <summary>Filenames probed under SysinternalsDir / ToolsRootDir / PATH on Detect; first match wins.</summary>
     public string[] CandidateNames
@@ -99,8 +100,8 @@ public partial class ToolPathRow : System.Windows.Controls.UserControl
         {
             var dlg = new Microsoft.Win32.OpenFileDialog
             {
-                Title = $"Select {Label} executable",
-                Filter = "Executables (*.exe)|*.exe|All files (*.*)|*.*",
+                Title = $"Select {Label}",
+                Filter = FileFilter,
                 FileName = File.Exists(PathBox.Text) ? PathBox.Text : "",
             };
             if (dlg.ShowDialog() == true) ToolPath = dlg.FileName;

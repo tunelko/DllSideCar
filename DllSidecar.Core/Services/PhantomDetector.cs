@@ -3,13 +3,9 @@ using DllSidecar.Core.Models;
 
 namespace DllSidecar.Core.Services;
 
-/// <summary>Finds phantom imports: DLL names that do not resolve under the Windows loader search sequence (KnownDLLs / importer dir / System32 or SysWOW64).</summary>
+/// <summary>Finds imports unresolved by the shared static resolution baseline.</summary>
 public static class PhantomDetector
 {
-    private static readonly string System32Dir = Environment.GetFolderPath(Environment.SpecialFolder.System);
-    private static readonly string SysWow64Dir = Environment.GetFolderPath(Environment.SpecialFolder.SystemX86);
-    private static readonly bool Is64BitOs = Environment.Is64BitOperatingSystem;
-
     public class PhantomHit
     {
         public required string DllName { get; set; }
@@ -17,9 +13,18 @@ public static class PhantomDetector
         public required string ImporterDirectory { get; set; }
         public bool IsDelayLoad { get; set; }
         public List<string> SearchedLocations { get; set; } = [];
+        public required ImportResolution Resolution { get; set; }
     }
 
-    public static List<PhantomHit> Find(PeAnalysis importer)
+    public static List<PhantomHit> Find(
+        PeAnalysis importer,
+        IReadOnlyDictionary<string, PeAnalysis>? scannedFiles = null) =>
+        Find(importer, scannedFiles, ImportResolutionEnvironment.Current);
+
+    internal static List<PhantomHit> Find(
+        PeAnalysis importer,
+        IReadOnlyDictionary<string, PeAnalysis>? scannedFiles,
+        ImportResolutionEnvironment environment)
     {
         var hits = new List<PhantomHit>();
         var importerDir = Path.GetDirectoryName(importer.Path) ?? "";
@@ -30,27 +35,20 @@ public static class PhantomDetector
             var name = imp.DllName;
             if (string.IsNullOrEmpty(name)) continue;
 
-            if (IsApiSet(name)) continue;
-            if (KnownDlls.IsKnown(name)) continue;
+            var resolution = ImportResolutionService.Resolve(importer, imp, scannedFiles, environment);
+            var hasPlantableLocalSlot = resolution.Steps.Any(step =>
+                step.Location == ImportSearchLocationKind.LocalDirectory
+                && step.Outcome == ImportSearchOutcome.NotFound);
+            var isSystemFallback = resolution.Kind == ImportResolutionKind.ResolvedSystem
+                && hasPlantableLocalSlot;
+            if (resolution.Kind != ImportResolutionKind.Unresolved && !isSystemFallback) continue;
 
-            var searched = new List<string>();
-
-            var localPath = Path.Combine(importerDir, name);
-            searched.Add(localPath);
-            if (File.Exists(localPath)) continue;
-
-            var sysDir = (importer.Arch == "x86" && Is64BitOs) ? SysWow64Dir : System32Dir;
-            var sysPath = Path.Combine(sysDir, name);
-            searched.Add(sysPath);
-            if (File.Exists(sysPath)) continue;
-
-            var otherSys = sysDir == System32Dir ? SysWow64Dir : System32Dir;
-            if (!string.IsNullOrEmpty(otherSys))
-            {
-                var otherPath = Path.Combine(otherSys, name);
-                searched.Add(otherPath);
-                if (File.Exists(otherPath)) continue;
-            }
+            var searched = resolution.Steps
+                .Where(step => step.Outcome == ImportSearchOutcome.NotFound)
+                .Select(step => step.CandidatePath)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
             hits.Add(new PhantomHit
             {
@@ -59,15 +57,10 @@ public static class PhantomDetector
                 ImporterDirectory = importerDir,
                 IsDelayLoad = imp.IsDelayLoad,
                 SearchedLocations = searched,
+                Resolution = resolution,
             });
         }
 
         return hits;
-    }
-
-    private static bool IsApiSet(string name)
-    {
-        var lower = name.ToLowerInvariant();
-        return lower.StartsWith("api-ms-win-") || lower.StartsWith("ext-ms-win-");
     }
 }

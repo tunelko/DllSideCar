@@ -44,6 +44,7 @@ public class EtwDllTracer : IDisposable
         "consent.exe",
     };
     private readonly ConcurrentBag<EtwTraceEvent> _events = new();
+    private readonly EtwOperationCorrelator _operations = new();
     private readonly ConcurrentBag<ProcessLifecycle> _processEvents = new();
     private int _rootPid;
     private TraceEventSession? _session;
@@ -382,16 +383,17 @@ public class EtwDllTracer : IDisposable
         var result = BuildResult();
 
         Log.Info("etw",
-            $"Trace complete: {result.FilteredEvents} DLL misses from {result.TotalEventsReceived} kernel events, " +
+            $"Trace complete: {result.FilteredEvents} DLL events from {result.TotalEventsReceived} kernel events, " +
             $"{result.ByDll.Count} unique DLLs, {_trackedPids.Count} tracked PIDs, {result.Duration.TotalSeconds:F1}s");
         Log.Info("etw",
             $"Filter stats: skipped_pid={_debugSkippedPid} skipped_ext={_debugSkippedExt} " +
-            $"skipped_exists={_debugSkippedExists} skipped_known={_debugSkippedKnown} passed={_debugPassedFilter}");
+            $"uncompleted={result.UncompletedOperations} lost={result.LostEvents} skipped_known={_debugSkippedKnown} passed={_debugPassedFilter}");
         Log.Info("etw",
             $"Tracked PIDs: {string.Join(", ", _trackedPids.Keys.Select(k => $"{k}"))}");
 
         StatusChanged?.Invoke(
-            $"Trace complete — {result.FilteredEvents} DLL misses, {result.ByDll.Count} unique DLLs");
+            $"Trace complete: {result.FilteredEvents} DLL events, {result.ByDll.Count} unique DLLs; " +
+            $"{result.UncompletedOperations} uncompleted operations, {result.LostEvents} lost events");
 
         return result;
     }
@@ -403,9 +405,17 @@ public class EtwDllTracer : IDisposable
 
         _session.EnableKernelProvider(
             KernelTraceEventParser.Keywords.FileIOInit |
+            KernelTraceEventParser.Keywords.FileIO |
+            KernelTraceEventParser.Keywords.ImageLoad |
             KernelTraceEventParser.Keywords.Process);
 
         _session.Source.Kernel.FileIOCreate += data => OnFileCreate(data, ct);
+        _session.Source.Kernel.FileIOOperationEnd += data =>
+        {
+            var ev = _operations.Complete(data.IrpPtr, unchecked((uint)data.NtStatus), data.TimeStamp);
+            if (ev != null) Publish(ev);
+        };
+        _session.Source.Kernel.ImageLoad += OnImageLoad;
         _session.Source.Kernel.ProcessStart += OnProcessStart;
         _session.Source.Kernel.ProcessStop += OnProcessStop;
 
@@ -431,7 +441,6 @@ public class EtwDllTracer : IDisposable
 
     private int _debugSkippedPid;
     private int _debugSkippedExt;
-    private int _debugSkippedExists;
     private int _debugSkippedKnown;
     private int _debugPassedFilter;
 
@@ -452,11 +461,6 @@ public class EtwDllTracer : IDisposable
         if (_filter.DllOnly && !path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
         {
             Interlocked.Increment(ref _debugSkippedExt);
-            return;
-        }
-        if (_filter.NameNotFoundOnly && File.Exists(path))
-        {
-            Interlocked.Increment(ref _debugSkippedExists);
             return;
         }
 
@@ -484,6 +488,27 @@ public class EtwDllTracer : IDisposable
             Access = AccessClassifier.Classify(createOptions),
         };
 
+        _operations.Begin(data.IrpPtr, ev);
+    }
+
+    private void OnImageLoad(ImageLoadTraceData data)
+    {
+        if (!_trackedPids.TryGetValue(data.ProcessID, out var proc)) return;
+        var path = NtPathNormalizer.Normalize(data.FileName);
+        if (string.IsNullOrEmpty(path) || (_filter.DllOnly &&
+            !path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))) return;
+        if (KnownDlls.IsKnown(Path.GetFileName(path))) return;
+        Publish(new EtwTraceEvent
+        {
+            ProcessId = data.ProcessID, ProcessName = proc.Name, ProcessImagePath = proc.ImagePath,
+            ParentProcessId = proc.ParentPid, IsChildOfTarget = !proc.IsRoot,
+            FilePath = path, Timestamp = data.TimeStamp, CompletedAt = data.TimeStamp,
+            Kind = EtwEventKind.ImageLoad, Access = AccessClass.LoaderLike,
+        });
+    }
+
+    private void Publish(EtwTraceEvent ev)
+    {
         _events.Add(ev);
         try { EventCaptured?.Invoke(ev); } catch { }
     }
@@ -679,10 +704,11 @@ public class EtwDllTracer : IDisposable
 
     private EtwTraceResult BuildResult()
     {
-        var events = _events.ToList();
+        var events = _events.OrderBy(e => e.Timestamp).ToList();
 
         // Count DLL misses per process
         var missCountByPid = events
+            .Where(e => e.IsMissing)
             .GroupBy(e => e.ProcessId)
             .ToDictionary(g => g.Key, g => g.Count());
 
@@ -728,6 +754,8 @@ public class EtwDllTracer : IDisposable
             Duration = _stopwatch.Elapsed,
             TotalEventsReceived = _totalReceived,
             FilteredEvents = events.Count,
+            UncompletedOperations = _operations.Finish(),
+            LostEvents = _session?.Source.EventsLost ?? 0,
         };
 
         // Aggregate by DLL

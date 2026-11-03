@@ -159,7 +159,7 @@
                             </Style>
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
-                    <DataGridTextColumn Header="Kind"    Binding="{Binding Kind}"           Width="80"/>
+                    <DataGridTextColumn Header="Kind"    Binding="{Binding Kind}"           Width="105"/>
                     <DataGridTextColumn Header="DLL"     Binding="{Binding Filename}"       Width="170"/>
                     <DataGridTextColumn Header="Privesc" Binding="{Binding Privesc}"        Width="80"/>
                     <DataGridTextColumn Binding="{Binding DirBadge}" Width="80">

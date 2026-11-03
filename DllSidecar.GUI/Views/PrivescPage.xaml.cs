@@ -166,7 +166,7 @@ public partial class PrivescPage : Page
             {
                 ct.ThrowIfCancellationRequested();
                 var ext = Path.GetExtension(f).ToLowerInvariant();
-                if (ext is ".exe" or ".dll" or ".sys" or ".ocx")
+                if (ext is ".exe" or ".dll" or ".sys" or ".ocx" or ".cpl")
                     peFiles.Add(f);
             }
         }

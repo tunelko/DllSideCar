@@ -39,11 +39,20 @@ public static class ToolkitChecker
         // MinGW — required for compilation
         var gcc64 = BuildSystem.FindGcc("x64");
         var gcc32 = BuildSystem.FindGcc("x86");
+        var msvc = Compilation.MsvcBackend.FindVcVarsAll();
+        report.Tools.Add(new ToolStatus
+        {
+            Name = "MSVC C++ toolchain", Purpose = "Compile portable C and DEF forwarders (x86/x64)",
+            ResolvedPath = msvc, Required = cfg.Compiler.Preferred == Models.CompilerKind.Msvc,
+            DownloadUrl = "https://visualstudio.microsoft.com/downloads/",
+            Notes = "Requires C++ workload and Windows SDK. GNU assembly templates use MinGW.",
+        });
         report.Tools.Add(new ToolStatus
         {
             Name = "MinGW gcc (x64)",
             Purpose = "Compile proxy/sideload DLLs (x64)",
-            Required = true,
+            Required = cfg.Compiler.Preferred == Models.CompilerKind.MinGW ||
+                (cfg.Compiler.Preferred == Models.CompilerKind.Auto && msvc == null),
             ResolvedPath = gcc64,
             Version = gcc64 != null ? RunVersion(gcc64, "--version") : null,
             DownloadUrl = "https://www.msys2.org/",

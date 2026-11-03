@@ -128,15 +128,31 @@ public class AdobeAcrobatScanTests
         var matched = results.Existing.Where(c => c.Evidence != null).ToList();
         foreach (var c in matched)
         {
-            Assert.True(c.Score.Confidence > 3,
-                $"{c.Dll.Filename}: post-correlate Confidence should be > StaticOnly(3), got {c.Score.Confidence}");
+            if (c.Evidence!.IsProbeOnly)
+            {
+                Assert.Equal(ConfidenceLevel.RuntimeProbeOnly, c.Score.ConfidenceLevel);
+                Assert.Equal(3, c.Score.Confidence);
+            }
+            else
+            {
+                Assert.True(c.Score.Confidence > 3,
+                    $"{c.Dll.Filename}: loader-like evidence should raise Confidence above 3, got {c.Score.Confidence}");
+            }
         }
 
         var phantomMatched = results.Phantoms.Where(p => p.Evidence != null).ToList();
         foreach (var p in phantomMatched)
         {
-            Assert.True(p.Score.Confidence > 3,
-                $"{p.DllName}: post-correlate Confidence should be > StaticOnly(3), got {p.Score.Confidence}");
+            if (p.Evidence!.IsProbeOnly)
+            {
+                Assert.Equal(ConfidenceLevel.RuntimeProbeOnly, p.Score.ConfidenceLevel);
+                Assert.Equal(3, p.Score.Confidence);
+            }
+            else
+            {
+                Assert.True(p.Score.Confidence > 3,
+                    $"{p.DllName}: loader-like evidence should raise Confidence above 3, got {p.Score.Confidence}");
+            }
         }
     }
 

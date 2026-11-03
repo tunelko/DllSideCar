@@ -147,7 +147,11 @@ public partial class PickStage : System.Windows.Controls.UserControl, IWizardSta
         public string ImpactText => ImpactValue.ToString();
         public string ConfidenceText => ConfidenceValue.ToString();
         public string Kind => Existing != null ? "EXISTING"
-            : Phantom?.Evidence?.Source == EvidenceSource.RuntimeTrace ? "RUNTIME" : "IAT";
+            : Phantom?.Evidence?.Source == EvidenceSource.RuntimeTrace
+                ? "RUNTIME"
+                : Phantom?.StaticResolutionKind == ImportResolutionKind.ResolvedSystem
+                    ? "SYS-FALLBACK"
+                    : "STATIC-MISS";
         public string Filename => Existing?.Dll.Filename ?? Phantom?.DllName ?? "";
         public string Privesc => (Existing?.Privesc ?? Phantom?.Privesc)?.ShortLabel ?? "—";
 

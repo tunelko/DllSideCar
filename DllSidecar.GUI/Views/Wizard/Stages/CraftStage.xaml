@@ -227,7 +227,7 @@
                             <TextBlock Text="POST-PROCESSING" Style="{StaticResource SectionHeader}"/>
                             <CheckBox x:Name="ChkCloneMeta" Content="Clone version info (metadata)" Margin="0,4"/>
                             <CheckBox x:Name="ChkStomp" Content="Timestamp stomping" Margin="0,4"/>
-                            <CheckBox x:Name="ChkAutoBuild" Content="Compile DLL with MinGW" Margin="0,4" IsChecked="True"/>
+                            <CheckBox x:Name="ChkAutoBuild" Content="Compile DLL (configured toolchain)" Margin="0,4" IsChecked="True"/>
                         </StackPanel>
                     </Border>
 
