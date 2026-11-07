@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Iced" Version="1.21.0" />
+    <PackageReference Include="Iced" Version="1.22.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
     <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.2.5" />
     <PackageReference Include="PeNet" Version="5.1.0" />
